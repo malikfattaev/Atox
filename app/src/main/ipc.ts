@@ -71,6 +71,11 @@ export function registerIpcHandlers(
     return store.list()
   })
 
+  ipcMain.handle(IpcChannel.ProjectsMove, (_event, projectId: string, toIndex: number) => {
+    store.moveProject(projectId, toIndex)
+    return store.list()
+  })
+
   ipcMain.handle(IpcChannel.ProjectsReveal, async (_event, projectId: string) => {
     const error = await shell.openPath(store.getProject(projectId).path)
     if (error) {
@@ -101,6 +106,11 @@ export function registerIpcHandlers(
 
   ipcMain.handle(IpcChannel.ChatsRename, (_event, chatId: string, title: string) => {
     store.renameChat(chatId, title)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ChatsMove, (_event, chatId: string, toIndex: number) => {
+    store.moveChat(chatId, toIndex)
     return store.list()
   })
 

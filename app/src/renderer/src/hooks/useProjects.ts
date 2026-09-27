@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { moveItem } from '../../../shared/list'
 import type { Project } from '../../../shared/models'
 
 const { atox } = window
@@ -16,10 +17,12 @@ export interface ProjectsState {
   addProject(): Promise<void>
   removeProject(projectId: string): Promise<void>
   renameProject(projectId: string, name: string): Promise<void>
+  moveProject(projectId: string, toIndex: number): Promise<void>
   revealProject(projectId: string): Promise<void>
   createChat(projectId: string): Promise<void>
   removeChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
+  moveChat(chatId: string, toIndex: number): Promise<void>
   applyTerminalTitle(chatId: string, title: string): Promise<void>
 }
 
@@ -92,6 +95,19 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  // Перенос применяется сразу, не дожидаясь main-процесса: иначе брошенный элемент
+  // на мгновение вернулся бы на старое место.
+  const moveProject = useCallback(
+    async (projectId: string, toIndex: number) => {
+      setProjects((current) => {
+        const fromIndex = current.findIndex(({ id }) => id === projectId)
+        return moveItem(current, fromIndex, toIndex) ?? current
+      })
+      applyProjects(await atox.projects.move(projectId, toIndex))
+    },
+    [applyProjects]
+  )
+
   const revealProject = useCallback((projectId: string) => atox.projects.reveal(projectId), [])
 
   const removeChat = useCallback(
@@ -101,6 +117,20 @@ export function useProjects(): ProjectsState {
 
   const renameChat = useCallback(
     async (chatId: string, title: string) => applyProjects(await atox.chats.rename(chatId, title)),
+    [applyProjects]
+  )
+
+  const moveChat = useCallback(
+    async (chatId: string, toIndex: number) => {
+      setProjects((current) =>
+        current.map((project) => {
+          const fromIndex = project.chats.findIndex(({ id }) => id === chatId)
+          const chats = moveItem(project.chats, fromIndex, toIndex)
+          return chats ? { ...project, chats } : project
+        })
+      )
+      applyProjects(await atox.chats.move(chatId, toIndex))
+    },
     [applyProjects]
   )
 
@@ -120,10 +150,12 @@ export function useProjects(): ProjectsState {
     addProject,
     removeProject,
     renameProject,
+    moveProject,
     revealProject,
     createChat,
     removeChat,
     renameChat,
+    moveChat,
     applyTerminalTitle
   }
 }
