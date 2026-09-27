@@ -8,6 +8,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useChatActivityTracker } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { formatPathsForShell } from '../lib/shellPaths'
+import { registerTerminalIdentity } from '../lib/terminalIdentity'
 import { colorSchemeQuery, readTerminalAppearance } from '../lib/terminalTheme'
 import { TerminalFindBar } from './TerminalFindBar'
 
@@ -213,6 +214,8 @@ export function TerminalView({
     container.addEventListener('dragover', handleDragOver)
     container.addEventListener('drop', handleDrop)
 
+    const identityHandler = registerTerminalIdentity(terminal)
+
     const resizeSubscription = terminal.onResize((size) => atox.terminal.resize(chatId, size))
 
     let titleTimer: ReturnType<typeof setTimeout> | undefined
@@ -249,6 +252,7 @@ export function TerminalView({
       titleSubscription.dispose()
       bellSubscription.dispose()
       notificationHandler.dispose()
+      identityHandler.dispose()
       unsubscribeData()
       unsubscribeExit()
       terminal.dispose()
