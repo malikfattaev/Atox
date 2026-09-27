@@ -1,4 +1,5 @@
 import { useState, type MouseEvent } from 'react'
+import { GitBranch } from 'lucide-react'
 import type { Chat } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
@@ -11,9 +12,11 @@ const { atox } = window
 
 interface ChatItemProps {
   chat: Chat
+  /** Ветка git, в которой работает чат; `null` — папка проекта не репозиторий. */
+  branch: string | null
 }
 
-export function ChatItem({ chat }: ChatItemProps) {
+export function ChatItem({ chat, branch }: ChatItemProps) {
   const { activeChatId, selectChat, renameChat, removeChat } = useProjectsContext()
   const [renaming, setRenaming] = useState(false)
   const activity = useChatActivity(chat.id)
@@ -33,6 +36,39 @@ export function ChatItem({ chat }: ChatItemProps) {
     }
   }
 
+  const title = renaming ? (
+    <InlineRename
+      value={chat.title}
+      label="Chat name"
+      onSubmit={(value) => {
+        setRenaming(false)
+        void renameChat(chat.id, value)
+      }}
+      onCancel={() => setRenaming(false)}
+    />
+  ) : (
+    <span className="row__label">{chat.title}</span>
+  )
+
+  const content = (
+    <>
+      <span className="chat-title">
+        <ChatStatus status={activity} />
+        {title}
+      </span>
+      {/* Пока программа работает, время не показываем: о работе говорит пульсирующий кружок. */}
+      {!renaming && activity !== 'working' && (
+        <ChatTime at={chat.lastActiveAt ?? chat.createdAt} />
+      )}
+      {branch && (
+        <span className="chat-branch" title={branch}>
+          <GitBranch className="chat-branch__icon" aria-hidden />
+          <span className="row__label">{branch}</span>
+        </span>
+      )}
+    </>
+  )
+
   return (
     <li
       className="row row--chat"
@@ -42,31 +78,15 @@ export function ChatItem({ chat }: ChatItemProps) {
       {...handleProps}
     >
       {renaming ? (
-        <div className="row__main">
-          <ChatStatus status={activity} />
-          <InlineRename
-            value={chat.title}
-            label="Chat name"
-            onSubmit={(title) => {
-              setRenaming(false)
-              void renameChat(chat.id, title)
-            }}
-            onCancel={() => setRenaming(false)}
-          />
-        </div>
+        <div className="row__main chat-row">{content}</div>
       ) : (
         <button
           type="button"
-          className="row__main"
+          className="row__main chat-row"
           onClick={() => selectChat(chat.id)}
           onDoubleClick={() => setRenaming(true)}
         >
-          <span className="chat-title">
-            <ChatStatus status={activity} />
-            <span className="row__label">{chat.title}</span>
-          </span>
-          {/* Пока программа работает, время не показываем: о работе говорит пульсирующий кружок. */}
-          {activity !== 'working' && <ChatTime at={chat.lastActiveAt ?? chat.createdAt} />}
+          {content}
         </button>
       )}
     </li>

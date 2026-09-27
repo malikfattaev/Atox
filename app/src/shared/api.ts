@@ -12,6 +12,9 @@ export type ContextMenuItem<Action extends string> =
     }
   | { type: 'separator' }
 
+/** Текущая ветка git по пути папки проекта; `null` — папка не репозиторий git. */
+export type GitBranches = Record<string, string | null>
+
 export interface TerminalSize {
   cols: number
   rows: number
@@ -59,6 +62,10 @@ export interface AtoxApi {
     /** Сохраняет вставленную картинку во временный файл и возвращает путь к нему. */
     savePastedImage(image: File): Promise<string>
   }
+  git: {
+    branches(): Promise<GitBranches>
+    subscribe(listener: (branches: GitBranches) => void): () => void
+  }
   system: {
     getUserProfile(): Promise<UserProfile>
     /** Выводит окно приложения на передний план, например по клику на уведомление. */
@@ -94,6 +101,8 @@ export const IpcChannel = {
   TerminalData: 'terminal:data',
   TerminalExit: 'terminal:exit',
   FilesSavePastedImage: 'files:save-pasted-image',
+  GitBranches: 'git:branches',
+  GitBranchesChanged: 'git:branches-changed',
   SystemUserProfile: 'system:user-profile',
   SystemFocusWindow: 'system:focus-window',
   AppCommand: 'app:command',

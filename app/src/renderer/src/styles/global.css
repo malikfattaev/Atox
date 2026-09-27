@@ -13,6 +13,11 @@
   --avatar-size: 26px;
   --status-dot-size: 8px;
   --status-gap: 8px;
+  --chat-row-padding: 7px;
+  --chat-row-line-gap: 2px;
+  --chat-branch-gap: 4px;
+  --chat-branch-icon-size: 12px;
+  --chat-rename-inset: 2px;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
@@ -266,6 +271,52 @@ ul {
   align-items: baseline;
   gap: var(--status-gap);
   min-width: 0;
+}
+
+/*
+ * Строка чата — сетка: название и время сверху, под названием мелким шрифтом ветка git.
+ * Без ветки строка остаётся обычной высоты, содержимое центрируется по вертикали.
+ */
+.row--chat {
+  height: auto;
+  min-height: var(--row-height);
+}
+
+.chat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  align-content: center;
+  align-self: stretch;
+  column-gap: var(--row-gap);
+  row-gap: var(--chat-row-line-gap);
+  height: auto;
+  padding-block: var(--chat-row-padding);
+}
+
+/* В двухстрочной строке чата поле переименования по высоте текста: оно не наезжает на ветку. */
+.chat-row .row__input {
+  height: calc(1lh + 2 * var(--chat-rename-inset));
+  margin-block: calc(-1 * var(--chat-rename-inset));
+}
+
+/* Ветка начинается там же, где название чата, — сразу за колонкой кружков. */
+.chat-branch {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--chat-branch-gap);
+  min-width: 0;
+  padding-left: calc(var(--icon-size) + var(--row-gap));
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.chat-branch__icon {
+  width: var(--chat-branch-icon-size);
+  height: var(--chat-branch-icon-size);
+  flex-shrink: 0;
+  stroke-width: 2;
 }
 
 .chat-time {

@@ -11,12 +11,14 @@ import {
 import {
   IpcChannel,
   type ContextMenuItem,
+  type GitBranches,
   type TerminalDataEvent,
   type TerminalExitEvent,
   type TerminalSize
 } from '../shared/api'
 import type { Settings } from '../shared/settings'
 import { confirm, describeRunningPrograms } from './dialogs'
+import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import { savePastedImage } from './pastedImages'
@@ -27,8 +29,12 @@ import type { TerminalManager } from './terminals'
 export function registerIpcHandlers(
   store: ProjectStore,
   settings: SettingsStore,
-  terminals: TerminalManager
+  terminals: TerminalManager,
+  branches: GitBranchTracker
 ): void {
+  const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
+  trackProjectBranches()
+
   ipcMain.handle(IpcChannel.ProjectsList, () => store.list())
 
   ipcMain.handle(IpcChannel.ProjectsAdd, async (event) => {
@@ -47,6 +53,7 @@ export function registerIpcHandlers(
       return null
     }
     const project = store.addProject(path)
+    trackProjectBranches()
     return { projects: store.list(), projectId: project.id }
   })
 
@@ -63,6 +70,7 @@ export function registerIpcHandlers(
     if (confirmed) {
       store.removeProject(projectId)
       project.chats.forEach((chat) => terminals.kill(chat.id))
+      trackProjectBranches()
     }
     return store.list()
   })
@@ -146,6 +154,8 @@ export function registerIpcHandlers(
     (_event, data: ArrayBuffer, type: string) => savePastedImage(data, type)
   )
 
+  ipcMain.handle(IpcChannel.GitBranches, () => branches.list())
+
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
 
   ipcMain.on(IpcChannel.SystemFocusWindow, (event) => {
@@ -191,6 +201,10 @@ function showContextMenu(
       callback: () => setTimeout(() => resolve(null))
     })
   })
+}
+
+export function broadcastGitBranches(branches: GitBranches): void {
+  broadcast(IpcChannel.GitBranchesChanged, branches)
 }
 
 export function broadcastTerminalData(payload: TerminalDataEvent): void {
