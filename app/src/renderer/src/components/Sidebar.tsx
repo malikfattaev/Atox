@@ -31,10 +31,6 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sidebar__titlebar" />
 
-      <header className="sidebar__header">
-        <h1 className="sidebar__title">Atox</h1>
-      </header>
-
       <nav className="sidebar__nav">
         <SidebarButton
           icon={SquarePen}

@@ -13,7 +13,6 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
   --font-size: 14px;
-  --font-size-title: 19px;
   --terminal-font-size: 13px;
 
   --color-surface: #ffffff;
@@ -119,16 +118,6 @@ ul {
   height: var(--titlebar-height);
   flex-shrink: 0;
   -webkit-app-region: drag;
-}
-
-.sidebar__header {
-  padding: 4px calc(var(--sidebar-padding) + var(--row-padding)) 12px;
-}
-
-.sidebar__title {
-  margin: 0;
-  font-size: var(--font-size-title);
-  font-weight: 600;
 }
 
 .sidebar__nav {
