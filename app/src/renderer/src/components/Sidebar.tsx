@@ -1,28 +1,12 @@
 import { FolderPlus, SquarePen } from 'lucide-react'
-import type { Project } from '../../../shared/models'
+import { useProjectsContext } from '../hooks/ProjectsContext'
 import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
 import { SidebarButton } from './SidebarButton'
 
-interface SidebarProps {
-  projects: Project[]
-  activeChatId: string | null
-  onAddProject(): void
-  onRemoveProject(projectId: string): void
-  onCreateChat(projectId: string): void
-  onSelectChat(chatId: string): void
-  onRemoveChat(chatId: string): void
-}
+export function Sidebar() {
+  const { projects, activeChatId, addProject, createChat } = useProjectsContext()
 
-export function Sidebar({
-  projects,
-  activeChatId,
-  onAddProject,
-  onRemoveProject,
-  onCreateChat,
-  onSelectChat,
-  onRemoveChat
-}: SidebarProps) {
   // «Новый чат» открывается в проекте текущего чата, а если чат не выбран — в первом проекте.
   const currentProject =
     projects.find((project) => project.chats.some(({ id }) => id === activeChatId)) ?? projects[0]
@@ -36,9 +20,9 @@ export function Sidebar({
           icon={SquarePen}
           label="Новый чат"
           disabled={!currentProject}
-          onClick={() => currentProject && onCreateChat(currentProject.id)}
+          onClick={() => currentProject && void createChat(currentProject.id)}
         />
-        <SidebarButton icon={FolderPlus} label="Новый проект" onClick={onAddProject} />
+        <SidebarButton icon={FolderPlus} label="Новый проект" onClick={() => void addProject()} />
       </nav>
 
       <section className="sidebar__section">
@@ -48,15 +32,7 @@ export function Sidebar({
         ) : (
           <ul>
             {projects.map((project) => (
-              <ProjectItem
-                key={project.id}
-                project={project}
-                activeChatId={activeChatId}
-                onRemove={() => onRemoveProject(project.id)}
-                onCreateChat={() => onCreateChat(project.id)}
-                onSelectChat={onSelectChat}
-                onRemoveChat={onRemoveChat}
-              />
+              <ProjectItem key={project.id} project={project} />
             ))}
           </ul>
         )}

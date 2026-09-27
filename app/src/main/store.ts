@@ -71,7 +71,7 @@ export class ProjectStore {
 
   /** Удаляет проект из списка (папка на диске не трогается) и возвращает его. */
   removeProject(projectId: string): Project | undefined {
-    const project = this.projects.find(({ id }) => id === projectId)
+    const project = this.findProject(projectId)
     if (project) {
       this.projects = this.projects.filter(({ id }) => id !== projectId)
       this.scheduleSave()
@@ -79,11 +79,18 @@ export class ProjectStore {
     return project
   }
 
-  createChat(projectId: string): Chat {
-    const project = this.projects.find(({ id }) => id === projectId)
-    if (!project) {
-      throw new Error(`Проект ${projectId} не найден`)
+  /** Меняет отображаемое имя проекта; папка на диске не переименовывается. */
+  renameProject(projectId: string, name: string): void {
+    const project = this.getProject(projectId)
+    const trimmed = name.trim()
+    if (trimmed && project.name !== trimmed) {
+      project.name = trimmed
+      this.scheduleSave()
     }
+  }
+
+  createChat(projectId: string): Chat {
+    const project = this.getProject(projectId)
 
     const chat: Chat = {
       id: randomUUID(),
@@ -105,11 +112,34 @@ export class ProjectStore {
   }
 
   renameChat(chatId: string, title: string): void {
-    const location = this.findChat(chatId)
-    if (location && location.chat.title !== title) {
-      location.chat.title = title
+    const chat = this.findChat(chatId)?.chat
+    const trimmed = title.trim()
+    if (chat && trimmed) {
+      chat.title = trimmed
+      chat.hasCustomTitle = true
       this.scheduleSave()
     }
+  }
+
+  /** Название из заголовка терминала применяется, только пока пользователь не задал своё. */
+  applyTerminalTitle(chatId: string, title: string): void {
+    const chat = this.findChat(chatId)?.chat
+    if (chat && !chat.hasCustomTitle && title && chat.title !== title) {
+      chat.title = title
+      this.scheduleSave()
+    }
+  }
+
+  findProject(projectId: string): Project | undefined {
+    return this.projects.find(({ id }) => id === projectId)
+  }
+
+  getProject(projectId: string): Project {
+    const project = this.findProject(projectId)
+    if (!project) {
+      throw new Error(`Проект ${projectId} не найден`)
+    }
+    return project
   }
 
   findChat(chatId: string): ChatLocation | undefined {

@@ -11,9 +11,12 @@ export interface ProjectsState {
   selectChat(chatId: string): void
   addProject(): Promise<void>
   removeProject(projectId: string): Promise<void>
+  renameProject(projectId: string, name: string): Promise<void>
+  revealProject(projectId: string): Promise<void>
   createChat(projectId: string): Promise<void>
   removeChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
+  applyTerminalTitle(chatId: string, title: string): Promise<void>
 }
 
 export function useProjects(): ProjectsState {
@@ -69,6 +72,14 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  const renameProject = useCallback(
+    async (projectId: string, name: string) =>
+      applyProjects(await atox.projects.rename(projectId, name)),
+    [applyProjects]
+  )
+
+  const revealProject = useCallback((projectId: string) => atox.projects.reveal(projectId), [])
+
   const removeChat = useCallback(
     async (chatId: string) => applyProjects(await atox.chats.remove(chatId)),
     [applyProjects]
@@ -79,6 +90,12 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  const applyTerminalTitle = useCallback(
+    async (chatId: string, title: string) =>
+      applyProjects(await atox.chats.applyTerminalTitle(chatId, title)),
+    [applyProjects]
+  )
+
   return {
     projects,
     activeChatId,
@@ -86,8 +103,11 @@ export function useProjects(): ProjectsState {
     selectChat,
     addProject,
     removeProject,
+    renameProject,
+    revealProject,
     createChat,
     removeChat,
-    renameChat
+    renameChat,
+    applyTerminalTitle
   }
 }

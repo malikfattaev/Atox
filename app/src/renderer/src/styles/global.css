@@ -22,6 +22,7 @@
   --color-hover: rgba(0, 0, 0, 0.05);
   --color-active: rgba(0, 0, 0, 0.08);
   --color-selection: rgba(0, 122, 255, 0.25);
+  --color-accent: #007aff;
   --color-avatar: rgba(0, 0, 0, 0.12);
 
   color-scheme: light dark;
@@ -40,6 +41,7 @@
     --color-hover: rgba(255, 255, 255, 0.06);
     --color-active: rgba(255, 255, 255, 0.1);
     --color-selection: rgba(10, 132, 255, 0.35);
+    --color-accent: #0a84ff;
     --color-avatar: rgba(255, 255, 255, 0.16);
   }
 }
@@ -200,6 +202,21 @@ ul {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.row__input {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--row-height) - 8px);
+  margin-left: -5px;
+  padding: 0 4px;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: calc(var(--radius) - 2px);
+  outline: none;
+  user-select: text;
 }
 
 /* Кнопка действия появляется только при наведении, чтобы список оставался чистым. */

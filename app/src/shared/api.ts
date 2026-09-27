@@ -1,9 +1,8 @@
 import type { Project, UserProfile } from './models'
 
-export interface ContextMenuItem<Action extends string> {
-  action: Action
-  label: string
-}
+export type ContextMenuItem<Action extends string> =
+  | { type?: 'action'; action: Action; label: string }
+  | { type: 'separator' }
 
 export interface TerminalSize {
   cols: number
@@ -20,11 +19,17 @@ export interface AtoxApi {
      */
     add(): Promise<{ projects: Project[]; projectId: string } | null>
     remove(projectId: string): Promise<Project[]>
+    rename(projectId: string, name: string): Promise<Project[]>
+    /** Открывает папку проекта в Finder. */
+    reveal(projectId: string): Promise<void>
   }
   chats: {
     create(projectId: string): Promise<{ projects: Project[]; chatId: string }>
     remove(chatId: string): Promise<Project[]>
+    /** Переименование пользователем: после него заголовок терминала название не меняет. */
     rename(chatId: string, title: string): Promise<Project[]>
+    /** Заголовок, который выставила программа в терминале; игнорируется, если название задано вручную. */
+    applyTerminalTitle(chatId: string, title: string): Promise<Project[]>
   }
   terminal: {
     /** Запускает терминал чата, если он ещё не запущен, и возвращает уже накопленный вывод. */
@@ -44,9 +49,12 @@ export const IpcChannel = {
   ProjectsList: 'projects:list',
   ProjectsAdd: 'projects:add',
   ProjectsRemove: 'projects:remove',
+  ProjectsRename: 'projects:rename',
+  ProjectsReveal: 'projects:reveal',
   ChatsCreate: 'chats:create',
   ChatsRemove: 'chats:remove',
   ChatsRename: 'chats:rename',
+  ChatsApplyTerminalTitle: 'chats:apply-terminal-title',
   TerminalAttach: 'terminal:attach',
   TerminalWrite: 'terminal:write',
   TerminalResize: 'terminal:resize',

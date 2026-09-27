@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, Menu, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron'
 import {
   IpcChannel,
   type ContextMenuItem,
@@ -8,6 +8,7 @@ import {
 } from '../shared/api'
 import type { ProjectStore } from './store'
 import { getUserProfile } from './system'
+import { normalizeTerminalTitle } from './terminalTitle'
 import type { TerminalManager } from './terminals'
 
 export function registerIpcHandlers(store: ProjectStore, terminals: TerminalManager): void {
@@ -38,6 +39,18 @@ export function registerIpcHandlers(store: ProjectStore, terminals: TerminalMana
     return store.list()
   })
 
+  ipcMain.handle(IpcChannel.ProjectsRename, (_event, projectId: string, name: string) => {
+    store.renameProject(projectId, name)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ProjectsReveal, async (_event, projectId: string) => {
+    const error = await shell.openPath(store.getProject(projectId).path)
+    if (error) {
+      throw new Error(error)
+    }
+  })
+
   ipcMain.handle(IpcChannel.ChatsCreate, (_event, projectId: string) => {
     const chat = store.createChat(projectId)
     return { projects: store.list(), chatId: chat.id }
@@ -51,6 +64,11 @@ export function registerIpcHandlers(store: ProjectStore, terminals: TerminalMana
 
   ipcMain.handle(IpcChannel.ChatsRename, (_event, chatId: string, title: string) => {
     store.renameChat(chatId, title)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ChatsApplyTerminalTitle, (_event, chatId: string, title: string) => {
+    store.applyTerminalTitle(chatId, normalizeTerminalTitle(title))
     return store.list()
   })
 
@@ -81,7 +99,11 @@ function showContextMenu(
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const menu = Menu.buildFromTemplate(
-      items.map(({ action, label }) => ({ label, click: () => resolve(action) }))
+      items.map((item) =>
+        item.type === 'separator'
+          ? { type: 'separator' as const }
+          : { label: item.label, click: () => resolve(item.action) }
+      )
     )
     menu.popup({
       window: BrowserWindow.fromWebContents(event.sender) ?? undefined,

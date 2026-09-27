@@ -1,6 +1,8 @@
 export interface Chat {
   id: string
   title: string
+  /** Название задал пользователь — заголовок терминала его больше не перезаписывает. */
+  hasCustomTitle?: boolean
   createdAt: number
 }
 
