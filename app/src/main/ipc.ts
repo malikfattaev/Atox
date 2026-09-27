@@ -115,6 +115,11 @@ export function registerIpcHandlers(
     return store.list()
   })
 
+  ipcMain.handle(IpcChannel.ChatsRecordActivity, (_event, chatId: string, at: number) => {
+    store.recordChatActivity(chatId, at)
+    return store.list()
+  })
+
   ipcMain.handle(IpcChannel.ChatsApplyTerminalTitle, (_event, chatId: string, title: string) => {
     store.applyTerminalTitle(chatId, normalizeTerminalTitle(title))
     return store.list()

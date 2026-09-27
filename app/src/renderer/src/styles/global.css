@@ -17,6 +17,7 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
   --font-size: 14px;
+  --font-size-small: 12px;
 
   --color-surface: #ffffff;
   --color-text: #1d1d1f;
@@ -261,9 +262,17 @@ ul {
  */
 .chat-title {
   display: flex;
+  flex: 1;
   align-items: baseline;
   gap: var(--status-gap);
   min-width: 0;
+}
+
+.chat-time {
+  flex-shrink: 0;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
 }
 
 /* Кружок вынесен из потока: иначе блок взял бы базовую линию у него, а не встал на линию текста. */

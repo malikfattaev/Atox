@@ -13,6 +13,8 @@ export interface ChatActivityEnvironment {
   /** Пользователь сейчас видит этот чат: он выбран и окно в фокусе. */
   isChatInView(chatId: string): boolean
   notify(chatId: string, message: string): void
+  /** Программа закончила работу или позвала пользователя в момент `at`. */
+  recordActivity(chatId: string, at: number): void
 }
 
 interface ChatState {
@@ -69,6 +71,7 @@ export class ChatActivityTracker {
     }
     const state = this.state(chatId)
     clearTimeout(state.quietTimer)
+    this.environment.recordActivity(chatId, Date.now())
     this.setStatus(state, 'unread')
     this.environment.notify(chatId, message)
   }
@@ -86,6 +89,7 @@ export class ChatActivityTracker {
   }
 
   private finishWork(chatId: string, state: ChatState): void {
+    this.environment.recordActivity(chatId, state.lastOutputAt)
     if (this.environment.isChatInView(chatId)) {
       this.setStatus(state, 'idle')
       return
