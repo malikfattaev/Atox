@@ -16,9 +16,9 @@ export function ChatItem({ chat }: ChatItemProps) {
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
     const action = await atox.showContextMenu([
-      { action: 'rename', label: 'Переименовать' },
+      { action: 'rename', label: 'Rename', symbol: 'pencil' },
       { type: 'separator' },
-      { action: 'remove', label: 'Удалить чат' }
+      { action: 'remove', label: 'Delete chat', symbol: 'trash' }
     ])
     if (action === 'rename') {
       setRenaming(true)

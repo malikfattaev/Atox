@@ -25,13 +25,13 @@ export function ProjectItem({ project }: ProjectItemProps) {
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
     const action = await atox.showContextMenu([
-      { action: 'create-chat', label: 'Новый чат' },
+      { action: 'create-chat', label: 'New chat', symbol: 'square.and.pencil' },
       { type: 'separator' },
-      { action: 'rename', label: 'Переименовать' },
-      { action: 'reveal', label: 'Открыть в Finder' },
-      { action: 'copy-path', label: 'Скопировать путь' },
+      { action: 'rename', label: 'Rename', symbol: 'pencil' },
+      { action: 'reveal', label: 'Open in Finder', symbol: 'folder' },
+      { action: 'copy-path', label: 'Copy path', symbol: 'doc.on.doc' },
       { type: 'separator' },
-      { action: 'remove', label: 'Убрать из списка' }
+      { action: 'remove', label: 'Remove from list', symbol: 'folder.badge.minus' }
     ])
     switch (action) {
       case 'create-chat':

@@ -1,4 +1,12 @@
-import { BrowserWindow, dialog, ipcMain, Menu, shell, type IpcMainInvokeEvent } from 'electron'
+import {
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  shell,
+  type IpcMainInvokeEvent
+} from 'electron'
 import {
   IpcChannel,
   type ContextMenuItem,
@@ -102,7 +110,11 @@ function showContextMenu(
       items.map((item) =>
         item.type === 'separator'
           ? { type: 'separator' as const }
-          : { label: item.label, click: () => resolve(item.action) }
+          : {
+              label: item.label,
+              icon: item.symbol ? nativeImage.createMenuSymbol(item.symbol) : undefined,
+              click: () => resolve(item.action)
+            }
       )
     )
     menu.popup({

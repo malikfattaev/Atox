@@ -1,7 +1,13 @@
 import type { Project, UserProfile } from './models'
 
 export type ContextMenuItem<Action extends string> =
-  | { type?: 'action'; action: Action; label: string }
+  | {
+      type?: 'action'
+      action: Action
+      label: string
+      /** Имя SF Symbol — иконка пункта в системном меню macOS. */
+      symbol?: string
+    }
   | { type: 'separator' }
 
 export interface TerminalSize {
