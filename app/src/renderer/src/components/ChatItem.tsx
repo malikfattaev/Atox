@@ -4,6 +4,7 @@ import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { ChatStatus } from './ChatStatus'
 import { InlineRename } from './InlineRename'
+import { useSortableItem } from './SortableList'
 
 const { atox } = window
 
@@ -15,6 +16,7 @@ export function ChatItem({ chat }: ChatItemProps) {
   const { activeChatId, selectChat, renameChat, removeChat } = useProjectsContext()
   const [renaming, setRenaming] = useState(false)
   const activity = useChatActivity(chat.id)
+  const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
@@ -35,6 +37,8 @@ export function ChatItem({ chat }: ChatItemProps) {
       className="row row--chat"
       data-active={chat.id === activeChatId}
       onContextMenu={openContextMenu}
+      {...itemProps}
+      {...handleProps}
     >
       {renaming ? (
         <div className="row__main">

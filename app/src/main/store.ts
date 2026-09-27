@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
+import { moveItem } from '../shared/list'
 import type { Chat, Project } from '../shared/models'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
@@ -64,6 +65,16 @@ export class ProjectStore {
     }
   }
 
+  /** Переносит проект на позицию `toIndex` в списке. */
+  moveProject(projectId: string, toIndex: number): void {
+    const fromIndex = this.projects.findIndex(({ id }) => id === projectId)
+    const projects = moveItem(this.projects, fromIndex, toIndex)
+    if (projects) {
+      this.projects = projects
+      this.persist()
+    }
+  }
+
   createChat(projectId: string): Chat {
     const project = this.getProject(projectId)
 
@@ -82,6 +93,20 @@ export class ProjectStore {
     const location = this.findChat(chatId)
     if (location) {
       location.project.chats = location.project.chats.filter(({ id }) => id !== chatId)
+      this.persist()
+    }
+  }
+
+  /** Переносит чат на позицию `toIndex` внутри его проекта: терминал чата привязан к папке проекта. */
+  moveChat(chatId: string, toIndex: number): void {
+    const location = this.findChat(chatId)
+    if (!location) {
+      return
+    }
+    const { project, chat } = location
+    const chats = moveItem(project.chats, project.chats.indexOf(chat), toIndex)
+    if (chats) {
+      project.chats = chats
       this.persist()
     }
   }

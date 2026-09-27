@@ -4,6 +4,7 @@ import type { Project } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
+import { SortableList, useSortableItem } from './SortableList'
 
 const { atox } = window
 
@@ -12,9 +13,11 @@ interface ProjectItemProps {
 }
 
 export function ProjectItem({ project }: ProjectItemProps) {
-  const { createChat, renameProject, revealProject, removeProject } = useProjectsContext()
+  const { createChat, renameProject, revealProject, removeProject, moveChat } = useProjectsContext()
   const [expanded, setExpanded] = useState(true)
   const [renaming, setRenaming] = useState(false)
+  // Проект тянут за его строку, а переносится он вместе со своими чатами.
+  const { itemProps, handleProps } = useSortableItem(project.id, renaming)
   const FolderIcon = expanded ? FolderOpen : Folder
 
   const createProjectChat = () => {
@@ -53,8 +56,13 @@ export function ProjectItem({ project }: ProjectItemProps) {
   }
 
   return (
-    <li>
-      <div className="row row--project" title={project.path} onContextMenu={openContextMenu}>
+    <li {...itemProps}>
+      <div
+        className="row row--project"
+        title={project.path}
+        onContextMenu={openContextMenu}
+        {...handleProps}
+      >
         {renaming ? (
           <div className="row__main">
             <FolderIcon className="icon" />
@@ -90,11 +98,9 @@ export function ProjectItem({ project }: ProjectItemProps) {
       </div>
 
       {expanded && project.chats.length > 0 && (
-        <ul>
-          {project.chats.map((chat) => (
-            <ChatItem key={chat.id} chat={chat} />
-          ))}
-        </ul>
+        <SortableList items={project.chats} onMove={(id, toIndex) => void moveChat(id, toIndex)}>
+          {(chat) => <ChatItem key={chat.id} chat={chat} />}
+        </SortableList>
       )}
     </li>
   )

@@ -3,13 +3,14 @@ import { useProjectsContext } from '../hooks/ProjectsContext'
 import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
 import { SidebarButton } from './SidebarButton'
+import { SortableList } from './SortableList'
 
 interface SidebarProps {
   onOpenSettings(): void
 }
 
 export function Sidebar({ onOpenSettings }: SidebarProps) {
-  const { projects, currentProjectId, addProject, createChat } = useProjectsContext()
+  const { projects, currentProjectId, addProject, createChat, moveProject } = useProjectsContext()
 
   return (
     <aside className="sidebar">
@@ -30,11 +31,9 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
         {projects.length === 0 ? (
           <p className="sidebar__empty">No projects yet</p>
         ) : (
-          <ul>
-            {projects.map((project) => (
-              <ProjectItem key={project.id} project={project} />
-            ))}
-          </ul>
+          <SortableList items={projects} onMove={(id, toIndex) => void moveProject(id, toIndex)}>
+            {(project) => <ProjectItem key={project.id} project={project} />}
+          </SortableList>
         )}
       </section>
 

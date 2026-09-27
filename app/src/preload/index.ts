@@ -53,12 +53,14 @@ const api: AtoxApi = {
     add: () => ipcRenderer.invoke(IpcChannel.ProjectsAdd),
     remove: (projectId) => ipcRenderer.invoke(IpcChannel.ProjectsRemove, projectId),
     rename: (projectId, name) => ipcRenderer.invoke(IpcChannel.ProjectsRename, projectId, name),
+    move: (projectId, toIndex) => ipcRenderer.invoke(IpcChannel.ProjectsMove, projectId, toIndex),
     reveal: (projectId) => ipcRenderer.invoke(IpcChannel.ProjectsReveal, projectId)
   },
   chats: {
     create: (projectId) => ipcRenderer.invoke(IpcChannel.ChatsCreate, projectId),
     remove: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsRemove, chatId),
     rename: (chatId, title) => ipcRenderer.invoke(IpcChannel.ChatsRename, chatId, title),
+    move: (chatId, toIndex) => ipcRenderer.invoke(IpcChannel.ChatsMove, chatId, toIndex),
     applyTerminalTitle: (chatId, title) =>
       ipcRenderer.invoke(IpcChannel.ChatsApplyTerminalTitle, chatId, title)
   },

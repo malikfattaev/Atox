@@ -200,6 +200,17 @@ ul {
   background: var(--color-active);
 }
 
+/* Перетаскиваемый элемент идёт поверх соседей, которые расступаются под ним. */
+[data-dragging='true'] {
+  position: relative;
+  z-index: 1;
+}
+
+.row[data-dragging='true'],
+[data-dragging='true'] > .row {
+  background: var(--color-active);
+}
+
 .row__main {
   display: flex;
   align-items: center;

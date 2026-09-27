@@ -28,6 +28,8 @@ export interface AtoxApi {
     add(): Promise<{ projects: Project[]; projectId: string } | null>
     remove(projectId: string): Promise<Project[]>
     rename(projectId: string, name: string): Promise<Project[]>
+    /** Переносит проект на позицию `toIndex` в списке. */
+    move(projectId: string, toIndex: number): Promise<Project[]>
     /** Открывает папку проекта в Finder. */
     reveal(projectId: string): Promise<void>
   }
@@ -36,6 +38,8 @@ export interface AtoxApi {
     remove(chatId: string): Promise<Project[]>
     /** Переименование пользователем: после него заголовок терминала название не меняет. */
     rename(chatId: string, title: string): Promise<Project[]>
+    /** Переносит чат на позицию `toIndex` внутри его проекта. */
+    move(chatId: string, toIndex: number): Promise<Project[]>
     /** Заголовок, который выставила программа в терминале; игнорируется, если название задано вручную. */
     applyTerminalTitle(chatId: string, title: string): Promise<Project[]>
   }
@@ -68,10 +72,12 @@ export const IpcChannel = {
   ProjectsAdd: 'projects:add',
   ProjectsRemove: 'projects:remove',
   ProjectsRename: 'projects:rename',
+  ProjectsMove: 'projects:move',
   ProjectsReveal: 'projects:reveal',
   ChatsCreate: 'chats:create',
   ChatsRemove: 'chats:remove',
   ChatsRename: 'chats:rename',
+  ChatsMove: 'chats:move',
   ChatsApplyTerminalTitle: 'chats:apply-terminal-title',
   TerminalAttach: 'terminal:attach',
   TerminalWrite: 'terminal:write',
