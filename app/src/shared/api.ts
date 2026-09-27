@@ -1,5 +1,6 @@
 import type { AppCommand } from './commands'
 import type { Project, UserProfile } from './models'
+import type { Settings } from './settings'
 
 export type ContextMenuItem<Action extends string> =
   | {
@@ -49,6 +50,11 @@ export interface AtoxApi {
   system: {
     getUserProfile(): Promise<UserProfile>
   }
+  settings: {
+    get(): Promise<Settings>
+    update(patch: Partial<Settings>): Promise<Settings>
+    subscribe(listener: (settings: Settings) => void): () => void
+  }
   commands: {
     subscribe(listener: (command: AppCommand) => void): () => void
   }
@@ -72,6 +78,9 @@ export const IpcChannel = {
   TerminalExit: 'terminal:exit',
   SystemUserProfile: 'system:user-profile',
   AppCommand: 'app:command',
+  SettingsGet: 'settings:get',
+  SettingsUpdate: 'settings:update',
+  SettingsChanged: 'settings:changed',
   ContextMenu: 'context-menu'
 } as const
 

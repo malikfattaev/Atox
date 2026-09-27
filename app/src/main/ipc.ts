@@ -14,12 +14,18 @@ import {
   type TerminalExitEvent,
   type TerminalSize
 } from '../shared/api'
+import type { Settings } from '../shared/settings'
+import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import { getUserProfile } from './system'
 import { normalizeTerminalTitle } from './terminalTitle'
 import type { TerminalManager } from './terminals'
 
-export function registerIpcHandlers(store: ProjectStore, terminals: TerminalManager): void {
+export function registerIpcHandlers(
+  store: ProjectStore,
+  settings: SettingsStore,
+  terminals: TerminalManager
+): void {
   ipcMain.handle(IpcChannel.ProjectsList, () => store.list())
 
   ipcMain.handle(IpcChannel.ProjectsAdd, async (event) => {
@@ -97,6 +103,12 @@ export function registerIpcHandlers(store: ProjectStore, terminals: TerminalMana
   })
 
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
+
+  ipcMain.handle(IpcChannel.SettingsGet, () => settings.get())
+  ipcMain.handle(IpcChannel.SettingsUpdate, (_event, patch: Partial<Settings>) =>
+    settings.update(patch)
+  )
+  settings.onChange((next) => broadcast(IpcChannel.SettingsChanged, next))
 
   ipcMain.handle(IpcChannel.ContextMenu, showContextMenu)
 }

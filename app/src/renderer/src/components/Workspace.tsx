@@ -1,7 +1,18 @@
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { TerminalView } from './TerminalView'
 
-export function Workspace() {
+interface WorkspaceProps {
+  /** Открытый поиск: в каком чате и номер запроса (⌘F). */
+  find: FindRequest | null
+  onCloseFind(): void
+}
+
+export interface FindRequest {
+  chatId: string
+  request: number
+}
+
+export function Workspace({ find, onCloseFind }: WorkspaceProps) {
   const { activeChatId, openedChatIds, applyTerminalTitle } = useProjectsContext()
 
   return (
@@ -11,6 +22,8 @@ export function Workspace() {
           key={chatId}
           chatId={chatId}
           active={chatId === activeChatId}
+          findRequest={find?.chatId === chatId ? find.request : null}
+          onCloseFind={onCloseFind}
           onTitleChange={(title) => void applyTerminalTitle(chatId, title)}
         />
       ))}

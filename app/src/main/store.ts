@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { readFile, rename, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type { Chat, Project } from '../shared/models'
+import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
 const STORE_VERSION = 1
 
@@ -17,38 +17,15 @@ interface ChatLocation {
 
 /** Список проектов и их чатов, сохраняемый в JSON-файл. */
 export class ProjectStore {
-  /** Цепочка записей на диск: каждая начинается после предыдущей, поэтому порядок не нарушается. */
-  private pendingWrites: Promise<void> = Promise.resolve()
-
   private constructor(
-    private readonly filePath: string,
+    private readonly file: JsonFileWriter,
     private projects: Project[]
   ) {}
 
   static async load(filePath: string): Promise<ProjectStore> {
-    let raw: string
-    try {
-      raw = await readFile(filePath, 'utf-8')
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return new ProjectStore(filePath, [])
-      }
-      throw error
-    }
-
-    try {
-      const data = JSON.parse(raw) as StoreFile
-      if (data.version !== STORE_VERSION || !Array.isArray(data.projects)) {
-        throw new Error(`Unsupported store version: ${String(data.version)}`)
-      }
-      return new ProjectStore(filePath, data.projects)
-    } catch (error) {
-      // Повреждённый файл не удаляем: откладываем в сторону, чтобы данные можно было восстановить.
-      const backupPath = `${filePath}.corrupt-${Date.now()}`
-      await rename(filePath, backupPath)
-      console.error(`Project store is corrupted, a copy was saved to ${backupPath}`, error)
-      return new ProjectStore(filePath, [])
-    }
+    const data = await readVersionedJson<StoreFile>(filePath, STORE_VERSION)
+    const projects = Array.isArray(data?.projects) ? data.projects : []
+    return new ProjectStore(new JsonFileWriter(filePath), projects)
   }
 
   list(): Project[] {
@@ -152,25 +129,15 @@ export class ProjectStore {
 
   /** Дожидается окончания всех начатых записей — вызывается перед выходом из приложения. */
   flush(): Promise<void> {
-    return this.pendingWrites
+    return this.file.flush()
   }
 
   /**
-   * Сохраняет текущее состояние сразу, без задержки: изменение, сделанное за мгновение до выхода,
-   * тоже должно попасть на диск. Снимок данных берётся в момент вызова.
+   * Сохраняет состояние сразу, без задержки: изменение, сделанное за мгновение до выхода,
+   * тоже должно попасть на диск.
    */
   private persist(): void {
     const data: StoreFile = { version: STORE_VERSION, projects: this.projects }
-    const contents = JSON.stringify(data, null, 2)
-    this.pendingWrites = this.pendingWrites
-      .then(() => this.write(contents))
-      .catch((error) => console.error('Failed to save projects', error))
-  }
-
-  /** Пишет во временный файл и переименовывает его, чтобы сбой не оставил файл наполовину записанным. */
-  private async write(contents: string): Promise<void> {
-    const tempPath = `${this.filePath}.tmp`
-    await writeFile(tempPath, contents, 'utf-8')
-    await rename(tempPath, this.filePath)
+    this.file.write(data)
   }
 }

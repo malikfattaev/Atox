@@ -1,8 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon, type ISearchDecorationOptions } from '@xterm/addon-search'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { useSettings } from '../hooks/SettingsContext'
 import { colorSchemeQuery, readTerminalAppearance } from '../lib/terminalTheme'
+import { TerminalFindBar } from './TerminalFindBar'
 
 const { atox } = window
 
@@ -13,20 +18,38 @@ const SCROLLBACK_LINES = 10_000
 
 const EXIT_MESSAGE = '\r\n\x1b[2mProcess exited. Press any key to restart.\x1b[0m'
 
+interface TerminalSearch {
+  addon: SearchAddon
+  decorations: ISearchDecorationOptions
+}
+
 interface TerminalViewProps {
   chatId: string
   active: boolean
+  /** Номер запроса поиска (⌘F) для этого чата; `null` — панель поиска закрыта. */
+  findRequest: number | null
+  onCloseFind(): void
   onTitleChange(title: string): void
 }
 
-export function TerminalView({ chatId, active, onTitleChange }: TerminalViewProps) {
+export function TerminalView({
+  chatId,
+  active,
+  findRequest,
+  onCloseFind,
+  onTitleChange
+}: TerminalViewProps) {
+  const { terminalFontSize } = useSettings()
   // xterm монтируется во внутренний элемент без отступов: FitAddon считает строки
   // по размеру родителя и не учитывает его padding.
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const [search, setSearch] = useState<TerminalSearch | null>(null)
   const onTitleChangeRef = useRef(onTitleChange)
   onTitleChangeRef.current = onTitleChange
+  // Размер шрифта при создании терминала; дальнейшие изменения применяет отдельный эффект.
+  const initialFontSizeRef = useRef(terminalFontSize)
 
   useEffect(() => {
     const container = containerRef.current
@@ -34,17 +57,28 @@ export function TerminalView({ chatId, active, onTitleChange }: TerminalViewProp
       return
     }
 
+    const appearance = readTerminalAppearance(container)
     const terminal = new Terminal({
-      ...readTerminalAppearance(container),
+      fontFamily: appearance.fontFamily,
+      fontSize: initialFontSizeRef.current,
+      theme: appearance.theme,
       cursorBlink: true,
       macOptionIsMeta: true,
-      scrollback: SCROLLBACK_LINES
+      scrollback: SCROLLBACK_LINES,
+      // Подсветка совпадений поиска построена на декорациях — это «предлагаемый» API xterm.
+      allowProposedApi: true
     })
     const fit = new FitAddon()
+    const searchAddon = new SearchAddon()
     terminal.loadAddon(fit)
+    terminal.loadAddon(searchAddon)
+    // Ссылки открываются через window.open — main-процесс передаёт их системному браузеру.
+    terminal.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri)))
     terminal.open(container)
+    loadWebglRenderer(terminal)
     terminalRef.current = terminal
     fitRef.current = fit
+    setSearch({ addon: searchAddon, decorations: appearance.searchDecorations })
 
     // Скрытый терминал имеет нулевой размер — подгонять его под контейнер бессмысленно.
     const fitIfVisible = () => {
@@ -110,8 +144,9 @@ export function TerminalView({ chatId, active, onTitleChange }: TerminalViewProp
     resizeObserver.observe(container)
 
     const applyAppearance = () => {
-      const { theme } = readTerminalAppearance(container)
+      const { theme, searchDecorations } = readTerminalAppearance(container)
       terminal.options.theme = theme
+      setSearch({ addon: searchAddon, decorations: searchDecorations })
     }
     colorSchemeQuery.addEventListener('change', applyAppearance)
 
@@ -130,19 +165,54 @@ export function TerminalView({ chatId, active, onTitleChange }: TerminalViewProp
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
+      setSearch(null)
     }
   }, [chatId])
 
   useEffect(() => {
-    if (active) {
+    const terminal = terminalRef.current
+    if (terminal && terminal.options.fontSize !== terminalFontSize) {
+      terminal.options.fontSize = terminalFontSize
+      if (active) {
+        fitRef.current?.fit()
+      }
+    }
+  }, [terminalFontSize, active])
+
+  // Фокус возвращается в терминал при переключении на чат и после закрытия поиска.
+  const findOpen = findRequest !== null
+  useEffect(() => {
+    if (active && !findOpen) {
       fitRef.current?.fit()
       terminalRef.current?.focus()
     }
-  }, [active])
+  }, [active, findOpen])
 
   return (
     <div className="terminal-view" hidden={!active}>
       <div ref={containerRef} className="terminal-view__host" />
+      {search && findRequest !== null && (
+        <TerminalFindBar
+          search={search.addon}
+          decorations={search.decorations}
+          focusRequest={findRequest}
+          onClose={onCloseFind}
+        />
+      )}
     </div>
   )
+}
+
+/**
+ * Отрисовка через WebGL заметно быстрее на объёмном выводе агентов. Если WebGL недоступен
+ * или контекст потерян (у браузера лимит одновременных контекстов), xterm остаётся на DOM-отрисовке.
+ */
+function loadWebglRenderer(terminal: Terminal): void {
+  try {
+    const webgl = new WebglAddon()
+    webgl.onContextLoss(() => webgl.dispose())
+    terminal.loadAddon(webgl)
+  } catch (error) {
+    console.warn('WebGL renderer is unavailable, using the DOM renderer', error)
+  }
 }

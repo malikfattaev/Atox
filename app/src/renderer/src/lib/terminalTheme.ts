@@ -1,6 +1,11 @@
-import type { ITerminalOptions, ITheme } from '@xterm/xterm'
+import type { ITheme } from '@xterm/xterm'
+import type { ISearchDecorationOptions } from '@xterm/addon-search'
 
-type TerminalAppearance = Pick<ITerminalOptions, 'fontFamily' | 'fontSize' | 'theme'>
+interface TerminalAppearance {
+  fontFamily: string
+  theme: ITheme
+  searchDecorations: ISearchDecorationOptions
+}
 
 /**
  * Оформление терминала берётся из CSS-переменных, чтобы цвета и шрифт
@@ -10,18 +15,21 @@ export function readTerminalAppearance(element: HTMLElement): TerminalAppearance
   const styles = getComputedStyle(element)
   const token = (name: string) => styles.getPropertyValue(name).trim()
 
-  const theme: ITheme = {
-    background: token('--color-surface'),
-    foreground: token('--color-text'),
-    cursor: token('--color-text'),
-    cursorAccent: token('--color-surface'),
-    selectionBackground: token('--color-selection')
-  }
-
   return {
     fontFamily: token('--font-mono'),
-    fontSize: Number.parseFloat(token('--terminal-font-size')),
-    theme
+    theme: {
+      background: token('--color-surface'),
+      foreground: token('--color-text'),
+      cursor: token('--color-text'),
+      cursorAccent: token('--color-surface'),
+      selectionBackground: token('--color-selection')
+    },
+    searchDecorations: {
+      matchBackground: token('--color-search-match'),
+      matchOverviewRuler: token('--color-search-match'),
+      activeMatchBackground: token('--color-search-active'),
+      activeMatchColorOverviewRuler: token('--color-search-active')
+    }
   }
 }
 

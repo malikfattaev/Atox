@@ -8,6 +8,8 @@ const WINDOW_SIZE = {
   minHeight: 480
 } as const
 
+const EXTERNAL_URL_PROTOCOLS = new Set(['http:', 'https:'])
+
 /** Адрес dev-сервера renderer'а; electron-vite задаёт его только в режиме разработки. */
 const devServerUrl = process.env['ELECTRON_RENDERER_URL']
 
@@ -29,9 +31,12 @@ export function createMainWindow(): BrowserWindow {
 
   window.once('ready-to-show', () => window.show())
 
-  // Ссылки из приложения открываются в системном браузере, а не в новых окнах Electron.
+  // Ссылки из приложения (в том числе из терминала) открываются в системном браузере,
+  // а не в новых окнах Electron. Другие схемы не открываем: их мог подставить вывод программы.
   window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    if (EXTERNAL_URL_PROTOCOLS.has(new URL(url).protocol)) {
+      void shell.openExternal(url)
+    }
     return { action: 'deny' }
   })
 

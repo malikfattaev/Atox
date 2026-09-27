@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppCommand } from '../shared/commands'
+import type { Settings } from '../shared/settings'
 import {
   IpcChannel,
   type AtoxApi,
@@ -70,6 +71,15 @@ const api: AtoxApi = {
   },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile)
+  },
+  settings: {
+    get: () => ipcRenderer.invoke(IpcChannel.SettingsGet),
+    update: (patch) => ipcRenderer.invoke(IpcChannel.SettingsUpdate, patch),
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, settings: Settings) => listener(settings)
+      ipcRenderer.on(IpcChannel.SettingsChanged, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.SettingsChanged, handler)
+    }
   },
   commands: {
     subscribe: (listener) => {

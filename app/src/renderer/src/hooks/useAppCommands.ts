@@ -8,12 +8,13 @@ const CHAT_NUMBER_KEYS = /^[1-9]$/
 interface AppCommandHandlers {
   projects: ProjectsState
   toggleSidebar(): void
+  openFind(chatId: string): void
 }
 
-export function useAppCommands({ projects, toggleSidebar }: AppCommandHandlers): void {
+export function useAppCommands(handlers: AppCommandHandlers): void {
   // Подписка живёт всё время работы окна и читает актуальное состояние через ref.
-  const handlersRef = useRef({ projects, toggleSidebar })
-  handlersRef.current = { projects, toggleSidebar }
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
 
   useEffect(() => {
     const selectRelative = (step: number) => {
@@ -51,6 +52,11 @@ export function useAppCommands({ projects, toggleSidebar }: AppCommandHandlers):
           break
         case 'next-chat':
           selectRelative(1)
+          break
+        case 'find':
+          if (activeChatId) {
+            handlersRef.current.openFind(activeChatId)
+          }
           break
       }
     }

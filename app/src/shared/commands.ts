@@ -6,3 +6,4 @@ export type AppCommand =
   | { type: 'toggle-sidebar' }
   | { type: 'previous-chat' }
   | { type: 'next-chat' }
+  | { type: 'find' }

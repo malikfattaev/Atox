@@ -13,7 +13,6 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
   --font-size: 14px;
-  --terminal-font-size: 13px;
 
   --color-surface: #ffffff;
   --color-text: #1d1d1f;
@@ -23,6 +22,12 @@
   --color-active: rgba(0, 0, 0, 0.08);
   --color-selection: rgba(0, 122, 255, 0.25);
   --color-accent: #007aff;
+  --color-popover: rgba(246, 246, 246, 0.86);
+  --color-popover-border: rgba(0, 0, 0, 0.12);
+  --shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.18);
+  /* Подсветка поиска в терминале: xterm принимает только цвета в формате #RRGGBB. */
+  --color-search-match: #f5d76e;
+  --color-search-active: #ff9f0a;
   --color-avatar: rgba(0, 0, 0, 0.12);
 
   color-scheme: light dark;
@@ -42,6 +47,11 @@
     --color-active: rgba(255, 255, 255, 0.1);
     --color-selection: rgba(10, 132, 255, 0.35);
     --color-accent: #0a84ff;
+    --color-popover: rgba(36, 36, 38, 0.86);
+    --color-popover-border: rgba(255, 255, 255, 0.12);
+    --shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.45);
+    --color-search-match: #5c4a12;
+    --color-search-active: #a8620a;
     --color-avatar: rgba(255, 255, 255, 0.16);
   }
 }
@@ -276,6 +286,58 @@ ul {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-text-muted);
+}
+
+/* Поиск в терминале */
+
+.find-bar {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 10px;
+  background: var(--color-popover);
+  border: 1px solid var(--color-popover-border);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: var(--shadow-popover);
+  backdrop-filter: blur(24px) saturate(1.6);
+}
+
+.find-bar__input {
+  width: 200px;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text);
+  background: none;
+  border: none;
+  outline: none;
+  user-select: text;
+}
+
+.find-bar__count {
+  min-width: 64px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.find-bar__button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+}
+
+.find-bar__button:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
 }
 
 /* Рабочая область */

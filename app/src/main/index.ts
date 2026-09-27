@@ -2,22 +2,26 @@ import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { broadcastTerminalData, broadcastTerminalExit, registerIpcHandlers } from './ipc'
 import { installAppMenu } from './menu'
+import { SettingsStore } from './settings'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
 import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
+const SETTINGS_FILE_NAME = 'settings.json'
 
 async function bootstrap(): Promise<void> {
   await app.whenReady()
 
-  const store = await ProjectStore.load(join(app.getPath('userData'), STORE_FILE_NAME))
+  const userData = app.getPath('userData')
+  const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
+  const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
   const terminals = new TerminalManager(app.getName(), {
     onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
     onExit: (chatId) => broadcastTerminalExit({ chatId })
   })
-  registerIpcHandlers(store, terminals)
-  installAppMenu()
+  registerIpcHandlers(store, settings, terminals)
+  installAppMenu(settings)
 
   app.on('before-quit', () => terminals.killAll())
 
@@ -29,7 +33,7 @@ async function bootstrap(): Promise<void> {
       return
     }
     event.preventDefault()
-    void store.flush().finally(() => {
+    void Promise.all([store.flush(), settings.flush()]).finally(() => {
       storeFlushed = true
       // Повторный выход — в следующем тике: пока Electron обрабатывает прерванный will-quit,
       // app.quit() молча игнорируется, а запись могла завершиться ещё до конца обработки.
