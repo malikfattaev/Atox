@@ -27,6 +27,12 @@ const PROGRESS_OSC_PREFIX = '4;'
 
 const ATTENTION_MESSAGE = 'Needs your attention'
 
+/**
+ * Shift+Enter отправляется как ESC + CR (Meta+Enter): так перевод строки без отправки
+ * понимают агенты в терминале. Сам xterm отличить его от обычного Enter не даёт.
+ */
+const SHIFT_ENTER_SEQUENCE = '\x1b\r'
+
 interface TerminalSearch {
   addon: SearchAddon
   decorations: ISearchDecorationOptions
@@ -130,6 +136,17 @@ export function TerminalView({
       }
     }
 
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (!isShiftEnter(event)) {
+        return true
+      }
+      if (event.type === 'keydown') {
+        terminal.input(SHIFT_ENTER_SEQUENCE)
+      }
+      // Все фазы нажатия (keydown, keypress, keyup) скрываем от xterm, иначе он отправит CR.
+      return false
+    })
+
     const inputSubscription = terminal.onData((data) => {
       if (exited) {
         exited = false
@@ -225,6 +242,12 @@ export function TerminalView({
         />
       )}
     </div>
+  )
+}
+
+function isShiftEnter(event: KeyboardEvent): boolean {
+  return (
+    event.key === 'Enter' && event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
   )
 }
 
