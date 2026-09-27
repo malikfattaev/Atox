@@ -1,8 +1,8 @@
 import { useState, type MouseEvent } from 'react'
-import { LoaderCircle } from 'lucide-react'
 import type { Chat } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { ChatStatus } from './ChatStatus'
 import { InlineRename } from './InlineRename'
 
 const { atox } = window
@@ -38,6 +38,7 @@ export function ChatItem({ chat }: ChatItemProps) {
     >
       {renaming ? (
         <div className="row__main">
+          <ChatStatus status={activity} />
           <InlineRename
             value={chat.title}
             label="Chat name"
@@ -55,13 +56,8 @@ export function ChatItem({ chat }: ChatItemProps) {
           onClick={() => selectChat(chat.id)}
           onDoubleClick={() => setRenaming(true)}
         >
+          <ChatStatus status={activity} />
           <span className="row__label">{chat.title}</span>
-          {activity === 'working' && (
-            <LoaderCircle className="icon row__status row__status--working" aria-label="Working" />
-          )}
-          {activity === 'unread' && (
-            <span className="row__status row__status--unread" aria-label="New activity" />
-          )}
         </button>
       )}
     </li>

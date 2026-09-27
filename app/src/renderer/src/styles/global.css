@@ -11,6 +11,7 @@
   --radius: 8px;
   --icon-size: 17px;
   --avatar-size: 26px;
+  --status-dot-size: 7px;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
@@ -31,6 +32,7 @@
   --color-search-match: #f5d76e;
   --color-search-active: #ff9f0a;
   --color-avatar: rgba(0, 0, 0, 0.12);
+  --color-status-idle: rgba(0, 0, 0, 0.2);
 
   color-scheme: light dark;
   font-family: var(--font-sans);
@@ -55,6 +57,7 @@
     --color-search-match: #5c4a12;
     --color-search-active: #a8620a;
     --color-avatar: rgba(255, 255, 255, 0.16);
+    --color-status-idle: rgba(255, 255, 255, 0.22);
   }
 }
 
@@ -207,11 +210,6 @@ ul {
   text-align: left;
 }
 
-/* Название чата выравнивается по названию проекта, а не по его иконке. */
-.row--chat .row__main {
-  padding-left: calc(var(--row-padding) + var(--icon-size) + var(--row-gap));
-}
-
 .row__label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -233,28 +231,45 @@ ul {
   user-select: text;
 }
 
-/* Состояние чата справа от названия: работает или закончил, пока его не видели. */
-.row__status {
+/*
+ * Состояние чата занимает колонку иконок: кружок стоит ровно под иконкой папки проекта,
+ * а название чата — на одной линии с названием проекта.
+ */
+.chat-status {
+  display: grid;
+  place-items: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
   flex-shrink: 0;
-  margin-left: auto;
 }
 
-.row__status--working {
-  color: var(--color-text-muted);
-  animation: spin 1s linear infinite;
-}
-
-.row__status--unread {
-  width: 8px;
-  height: 8px;
-  margin-right: 4px;
+.chat-status__dot {
+  width: var(--status-dot-size);
+  height: var(--status-dot-size);
   border-radius: 50%;
+  background: var(--color-status-idle);
+  transition: background-color 200ms ease;
+}
+
+.chat-status__dot[data-status='working'] {
+  background: var(--color-text);
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+.chat-status__dot[data-status='unread'] {
   background: var(--color-accent);
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+@keyframes status-pulse {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-status__dot[data-status='working'] {
+    animation: none;
   }
 }
 
