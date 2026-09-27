@@ -19,6 +19,7 @@ import type { Settings } from '../shared/settings'
 import { confirm, describeRunningPrograms } from './dialogs'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
+import { savePastedImage } from './pastedImages'
 import { getUserProfile } from './system'
 import { normalizeTerminalTitle } from './terminalTitle'
 import type { TerminalManager } from './terminals'
@@ -134,6 +135,11 @@ export function registerIpcHandlers(
   ipcMain.on(IpcChannel.TerminalResize, (_event, chatId: string, size: TerminalSize) => {
     terminals.resize(chatId, size)
   })
+
+  ipcMain.handle(
+    IpcChannel.FilesSavePastedImage,
+    (_event, data: ArrayBuffer, type: string) => savePastedImage(data, type)
+  )
 
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
 

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppCommand } from '../shared/commands'
 import type { Settings } from '../shared/settings'
 import {
@@ -70,6 +70,11 @@ const api: AtoxApi = {
     resize: (chatId, size) => ipcRenderer.send(IpcChannel.TerminalResize, chatId, size),
     onData: onTerminalData,
     onExit: (chatId, listener) => onTerminalExit(chatId, () => listener())
+  },
+  files: {
+    getPath: (file) => webUtils.getPathForFile(file),
+    savePastedImage: async (image) =>
+      ipcRenderer.invoke(IpcChannel.FilesSavePastedImage, await image.arrayBuffer(), image.type)
   },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),

@@ -7,6 +7,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { useChatActivityTracker } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
+import { formatPathsForShell } from '../lib/shellPaths'
 import { colorSchemeQuery, readTerminalAppearance } from '../lib/terminalTheme'
 import { TerminalFindBar } from './TerminalFindBar'
 
@@ -169,6 +170,49 @@ export function TerminalView({
       return true
     })
 
+    // Картинки и файлы попадают к агенту путями на диске — так их принимают Claude Code и Codex.
+    const pastePaths = (paths: string[]) => {
+      if (paths.length > 0) {
+        terminal.paste(formatPathsForShell(paths))
+        terminal.focus()
+      }
+    }
+
+    // Текст вставляет сам xterm; перехватываем только картинку без текста — например, скриншот.
+    const handlePaste = (event: ClipboardEvent) => {
+      const data = event.clipboardData
+      const image = data && !data.getData('text/plain') ? findImage(data) : null
+      if (!image) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      atox.files
+        .savePastedImage(image)
+        .then((path) => pastePaths([path]))
+        .catch((error) => console.error('Failed to paste the image', error))
+    }
+
+    const handleDragOver = (event: DragEvent) => {
+      if (event.dataTransfer?.types.includes('Files')) {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+      }
+    }
+
+    const handleDrop = (event: DragEvent) => {
+      const files = event.dataTransfer?.files
+      if (files && files.length > 0) {
+        event.preventDefault()
+        pastePaths(Array.from(files, (file) => atox.files.getPath(file)).filter(Boolean))
+      }
+    }
+
+    // Перехват на фазе погружения: вставку картинки нужно забрать раньше xterm.
+    container.addEventListener('paste', handlePaste, true)
+    container.addEventListener('dragover', handleDragOver)
+    container.addEventListener('drop', handleDrop)
+
     const resizeSubscription = terminal.onResize((size) => atox.terminal.resize(chatId, size))
 
     let titleTimer: ReturnType<typeof setTimeout> | undefined
@@ -196,6 +240,9 @@ export function TerminalView({
       disposed = true
       clearTimeout(titleTimer)
       colorSchemeQuery.removeEventListener('change', applyAppearance)
+      container.removeEventListener('paste', handlePaste, true)
+      container.removeEventListener('dragover', handleDragOver)
+      container.removeEventListener('drop', handleDrop)
       resizeObserver.disconnect()
       inputSubscription.dispose()
       resizeSubscription.dispose()
@@ -243,6 +290,13 @@ export function TerminalView({
       )}
     </div>
   )
+}
+
+function findImage(data: DataTransfer): File | null {
+  const item = Array.from(data.items).find(
+    ({ kind, type }) => kind === 'file' && type.startsWith('image/')
+  )
+  return item?.getAsFile() ?? null
 }
 
 function isShiftEnter(event: KeyboardEvent): boolean {

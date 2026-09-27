@@ -51,6 +51,12 @@ export interface AtoxApi {
     onData(chatId: string, listener: (data: string) => void): () => void
     onExit(chatId: string, listener: () => void): () => void
   }
+  files: {
+    /** Путь на диске к файлу, перетащенному в окно. */
+    getPath(file: File): string
+    /** Сохраняет вставленную картинку во временный файл и возвращает путь к нему. */
+    savePastedImage(image: File): Promise<string>
+  }
   system: {
     getUserProfile(): Promise<UserProfile>
     /** Выводит окно приложения на передний план, например по клику на уведомление. */
@@ -84,6 +90,7 @@ export const IpcChannel = {
   TerminalResize: 'terminal:resize',
   TerminalData: 'terminal:data',
   TerminalExit: 'terminal:exit',
+  FilesSavePastedImage: 'files:save-pasted-image',
   SystemUserProfile: 'system:user-profile',
   SystemFocusWindow: 'system:focus-window',
   AppCommand: 'app:command',

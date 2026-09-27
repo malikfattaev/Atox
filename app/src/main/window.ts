@@ -40,6 +40,9 @@ export function createMainWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  // Файл, брошенный мимо терминала, иначе открылся бы в окне вместо приложения.
+  window.webContents.on('will-navigate', (event) => event.preventDefault())
+
   if (devServerUrl) {
     void window.loadURL(devServerUrl)
   } else {
