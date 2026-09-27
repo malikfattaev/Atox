@@ -4,6 +4,8 @@
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
   --titlebar-height: 44px;
   --row-height: 34px;
+  /* Зазор между строками сайдбара: выделенные соседние строки не слипаются. */
+  --row-spacing: 3px;
   --row-padding: 10px;
   --row-gap: 10px;
   --radius: 8px;
@@ -142,6 +144,7 @@ ul {
   gap: var(--row-gap);
   width: 100%;
   height: var(--row-height);
+  margin-bottom: var(--row-spacing);
   padding: 0 var(--row-padding);
   border-radius: var(--radius);
 }
@@ -181,6 +184,7 @@ ul {
   display: flex;
   align-items: center;
   height: var(--row-height);
+  margin-bottom: var(--row-spacing);
   border-radius: var(--radius);
 }
 
