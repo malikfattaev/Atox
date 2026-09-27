@@ -5,9 +5,6 @@ import type { Chat, Project } from '../shared/models'
 
 const STORE_VERSION = 1
 
-/** Изменения копятся и пишутся на диск одной операцией, чтобы частые правки не били по файлу. */
-const SAVE_DELAY_MS = 300
-
 interface StoreFile {
   version: typeof STORE_VERSION
   projects: Project[]
@@ -20,7 +17,8 @@ interface ChatLocation {
 
 /** Список проектов и их чатов, сохраняемый в JSON-файл. */
 export class ProjectStore {
-  private saveTimer: NodeJS.Timeout | null = null
+  /** Цепочка записей на диск: каждая начинается после предыдущей, поэтому порядок не нарушается. */
+  private pendingWrites: Promise<void> = Promise.resolve()
 
   private constructor(
     private readonly filePath: string,
@@ -65,7 +63,7 @@ export class ProjectStore {
 
     const project: Project = { id: randomUUID(), name: basename(path), path, chats: [] }
     this.projects.push(project)
-    this.scheduleSave()
+    this.persist()
     return project
   }
 
@@ -74,7 +72,7 @@ export class ProjectStore {
     const project = this.findProject(projectId)
     if (project) {
       this.projects = this.projects.filter(({ id }) => id !== projectId)
-      this.scheduleSave()
+      this.persist()
     }
     return project
   }
@@ -85,7 +83,7 @@ export class ProjectStore {
     const trimmed = name.trim()
     if (trimmed && project.name !== trimmed) {
       project.name = trimmed
-      this.scheduleSave()
+      this.persist()
     }
   }
 
@@ -99,7 +97,7 @@ export class ProjectStore {
     }
     // Новые чаты сверху, как в Codex и Cursor.
     project.chats.unshift(chat)
-    this.scheduleSave()
+    this.persist()
     return chat
   }
 
@@ -107,7 +105,7 @@ export class ProjectStore {
     const location = this.findChat(chatId)
     if (location) {
       location.project.chats = location.project.chats.filter(({ id }) => id !== chatId)
-      this.scheduleSave()
+      this.persist()
     }
   }
 
@@ -117,7 +115,7 @@ export class ProjectStore {
     if (chat && trimmed) {
       chat.title = trimmed
       chat.hasCustomTitle = true
-      this.scheduleSave()
+      this.persist()
     }
   }
 
@@ -126,7 +124,7 @@ export class ProjectStore {
     const chat = this.findChat(chatId)?.chat
     if (chat && !chat.hasCustomTitle && title && chat.title !== title) {
       chat.title = title
-      this.scheduleSave()
+      this.persist()
     }
   }
 
@@ -152,30 +150,27 @@ export class ProjectStore {
     return undefined
   }
 
-  /** Немедленно записывает отложенные изменения — вызывается перед выходом из приложения. */
-  async flush(): Promise<void> {
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer)
-      this.saveTimer = null
-      await this.save()
-    }
+  /** Дожидается окончания всех начатых записей — вызывается перед выходом из приложения. */
+  flush(): Promise<void> {
+    return this.pendingWrites
   }
 
-  private scheduleSave(): void {
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer)
-    }
-    this.saveTimer = setTimeout(() => {
-      this.saveTimer = null
-      this.save().catch((error) => console.error('Failed to save projects', error))
-    }, SAVE_DELAY_MS)
+  /**
+   * Сохраняет текущее состояние сразу, без задержки: изменение, сделанное за мгновение до выхода,
+   * тоже должно попасть на диск. Снимок данных берётся в момент вызова.
+   */
+  private persist(): void {
+    const data: StoreFile = { version: STORE_VERSION, projects: this.projects }
+    const contents = JSON.stringify(data, null, 2)
+    this.pendingWrites = this.pendingWrites
+      .then(() => this.write(contents))
+      .catch((error) => console.error('Failed to save projects', error))
   }
 
   /** Пишет во временный файл и переименовывает его, чтобы сбой не оставил файл наполовину записанным. */
-  private async save(): Promise<void> {
-    const data: StoreFile = { version: STORE_VERSION, projects: this.projects }
+  private async write(contents: string): Promise<void> {
     const tempPath = `${this.filePath}.tmp`
-    await writeFile(tempPath, JSON.stringify(data, null, 2), 'utf-8')
+    await writeFile(tempPath, contents, 'utf-8')
     await rename(tempPath, this.filePath)
   }
 }

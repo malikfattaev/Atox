@@ -18,6 +18,14 @@ export function InlineRename({ value, label, onSubmit, onCancel }: InlineRenameP
     inputRef.current?.select()
   }, [])
 
+  // При закрытии окна blur не срабатывает — введённое название сохраняем явно.
+  const finishRef = useRef<(save: boolean) => void>(() => undefined)
+  useEffect(() => {
+    const saveOnUnload = () => finishRef.current(true)
+    window.addEventListener('beforeunload', saveOnUnload)
+    return () => window.removeEventListener('beforeunload', saveOnUnload)
+  }, [])
+
   const finish = (save: boolean) => {
     if (finishedRef.current) {
       return
@@ -31,6 +39,8 @@ export function InlineRename({ value, label, onSubmit, onCancel }: InlineRenameP
       onCancel()
     }
   }
+
+  finishRef.current = finish
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
