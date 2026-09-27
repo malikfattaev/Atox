@@ -25,8 +25,8 @@ export function registerIpcHandlers(store: ProjectStore, terminals: TerminalMana
   ipcMain.handle(IpcChannel.ProjectsAdd, async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {
-      title: 'Открыть проект',
-      buttonLabel: 'Открыть',
+      title: 'Open Project',
+      buttonLabel: 'Open',
       properties: ['openDirectory', 'createDirectory']
     }
     const result = window
@@ -83,7 +83,7 @@ export function registerIpcHandlers(store: ProjectStore, terminals: TerminalMana
   ipcMain.handle(IpcChannel.TerminalAttach, (_event, chatId: string, size: TerminalSize) => {
     const location = store.findChat(chatId)
     if (!location) {
-      throw new Error(`Чат ${chatId} не найден`)
+      throw new Error(`Chat ${chatId} not found`)
     }
     return terminals.attach(chatId, location.project.path, size)
   })

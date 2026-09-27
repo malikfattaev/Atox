@@ -10,7 +10,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
 export function useProjectsContext(): ProjectsState {
   const state = useContext(ProjectsContext)
   if (!state) {
-    throw new Error('useProjectsContext вызван вне ProjectsProvider')
+    throw new Error('useProjectsContext must be used within ProjectsProvider')
   }
   return state
 }

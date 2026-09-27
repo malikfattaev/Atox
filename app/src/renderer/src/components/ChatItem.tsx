@@ -37,7 +37,7 @@ export function ChatItem({ chat }: ChatItemProps) {
         <div className="row__main">
           <InlineRename
             value={chat.title}
-            label="Название чата"
+            label="Chat name"
             onSubmit={(title) => {
               setRenaming(false)
               void renameChat(chat.id, title)

@@ -11,7 +11,7 @@ const TITLE_SETTLE_DELAY_MS = 500
 
 const SCROLLBACK_LINES = 10_000
 
-const EXIT_MESSAGE = '\r\n\x1b[2mПроцесс завершён. Нажмите любую клавишу, чтобы перезапустить.\x1b[0m'
+const EXIT_MESSAGE = '\r\n\x1b[2mProcess exited. Press any key to restart.\x1b[0m'
 
 interface TerminalViewProps {
   chatId: string

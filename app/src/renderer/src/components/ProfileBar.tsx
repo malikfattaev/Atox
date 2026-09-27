@@ -13,7 +13,7 @@ export function ProfileBar() {
         </span>
         <span className="profile-bar__name">{profile?.name}</span>
       </div>
-      <button type="button" className="icon-button" aria-label="Настройки">
+      <button type="button" className="icon-button" aria-label="Settings">
         <Settings className="icon" />
       </button>
     </footer>

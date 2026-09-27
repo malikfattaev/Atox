@@ -60,7 +60,7 @@ export function ProjectItem({ project }: ProjectItemProps) {
             <FolderIcon className="icon" />
             <InlineRename
               value={project.name}
-              label="Название проекта"
+              label="Project name"
               onSubmit={(name) => {
                 setRenaming(false)
                 void renameProject(project.id, name)
@@ -82,7 +82,7 @@ export function ProjectItem({ project }: ProjectItemProps) {
         <button
           type="button"
           className="row__action"
-          aria-label="Новый чат"
+          aria-label="New chat"
           onClick={createProjectChat}
         >
           <Plus className="icon" />

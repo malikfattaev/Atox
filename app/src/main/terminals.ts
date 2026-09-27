@@ -60,7 +60,7 @@ export class TerminalManager {
     }
 
     if (!existsSync(cwd)) {
-      throw new Error(`Папка проекта не найдена: ${cwd}`)
+      throw new Error(`Project folder not found: ${cwd}`)
     }
 
     const pty = spawn(resolveShell(), ['-l'], {

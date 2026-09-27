@@ -18,17 +18,17 @@ export function Sidebar() {
       <nav className="sidebar__nav">
         <SidebarButton
           icon={SquarePen}
-          label="Новый чат"
+          label="New chat"
           disabled={!currentProject}
           onClick={() => currentProject && void createChat(currentProject.id)}
         />
-        <SidebarButton icon={FolderPlus} label="Новый проект" onClick={() => void addProject()} />
+        <SidebarButton icon={FolderPlus} label="New project" onClick={() => void addProject()} />
       </nav>
 
       <section className="sidebar__section">
-        <h2 className="sidebar__heading">Проекты</h2>
+        <h2 className="sidebar__heading">Projects</h2>
         {projects.length === 0 ? (
-          <p className="sidebar__empty">Пока нет проектов</p>
+          <p className="sidebar__empty">No projects yet</p>
         ) : (
           <ul>
             {projects.map((project) => (

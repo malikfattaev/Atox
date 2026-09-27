@@ -39,6 +39,6 @@ app.on('window-all-closed', () => {
 })
 
 bootstrap().catch((error) => {
-  console.error('Не удалось запустить приложение', error)
+  console.error('Failed to start the app', error)
   app.quit()
 })

@@ -6,7 +6,7 @@ import './styles/global.css'
 const container = document.getElementById('root')
 
 if (!container) {
-  throw new Error('Не найден корневой элемент #root')
+  throw new Error('Root element #root not found')
 }
 
 createRoot(container).render(

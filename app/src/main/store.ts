@@ -41,14 +41,14 @@ export class ProjectStore {
     try {
       const data = JSON.parse(raw) as StoreFile
       if (data.version !== STORE_VERSION || !Array.isArray(data.projects)) {
-        throw new Error(`Неподдерживаемая версия хранилища: ${String(data.version)}`)
+        throw new Error(`Unsupported store version: ${String(data.version)}`)
       }
       return new ProjectStore(filePath, data.projects)
     } catch (error) {
       // Повреждённый файл не удаляем: откладываем в сторону, чтобы данные можно было восстановить.
       const backupPath = `${filePath}.corrupt-${Date.now()}`
       await rename(filePath, backupPath)
-      console.error(`Хранилище проектов повреждено, копия сохранена в ${backupPath}`, error)
+      console.error(`Project store is corrupted, a copy was saved to ${backupPath}`, error)
       return new ProjectStore(filePath, [])
     }
   }
@@ -94,7 +94,7 @@ export class ProjectStore {
 
     const chat: Chat = {
       id: randomUUID(),
-      title: `Чат ${project.chats.length + 1}`,
+      title: `Chat ${project.chats.length + 1}`,
       createdAt: Date.now()
     }
     // Новые чаты сверху, как в Codex и Cursor.
@@ -137,7 +137,7 @@ export class ProjectStore {
   getProject(projectId: string): Project {
     const project = this.findProject(projectId)
     if (!project) {
-      throw new Error(`Проект ${projectId} не найден`)
+      throw new Error(`Project ${projectId} not found`)
     }
     return project
   }
@@ -167,7 +167,7 @@ export class ProjectStore {
     }
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null
-      this.save().catch((error) => console.error('Не удалось сохранить проекты', error))
+      this.save().catch((error) => console.error('Failed to save projects', error))
     }, SAVE_DELAY_MS)
   }
 

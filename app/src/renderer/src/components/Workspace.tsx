@@ -14,7 +14,7 @@ export function Workspace() {
           onTitleChange={(title) => void applyTerminalTitle(chatId, title)}
         />
       ))}
-      {!activeChatId && <p className="workspace__empty">Выберите чат или создайте новый</p>}
+      {!activeChatId && <p className="workspace__empty">Select a chat or create a new one</p>}
     </main>
   )
 }
