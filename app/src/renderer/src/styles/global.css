@@ -288,6 +288,23 @@ ul {
   border-left: 1px solid var(--color-border);
 }
 
+/* Без сайдбара рабочая область сама уступает место кнопкам окна и служит зоной перетаскивания. */
+.app[data-sidebar='hidden'] .workspace {
+  border-left: none;
+}
+
+.app[data-sidebar='hidden'] .terminal-view {
+  top: var(--titlebar-height);
+}
+
+.app[data-sidebar='hidden'] .workspace::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--titlebar-height);
+  -webkit-app-region: drag;
+}
+
 .workspace__empty {
   position: absolute;
   inset: 0;

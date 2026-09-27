@@ -5,11 +5,7 @@ import { ProjectItem } from './ProjectItem'
 import { SidebarButton } from './SidebarButton'
 
 export function Sidebar() {
-  const { projects, activeChatId, addProject, createChat } = useProjectsContext()
-
-  // «Новый чат» открывается в проекте текущего чата, а если чат не выбран — в первом проекте.
-  const currentProject =
-    projects.find((project) => project.chats.some(({ id }) => id === activeChatId)) ?? projects[0]
+  const { projects, currentProjectId, addProject, createChat } = useProjectsContext()
 
   return (
     <aside className="sidebar">
@@ -19,8 +15,8 @@ export function Sidebar() {
         <SidebarButton
           icon={SquarePen}
           label="New chat"
-          disabled={!currentProject}
-          onClick={() => currentProject && void createChat(currentProject.id)}
+          disabled={!currentProjectId}
+          onClick={() => currentProjectId && void createChat(currentProjectId)}
         />
         <SidebarButton icon={FolderPlus} label="New project" onClick={() => void addProject()} />
       </nav>

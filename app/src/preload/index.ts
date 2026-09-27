@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { AppCommand } from '../shared/commands'
 import {
   IpcChannel,
   type AtoxApi,
@@ -69,6 +70,13 @@ const api: AtoxApi = {
   },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile)
+  },
+  commands: {
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, command: AppCommand) => listener(command)
+      ipcRenderer.on(IpcChannel.AppCommand, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.AppCommand, handler)
+    }
   },
   showContextMenu: (items) => ipcRenderer.invoke(IpcChannel.ContextMenu, items)
 }

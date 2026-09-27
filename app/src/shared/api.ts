@@ -1,3 +1,4 @@
+import type { AppCommand } from './commands'
 import type { Project, UserProfile } from './models'
 
 export type ContextMenuItem<Action extends string> =
@@ -48,6 +49,9 @@ export interface AtoxApi {
   system: {
     getUserProfile(): Promise<UserProfile>
   }
+  commands: {
+    subscribe(listener: (command: AppCommand) => void): () => void
+  }
   showContextMenu<Action extends string>(items: ContextMenuItem<Action>[]): Promise<Action | null>
 }
 
@@ -67,6 +71,7 @@ export const IpcChannel = {
   TerminalData: 'terminal:data',
   TerminalExit: 'terminal:exit',
   SystemUserProfile: 'system:user-profile',
+  AppCommand: 'app:command',
   ContextMenu: 'context-menu'
 } as const
 

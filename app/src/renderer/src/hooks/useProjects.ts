@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Project } from '../../../shared/models'
 
 const { atox } = window
@@ -8,6 +8,10 @@ export interface ProjectsState {
   activeChatId: string | null
   /** Чаты, которые открывались в этой сессии: их терминалы держим смонтированными. */
   openedChatIds: string[]
+  /** Все чаты в порядке сайдбара — по нему работает переключение с клавиатуры. */
+  orderedChatIds: string[]
+  /** Проект текущего чата, а если чат не выбран — первый проект. */
+  currentProjectId: string | null
   selectChat(chatId: string): void
   addProject(): Promise<void>
   removeProject(projectId: string): Promise<void>
@@ -27,6 +31,16 @@ export function useProjects(): ProjectsState {
   useEffect(() => {
     void atox.projects.list().then(setProjects)
   }, [])
+
+  const orderedChatIds = useMemo(
+    () => projects.flatMap((project) => project.chats.map(({ id }) => id)),
+    [projects]
+  )
+
+  const currentProjectId = useMemo(() => {
+    const current = projects.find((project) => project.chats.some(({ id }) => id === activeChatId))
+    return (current ?? projects[0])?.id ?? null
+  }, [projects, activeChatId])
 
   const selectChat = useCallback((chatId: string) => {
     setActiveChatId(chatId)
@@ -100,6 +114,8 @@ export function useProjects(): ProjectsState {
     projects,
     activeChatId,
     openedChatIds,
+    orderedChatIds,
+    currentProjectId,
     selectChat,
     addProject,
     removeProject,

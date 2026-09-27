@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { broadcastTerminalData, broadcastTerminalExit, registerIpcHandlers } from './ipc'
+import { installAppMenu } from './menu'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
 import { createMainWindow } from './window'
@@ -16,6 +17,7 @@ async function bootstrap(): Promise<void> {
     onExit: (chatId) => broadcastTerminalExit({ chatId })
   })
   registerIpcHandlers(store, terminals)
+  installAppMenu()
 
   app.on('before-quit', () => terminals.killAll())
 
