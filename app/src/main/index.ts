@@ -11,6 +11,13 @@ import { createMainWindow } from './window'
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
 
+/** Сборка для разработки хранит данные отдельно и не трогает проекты установленного приложения. */
+const DEV_USER_DATA_SUFFIX = '-dev'
+
+if (!app.isPackaged) {
+  app.setPath('userData', app.getPath('userData') + DEV_USER_DATA_SUFFIX)
+}
+
 async function bootstrap(): Promise<void> {
   await app.whenReady()
 
