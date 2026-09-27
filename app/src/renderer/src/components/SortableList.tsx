@@ -7,14 +7,15 @@ import {
   useSensors,
   type DragEndEvent
 } from '@dnd-kit/core'
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 /** Сдвиг курсора, после которого нажатие считается перетаскиванием, а не кликом. */
 const DRAG_ACTIVATION_DISTANCE_PX = 4
 
-const MODIFIERS = [restrictToVerticalAxis]
+/** Элемент двигается только вверх-вниз и в пределах своего списка: у списка чатов обрезан край. */
+const MODIFIERS = [restrictToVerticalAxis, restrictToParentElement]
 
 interface SortableListProps<Item extends { id: string }> {
   items: readonly Item[]
