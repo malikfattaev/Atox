@@ -9,6 +9,8 @@
   --row-padding: 10px;
   --row-gap: 10px;
   --radius: 8px;
+  --collapse-duration: 200ms;
+  --collapse-easing: cubic-bezier(0.2, 0, 0, 1);
   --icon-size: 17px;
   --avatar-size: 26px;
   --status-dot-size: 8px;
@@ -365,6 +367,37 @@ ul {
 @media (prefers-reduced-motion: reduce) {
   .chat-status__dot[data-status='working'] {
     animation: none;
+  }
+}
+
+/*
+ * Чаты проекта раскрываются и сворачиваются по высоте: строка сетки плавно меняется
+ * между 0fr и 1fr, поэтому анимация не зависит от числа чатов.
+ */
+.project-chats {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--collapse-duration) var(--collapse-easing);
+}
+
+.project-chats[data-expanded='false'] {
+  grid-template-rows: 0fr;
+}
+
+.project-chats__content {
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity var(--collapse-duration) var(--collapse-easing);
+}
+
+.project-chats[data-expanded='false'] > .project-chats__content {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-chats,
+  .project-chats__content {
+    transition: none;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react'
+import { useId, useState, type MouseEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import type { Project } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
@@ -21,6 +21,7 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
   // Проект тянут за его строку, а переносится он вместе со своими чатами.
   const { itemProps, handleProps } = useSortableItem(project.id, renaming)
   const FolderIcon = expanded ? FolderOpen : Folder
+  const chatsId = useId()
 
   const createProjectChat = () => {
     setExpanded(true)
@@ -83,6 +84,7 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
             type="button"
             className="row__main"
             aria-expanded={expanded}
+            aria-controls={chatsId}
             onClick={() => setExpanded((value) => !value)}
           >
             <FolderIcon className="icon" />
@@ -99,11 +101,19 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
         </button>
       </div>
 
-      {expanded && project.chats.length > 0 && (
-        <SortableList items={project.chats} onMove={(id, toIndex) => void moveChat(id, toIndex)}>
-          {(chat) => <ChatItem key={chat.id} chat={chat} branch={branch} />}
-        </SortableList>
-      )}
+      {/* Свёрнутые чаты остаются в DOM, чтобы список плавно раскрывался и сворачивался. */}
+      <div id={chatsId} className="project-chats" data-expanded={expanded} inert={!expanded}>
+        <div className="project-chats__content">
+          {project.chats.length > 0 && (
+            <SortableList
+              items={project.chats}
+              onMove={(id, toIndex) => void moveChat(id, toIndex)}
+            >
+              {(chat) => <ChatItem key={chat.id} chat={chat} branch={branch} />}
+            </SortableList>
+          )}
+        </div>
+      </div>
     </li>
   )
 }
