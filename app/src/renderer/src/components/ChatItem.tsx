@@ -56,8 +56,10 @@ export function ChatItem({ chat }: ChatItemProps) {
           onClick={() => selectChat(chat.id)}
           onDoubleClick={() => setRenaming(true)}
         >
-          <ChatStatus status={activity} />
-          <span className="row__label">{chat.title}</span>
+          <span className="chat-title">
+            <ChatStatus status={activity} />
+            <span className="row__label">{chat.title}</span>
+          </span>
         </button>
       )}
     </li>

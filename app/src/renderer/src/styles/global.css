@@ -11,7 +11,8 @@
   --radius: 8px;
   --icon-size: 17px;
   --avatar-size: 26px;
-  --status-dot-size: 7px;
+  --status-dot-size: 8px;
+  --status-gap: 8px;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
@@ -232,18 +233,30 @@ ul {
 }
 
 /*
- * Состояние чата занимает колонку иконок: кружок стоит ровно под иконкой папки проекта,
- * а название чата — на одной линии с названием проекта.
+ * Кружок состояния стоит в колонке иконок вплотную к названию чата, а само название — на одной
+ * линии с названием проекта. Блок кружка высотой в заглавную букву (1cap) выровнен по базовой
+ * линии текста, поэтому центр кружка совпадает с центром букв при любом шрифте и размере.
  */
+.chat-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--status-gap);
+  min-width: 0;
+}
+
+/* Кружок вынесен из потока: иначе блок взял бы базовую линию у него, а не встал на линию текста. */
 .chat-status {
-  display: grid;
-  place-items: center;
-  width: var(--icon-size);
-  height: var(--icon-size);
+  position: relative;
+  width: calc(var(--icon-size) + var(--row-gap) - var(--status-gap));
+  height: 1cap;
   flex-shrink: 0;
 }
 
 .chat-status__dot {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  translate: 0 -50%;
   width: var(--status-dot-size);
   height: var(--status-dot-size);
   border-radius: 50%;
