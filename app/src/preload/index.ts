@@ -70,7 +70,8 @@ const api: AtoxApi = {
     onExit: (chatId, listener) => onTerminalExit(chatId, () => listener())
   },
   system: {
-    getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile)
+    getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),
+    focusWindow: () => ipcRenderer.send(IpcChannel.SystemFocusWindow)
   },
   settings: {
     get: () => ipcRenderer.invoke(IpcChannel.SettingsGet),

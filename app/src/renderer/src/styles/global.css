@@ -229,6 +229,31 @@ ul {
   user-select: text;
 }
 
+/* Состояние чата справа от названия: работает или закончил, пока его не видели. */
+.row__status {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.row__status--working {
+  color: var(--color-text-muted);
+  animation: spin 1s linear infinite;
+}
+
+.row__status--unread {
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Кнопка действия появляется только при наведении, чтобы список оставался чистым. */
 .row__action {
   display: grid;

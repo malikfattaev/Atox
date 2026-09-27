@@ -1,4 +1,5 @@
 import {
+  app,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -125,6 +126,17 @@ export function registerIpcHandlers(
   })
 
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
+
+  ipcMain.on(IpcChannel.SystemFocusWindow, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window) {
+      if (window.isMinimized()) {
+        window.restore()
+      }
+      window.show()
+      app.focus({ steal: true })
+    }
+  })
 
   ipcMain.handle(IpcChannel.SettingsGet, () => settings.get())
   ipcMain.handle(IpcChannel.SettingsUpdate, (_event, patch: Partial<Settings>) =>

@@ -49,6 +49,8 @@ export interface AtoxApi {
   }
   system: {
     getUserProfile(): Promise<UserProfile>
+    /** Выводит окно приложения на передний план, например по клику на уведомление. */
+    focusWindow(): void
   }
   settings: {
     get(): Promise<Settings>
@@ -77,6 +79,7 @@ export const IpcChannel = {
   TerminalData: 'terminal:data',
   TerminalExit: 'terminal:exit',
   SystemUserProfile: 'system:user-profile',
+  SystemFocusWindow: 'system:focus-window',
   AppCommand: 'app:command',
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',

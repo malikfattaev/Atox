@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { Workspace, type FindRequest } from './components/Workspace'
+import { ChatActivityProvider } from './hooks/ChatActivityContext'
 import { ProjectsProvider, useProjectsContext } from './hooks/ProjectsContext'
 import { SettingsProvider } from './hooks/SettingsContext'
 import { useAppCommands } from './hooks/useAppCommands'
@@ -9,7 +10,9 @@ export function App() {
   return (
     <SettingsProvider>
       <ProjectsProvider>
-        <Layout />
+        <ChatActivityProvider>
+          <Layout />
+        </ChatActivityProvider>
       </ProjectsProvider>
     </SettingsProvider>
   )

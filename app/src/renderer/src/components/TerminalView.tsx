@@ -5,6 +5,7 @@ import { SearchAddon, type ISearchDecorationOptions } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { useChatActivityTracker } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { colorSchemeQuery, readTerminalAppearance } from '../lib/terminalTheme'
 import { TerminalFindBar } from './TerminalFindBar'
@@ -17,6 +18,14 @@ const TITLE_SETTLE_DELAY_MS = 500
 const SCROLLBACK_LINES = 10_000
 
 const EXIT_MESSAGE = '\r\n\x1b[2mProcess exited. Press any key to restart.\x1b[0m'
+
+/** OSC 9 — уведомление от программы в терминале (так их отправляют, например, агенты). */
+const NOTIFICATION_OSC = 9
+
+/** OSC 9;4 — индикатор прогресса (ConEmu), а не уведомление. */
+const PROGRESS_OSC_PREFIX = '4;'
+
+const ATTENTION_MESSAGE = 'Needs your attention'
 
 interface TerminalSearch {
   addon: SearchAddon
@@ -40,6 +49,7 @@ export function TerminalView({
   onTitleChange
 }: TerminalViewProps) {
   const { terminalFontSize } = useSettings()
+  const activity = useChatActivityTracker()
   // xterm монтируется во внутренний элемент без отступов: FitAddon считает строки
   // по размеру родителя и не учитывает его padding.
   const containerRef = useRef<HTMLDivElement>(null)
@@ -96,6 +106,7 @@ export function TerminalView({
     const unsubscribeData = atox.terminal.onData(chatId, (data) => {
       if (attached) {
         terminal.write(data)
+        activity.reportOutput(chatId)
       }
     })
     const unsubscribeExit = atox.terminal.onExit(chatId, () => {
@@ -126,7 +137,19 @@ export function TerminalView({
         void attach()
         return
       }
+      activity.reportInput(chatId)
       atox.terminal.write(chatId, data)
+    })
+
+    const bellSubscription = terminal.onBell(() =>
+      activity.reportAttention(chatId, ATTENTION_MESSAGE)
+    )
+    const notificationHandler = terminal.parser.registerOscHandler(NOTIFICATION_OSC, (data) => {
+      if (data.startsWith(PROGRESS_OSC_PREFIX)) {
+        return false
+      }
+      activity.reportAttention(chatId, data.trim() || ATTENTION_MESSAGE)
+      return true
     })
 
     const resizeSubscription = terminal.onResize((size) => atox.terminal.resize(chatId, size))
@@ -160,6 +183,8 @@ export function TerminalView({
       inputSubscription.dispose()
       resizeSubscription.dispose()
       titleSubscription.dispose()
+      bellSubscription.dispose()
+      notificationHandler.dispose()
       unsubscribeData()
       unsubscribeExit()
       terminal.dispose()
@@ -167,7 +192,7 @@ export function TerminalView({
       fitRef.current = null
       setSearch(null)
     }
-  }, [chatId])
+  }, [chatId, activity])
 
   useEffect(() => {
     const terminal = terminalRef.current

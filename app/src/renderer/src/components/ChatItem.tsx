@@ -1,5 +1,7 @@
 import { useState, type MouseEvent } from 'react'
+import { LoaderCircle } from 'lucide-react'
 import type { Chat } from '../../../shared/models'
+import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { InlineRename } from './InlineRename'
 
@@ -12,6 +14,7 @@ interface ChatItemProps {
 export function ChatItem({ chat }: ChatItemProps) {
   const { activeChatId, selectChat, renameChat, removeChat } = useProjectsContext()
   const [renaming, setRenaming] = useState(false)
+  const activity = useChatActivity(chat.id)
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
@@ -53,6 +56,12 @@ export function ChatItem({ chat }: ChatItemProps) {
           onDoubleClick={() => setRenaming(true)}
         >
           <span className="row__label">{chat.title}</span>
+          {activity === 'working' && (
+            <LoaderCircle className="icon row__status row__status--working" aria-label="Working" />
+          )}
+          {activity === 'unread' && (
+            <span className="row__status row__status--unread" aria-label="New activity" />
+          )}
         </button>
       )}
     </li>
