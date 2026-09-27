@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FolderPlus, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { useGitBranches } from '../hooks/useGitBranches'
 import { useSettings } from '../hooks/SettingsContext'
 import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
@@ -15,6 +16,7 @@ interface SidebarProps {
 export function Sidebar({ onOpenSettings }: SidebarProps) {
   const { projects, currentProjectId, addProject, createChat, moveProject } = useProjectsContext()
   const { sidebarWidth } = useSettings()
+  const branches = useGitBranches()
   // Пока тянут край, ширина живёт здесь; в настройки попадает только итоговая.
   const [draftWidth, setDraftWidth] = useState<number | null>(null)
   const width = draftWidth ?? sidebarWidth
@@ -39,7 +41,13 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
           <p className="sidebar__empty">No projects yet</p>
         ) : (
           <SortableList items={projects} onMove={(id, toIndex) => void moveProject(id, toIndex)}>
-            {(project) => <ProjectItem key={project.id} project={project} />}
+            {(project) => (
+              <ProjectItem
+                key={project.id}
+                project={project}
+                branch={branches[project.path] ?? null}
+              />
+            )}
           </SortableList>
         )}
       </section>

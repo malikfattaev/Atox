@@ -4,6 +4,7 @@ import type { Settings } from '../shared/settings'
 import {
   IpcChannel,
   type AtoxApi,
+  type GitBranches,
   type TerminalDataEvent,
   type TerminalExitEvent
 } from '../shared/api'
@@ -77,6 +78,15 @@ const api: AtoxApi = {
     getPath: (file) => webUtils.getPathForFile(file),
     savePastedImage: async (image) =>
       ipcRenderer.invoke(IpcChannel.FilesSavePastedImage, await image.arrayBuffer(), image.type)
+  },
+  git: {
+    branches: () => ipcRenderer.invoke(IpcChannel.GitBranches),
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, branches: GitBranches) =>
+        listener(branches)
+      ipcRenderer.on(IpcChannel.GitBranchesChanged, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.GitBranchesChanged, handler)
+    }
   },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),

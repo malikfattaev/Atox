@@ -10,9 +10,11 @@ const { atox } = window
 
 interface ProjectItemProps {
   project: Project
+  /** Текущая ветка git в папке проекта; `null` — папка не репозиторий. */
+  branch: string | null
 }
 
-export function ProjectItem({ project }: ProjectItemProps) {
+export function ProjectItem({ project, branch }: ProjectItemProps) {
   const { createChat, renameProject, revealProject, removeProject, moveChat } = useProjectsContext()
   const [expanded, setExpanded] = useState(true)
   const [renaming, setRenaming] = useState(false)
@@ -99,7 +101,7 @@ export function ProjectItem({ project }: ProjectItemProps) {
 
       {expanded && project.chats.length > 0 && (
         <SortableList items={project.chats} onMove={(id, toIndex) => void moveChat(id, toIndex)}>
-          {(chat) => <ChatItem key={chat.id} chat={chat} />}
+          {(chat) => <ChatItem key={chat.id} chat={chat} branch={branch} />}
         </SortableList>
       )}
     </li>

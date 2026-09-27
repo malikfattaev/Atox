@@ -1,6 +1,12 @@
 import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
-import { broadcastTerminalData, broadcastTerminalExit, registerIpcHandlers } from './ipc'
+import { GitBranchTracker } from './gitBranches'
+import {
+  broadcastGitBranches,
+  broadcastTerminalData,
+  broadcastTerminalExit,
+  registerIpcHandlers
+} from './ipc'
 import { installAppMenu } from './menu'
 import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
@@ -31,7 +37,11 @@ async function bootstrap(): Promise<void> {
       onExit: (chatId) => broadcastTerminalExit({ chatId })
     }
   )
-  registerIpcHandlers(store, settings, terminals)
+  const branches = new GitBranchTracker(broadcastGitBranches)
+  registerIpcHandlers(store, settings, terminals, branches)
+  // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
+  app.on('browser-window-focus', () => void branches.refreshAll())
+  app.on('will-quit', () => branches.dispose())
   installAppMenu(settings)
 
   setupQuitHandling({ terminals, stores: [store, settings] })
