@@ -3,6 +3,8 @@
   --sidebar-resizer-width: 8px;
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
   --titlebar-height: 44px;
+  --terminal-padding-top: 12px;
+  --workspace-drag-height: var(--terminal-padding-top);
   --row-height: 34px;
   /* Зазор между строками сайдбара: выделенные соседние строки не слипаются. */
   --row-spacing: 3px;
@@ -464,6 +466,8 @@ ul {
 
 .find-bar {
   position: absolute;
+  /* Панель поиска заходит на полосу перетаскивания окна, но должна принимать клики. */
+  -webkit-app-region: no-drag;
   top: 10px;
   right: 16px;
   z-index: 10;
@@ -620,19 +624,30 @@ ul {
 }
 
 /*
- * Невидимая полоса высотой в заголовок окна продолжает заголовок сайдбара на всю ширину:
- * окно можно перетаскивать за любое место сверху. Терминал начинается под ней.
+ * Невидимая полоса по верхнему краю рабочей области: за неё окно можно перетаскивать с любого
+ * места сверху. Она занимает только отступ над терминалом — зона перетаскивания не принимает
+ * клики, и строки терминала под ней нельзя было бы выделить.
  */
 .workspace::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: var(--titlebar-height);
+  height: var(--workspace-drag-height);
   -webkit-app-region: drag;
+}
+
+/* Без сайдбара рабочая область уступает место кнопкам окна и служит заголовком целиком. */
+.app[data-sidebar='hidden'] {
+  --workspace-drag-height: var(--titlebar-height);
 }
 
 .app[data-sidebar='hidden'] .workspace {
   border-left: none;
+}
+
+.app[data-sidebar='hidden'] .terminal-view {
+  top: var(--titlebar-height);
+  padding-top: 0;
 }
 
 .workspace__empty {
@@ -646,8 +661,8 @@ ul {
 
 .terminal-view {
   position: absolute;
-  inset: var(--titlebar-height) 0 0;
-  padding: 0 0 12px 16px;
+  inset: 0;
+  padding: var(--terminal-padding-top) 0 12px 16px;
 }
 
 .terminal-view[hidden] {
