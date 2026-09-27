@@ -1,6 +1,8 @@
 export interface Settings {
   /** Размер шрифта терминалов в пикселях. */
   terminalFontSize: number
+  /** Команда, которая запускается в каждом новом терминале чата (например, `claude`); пусто — ничего. */
+  startupCommand: string
 }
 
 export const TERMINAL_FONT_SIZE = {
@@ -10,5 +12,6 @@ export const TERMINAL_FONT_SIZE = {
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
-  terminalFontSize: TERMINAL_FONT_SIZE.default
+  terminalFontSize: TERMINAL_FONT_SIZE.default,
+  startupCommand: ''
 }

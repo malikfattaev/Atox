@@ -7,3 +7,4 @@ export type AppCommand =
   | { type: 'previous-chat' }
   | { type: 'next-chat' }
   | { type: 'find' }
+  | { type: 'open-settings' }

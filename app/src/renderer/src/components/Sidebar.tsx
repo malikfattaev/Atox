@@ -4,7 +4,11 @@ import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
 import { SidebarButton } from './SidebarButton'
 
-export function Sidebar() {
+interface SidebarProps {
+  onOpenSettings(): void
+}
+
+export function Sidebar({ onOpenSettings }: SidebarProps) {
   const { projects, currentProjectId, addProject, createChat } = useProjectsContext()
 
   return (
@@ -34,7 +38,7 @@ export function Sidebar() {
         )}
       </section>
 
-      <ProfileBar />
+      <ProfileBar onOpenSettings={onOpenSettings} />
     </aside>
   )
 }

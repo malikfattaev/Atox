@@ -16,10 +16,13 @@ async function bootstrap(): Promise<void> {
   const userData = app.getPath('userData')
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
   const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
-  const terminals = new TerminalManager(app.getName(), {
-    onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
-    onExit: (chatId) => broadcastTerminalExit({ chatId })
-  })
+  const terminals = new TerminalManager(
+    { appName: app.getName(), getStartupCommand: () => settings.get().startupCommand },
+    {
+      onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
+      onExit: (chatId) => broadcastTerminalExit({ chatId })
+    }
+  )
   registerIpcHandlers(store, settings, terminals)
   installAppMenu(settings)
 

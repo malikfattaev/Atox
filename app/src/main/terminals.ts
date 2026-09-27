@@ -42,12 +42,18 @@ interface TerminalEvents {
   onExit(chatId: string): void
 }
 
+interface TerminalOptions {
+  appName: string
+  /** Команда, которую нужно выполнить в только что запущенной оболочке; пустая строка — ничего. */
+  getStartupCommand(): string
+}
+
 /** Процессы оболочки для чатов: один псевдотерминал на чат. */
 export class TerminalManager {
   private readonly sessions = new Map<string, Session>()
 
   constructor(
-    private readonly appName: string,
+    private readonly options: TerminalOptions,
     private readonly events: TerminalEvents
   ) {}
 
@@ -77,6 +83,12 @@ export class TerminalManager {
       session.output = (session.output + data).slice(-OUTPUT_BUFFER_LIMIT)
       this.events.onData(chatId, data)
     })
+    // Оболочка сама прочитает команду, как только будет готова: ввод буферизуется терминалом.
+    const startupCommand = this.options.getStartupCommand()
+    if (startupCommand) {
+      pty.write(`${startupCommand}\r`)
+    }
+
     pty.onExit(() => {
       // Сессию могли уже заменить новой — удаляем только свою.
       if (this.sessions.get(chatId) === session) {
@@ -122,7 +134,7 @@ export class TerminalManager {
       ...env,
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
-      TERM_PROGRAM: this.appName,
+      TERM_PROGRAM: this.options.appName,
       LANG: env['LANG'] ?? FALLBACK_LANG
     }
   }

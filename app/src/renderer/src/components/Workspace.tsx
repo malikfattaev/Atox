@@ -1,10 +1,13 @@
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { SettingsView } from './SettingsView'
 import { TerminalView } from './TerminalView'
 
 interface WorkspaceProps {
   /** Открытый поиск: в каком чате и номер запроса (⌘F). */
   find: FindRequest | null
   onCloseFind(): void
+  settingsOpen: boolean
+  onCloseSettings(): void
 }
 
 export interface FindRequest {
@@ -12,7 +15,7 @@ export interface FindRequest {
   request: number
 }
 
-export function Workspace({ find, onCloseFind }: WorkspaceProps) {
+export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: WorkspaceProps) {
   const { activeChatId, openedChatIds, applyTerminalTitle } = useProjectsContext()
 
   return (
@@ -21,13 +24,16 @@ export function Workspace({ find, onCloseFind }: WorkspaceProps) {
         <TerminalView
           key={chatId}
           chatId={chatId}
-          active={chatId === activeChatId}
+          active={!settingsOpen && chatId === activeChatId}
           findRequest={find?.chatId === chatId ? find.request : null}
           onCloseFind={onCloseFind}
           onTitleChange={(title) => void applyTerminalTitle(chatId, title)}
         />
       ))}
-      {!activeChatId && <p className="workspace__empty">Select a chat or create a new one</p>}
+      {settingsOpen && <SettingsView onClose={onCloseSettings} />}
+      {!settingsOpen && !activeChatId && (
+        <p className="workspace__empty">Select a chat or create a new one</p>
+      )}
     </main>
   )
 }

@@ -49,7 +49,8 @@ function normalize(settings: Settings): Settings {
     ? Math.round(settings.terminalFontSize)
     : TERMINAL_FONT_SIZE.default
   return {
-    ...settings,
-    terminalFontSize: Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, fontSize))
+    terminalFontSize: Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, fontSize)),
+    startupCommand:
+      typeof settings.startupCommand === 'string' ? settings.startupCommand.trim() : ''
   }
 }

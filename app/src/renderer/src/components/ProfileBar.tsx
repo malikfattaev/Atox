@@ -1,7 +1,11 @@
 import { Settings } from 'lucide-react'
 import { useUserProfile } from '../hooks/useUserProfile'
 
-export function ProfileBar() {
+interface ProfileBarProps {
+  onOpenSettings(): void
+}
+
+export function ProfileBar({ onOpenSettings }: ProfileBarProps) {
   const profile = useUserProfile()
   const initial = profile?.name.charAt(0).toUpperCase()
 
@@ -13,7 +17,7 @@ export function ProfileBar() {
         </span>
         <span className="profile-bar__name">{profile?.name}</span>
       </div>
-      <button type="button" className="icon-button" aria-label="Settings">
+      <button type="button" className="icon-button" aria-label="Settings" onClick={onOpenSettings}>
         <Settings className="icon" />
       </button>
     </footer>

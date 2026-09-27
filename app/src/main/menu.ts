@@ -27,7 +27,22 @@ export function installAppMenu(settings: SettingsStore): void {
     : [{ type: 'separator' }, { role: 'reload' }, { role: 'toggleDevTools' }]
 
   const template: MenuItemConstructorOptions[] = [
-    { role: 'appMenu' },
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        commandItem('Settings…', 'CmdOrCtrl+,', { type: 'open-settings' }),
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
     {
       label: 'File',
       submenu: [

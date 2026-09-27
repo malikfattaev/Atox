@@ -9,6 +9,7 @@ interface AppCommandHandlers {
   projects: ProjectsState
   toggleSidebar(): void
   openFind(chatId: string): void
+  openSettings(): void
 }
 
 export function useAppCommands(handlers: AppCommandHandlers): void {
@@ -52,6 +53,9 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
           break
         case 'next-chat':
           selectRelative(1)
+          break
+        case 'open-settings':
+          handlersRef.current.openSettings()
           break
         case 'find':
           if (activeChatId) {
