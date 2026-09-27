@@ -3,6 +3,10 @@
   "productName": "Atox",
   "version": "0.1.0",
   "description": "Lightweight desktop app for working with CLI agents: projects are folders, chats are terminals",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/malikfattaev/Atox"
+  },
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
@@ -11,7 +15,8 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p src/main && tsc -p src/preload && tsc -p src/renderer",
     "postinstall": "install-electron --no && chmod +x node_modules/node-pty/prebuilds/*/spawn-helper",
-    "package": "electron-vite build && electron-builder --mac"
+    "package": "electron-vite build && electron-builder --mac",
+    "release:manifest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release-manifest.ts"
   },
   "dependencies": {
     "node-pty": "^1.1.0"
@@ -47,19 +52,23 @@
       "output": "dist"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "!node_modules/node-pty/build/**"
     ],
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
+    "npmRebuild": false,
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "identity": "-",
       "hardenedRuntime": false
-    }
+    },
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
   },
   "author": "Malik Fattaev"
 }
