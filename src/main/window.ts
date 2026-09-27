@@ -20,6 +20,7 @@ export function createMainWindow(): BrowserWindow {
     visualEffectState: 'followWindow',
     backgroundColor: '#00000000',
     webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true

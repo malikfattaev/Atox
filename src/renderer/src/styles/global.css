@@ -2,15 +2,24 @@
   --sidebar-width: 260px;
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
   --titlebar-height: 52px;
-  --radius: 10px;
+  --row-height: 28px;
+  --radius: 6px;
+  --icon-size: 14px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  --font-mono: 'SF Mono', Menlo, Monaco, monospace;
+  --terminal-font-size: 13px;
 
   --color-surface: #ffffff;
   --color-text: #1d1d1f;
   --color-text-muted: #86868b;
   --color-border: rgba(0, 0, 0, 0.08);
+  --color-hover: rgba(0, 0, 0, 0.05);
+  --color-active: rgba(0, 0, 0, 0.08);
+  --color-selection: rgba(0, 122, 255, 0.25);
 
   color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
@@ -22,6 +31,9 @@
     --color-text: #f5f5f7;
     --color-text-muted: #8e8e93;
     --color-border: rgba(255, 255, 255, 0.08);
+    --color-hover: rgba(255, 255, 255, 0.06);
+    --color-active: rgba(255, 255, 255, 0.1);
+    --color-selection: rgba(10, 132, 255, 0.35);
   }
 }
 
@@ -45,10 +57,33 @@ body {
   user-select: none;
 }
 
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex-shrink: 0;
+}
+
 .app {
   display: flex;
   height: 100%;
 }
+
+/* Сайдбар */
 
 .sidebar {
   display: flex;
@@ -63,12 +98,33 @@ body {
   -webkit-app-region: drag;
 }
 
+.sidebar__actions {
+  padding: 0 8px 12px;
+}
+
+.sidebar__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: var(--row-height);
+  padding: 0 8px;
+  border-radius: var(--radius);
+}
+
+.sidebar__action:hover {
+  background: var(--color-hover);
+}
+
 .sidebar__section {
-  padding: 0 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 12px;
+  overflow-y: auto;
 }
 
 .sidebar__heading {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   padding: 0 8px;
   font-size: 11px;
   font-weight: 600;
@@ -81,9 +137,111 @@ body {
   color: var(--color-text-muted);
 }
 
+/* Строки проектов и чатов */
+
+.row {
+  display: flex;
+  align-items: center;
+  height: var(--row-height);
+  border-radius: var(--radius);
+}
+
+.row:hover {
+  background: var(--color-hover);
+}
+
+.row--chat[data-active='true'] {
+  background: var(--color-active);
+}
+
+.row__main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.row--chat .row__main {
+  padding-left: 28px;
+}
+
+.row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row--chat .row__label {
+  color: var(--color-text-muted);
+}
+
+.row--chat[data-active='true'] .row__label {
+  color: var(--color-text);
+}
+
+.row__chevron {
+  color: var(--color-text-muted);
+  transition: transform 120ms ease;
+}
+
+.row__chevron[data-expanded='true'] {
+  transform: rotate(90deg);
+}
+
+/* Кнопка действия появляется только при наведении, чтобы список оставался чистым. */
+.row__action {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 3px;
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  visibility: hidden;
+}
+
+.row:hover .row__action {
+  visibility: visible;
+}
+
+.row__action:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+/* Рабочая область */
+
 .workspace {
+  position: relative;
   flex: 1;
   min-width: 0;
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
+}
+
+.workspace__empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.terminal-view {
+  position: absolute;
+  inset: 0;
+  padding: 12px 0 12px 16px;
+}
+
+.terminal-view[hidden] {
+  display: none;
+}
+
+.terminal-view__host {
+  height: 100%;
 }
