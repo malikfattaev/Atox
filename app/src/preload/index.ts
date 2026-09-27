@@ -88,6 +88,16 @@ const api: AtoxApi = {
       return () => ipcRenderer.removeListener(IpcChannel.GitBranchesChanged, handler)
     }
   },
+  updates: {
+    readyVersion: () => ipcRenderer.invoke(IpcChannel.UpdatesReadyVersion),
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, version: string | null) =>
+        listener(version)
+      ipcRenderer.on(IpcChannel.UpdatesReady, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.UpdatesReady, handler)
+    },
+    install: () => ipcRenderer.send(IpcChannel.UpdatesInstall)
+  },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),
     focusWindow: () => ipcRenderer.send(IpcChannel.SystemFocusWindow)

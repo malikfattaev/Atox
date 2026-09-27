@@ -3,8 +3,15 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import packageJson from './package.json'
 
+/** Релизы лежат в репозитории из package.json; `latest` всегда указывает на последний. */
+const updateFeedUrl = `${packageJson.repository.url}/releases/latest/download`
+
 export default defineConfig({
-  main: {},
+  main: {
+    define: {
+      __UPDATE_FEED_URL__: JSON.stringify(updateFeedUrl)
+    }
+  },
   preload: {},
   renderer: {
     resolve: {
