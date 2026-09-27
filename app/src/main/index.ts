@@ -5,6 +5,7 @@ import {
   broadcastGitBranches,
   broadcastTerminalData,
   broadcastTerminalExit,
+  broadcastUpdateReady,
   registerIpcHandlers
 } from './ipc'
 import { installAppMenu } from './menu'
@@ -12,6 +13,7 @@ import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
+import { AppUpdater } from './updater'
 import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
@@ -38,13 +40,25 @@ async function bootstrap(): Promise<void> {
     }
   )
   const branches = new GitBranchTracker(broadcastGitBranches)
-  registerIpcHandlers(store, settings, terminals, branches)
+  // Обновляется только собранное приложение; адрес релизов можно подменить для проверки обновлений.
+  const updater = app.isPackaged
+    ? new AppUpdater({
+        feedUrl: process.env['ATOX_UPDATE_FEED_URL'] ?? __UPDATE_FEED_URL__,
+        onReady: broadcastUpdateReady
+      })
+    : null
+  registerIpcHandlers(store, settings, terminals, branches, updater)
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshAll())
   app.on('will-quit', () => branches.dispose())
   installAppMenu(settings)
 
-  setupQuitHandling({ terminals, stores: [store, settings] })
+  const quitHandling = setupQuitHandling({ terminals, stores: [store, settings] })
+  if (updater) {
+    quitHandling.onQuitCancelled(() => updater.cancelRelaunch())
+    app.on('will-quit', () => updater.installOnQuit())
+    updater.start()
+  }
 
   createMainWindow()
 

@@ -15,6 +15,9 @@
   --collapse-easing: cubic-bezier(0.2, 0, 0, 1);
   --icon-size: 17px;
   --avatar-size: 26px;
+  --profile-actions-gap: 6px;
+  --update-button-height: 24px;
+  --update-button-padding: 12px;
   --status-dot-size: 8px;
   --status-gap: 8px;
   --chat-row-padding: 7px;
@@ -36,6 +39,7 @@
   --color-active: rgba(0, 0, 0, 0.08);
   --color-selection: rgba(0, 122, 255, 0.25);
   --color-accent: #007aff;
+  --color-on-accent: #ffffff;
   --color-popover: rgba(246, 246, 246, 0.86);
   --color-popover-border: rgba(0, 0, 0, 0.12);
   --shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.18);
@@ -453,6 +457,28 @@ ul {
   background: var(--color-avatar);
   font-size: 12px;
   font-weight: 600;
+}
+
+.profile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--profile-actions-gap);
+  flex-shrink: 0;
+}
+
+/* Кнопка появляется, когда новая версия скачана и проверена: по клику приложение перезапускается. */
+.update-button {
+  height: var(--update-button-height);
+  padding: 0 var(--update-button-padding);
+  border-radius: calc(var(--update-button-height) / 2);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.update-button:hover {
+  filter: brightness(1.08);
 }
 
 .profile-bar__name {

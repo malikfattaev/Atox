@@ -66,6 +66,13 @@ export interface AtoxApi {
     branches(): Promise<GitBranches>
     subscribe(listener: (branches: GitBranches) => void): () => void
   }
+  updates: {
+    /** Версия, которая скачана и готова к установке; `null` — обновлений нет. */
+    readyVersion(): Promise<string | null>
+    subscribe(listener: (version: string | null) => void): () => void
+    /** Перезапускает приложение с установкой обновления. */
+    install(): void
+  }
   system: {
     getUserProfile(): Promise<UserProfile>
     /** Выводит окно приложения на передний план, например по клику на уведомление. */
@@ -103,6 +110,9 @@ export const IpcChannel = {
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
+  UpdatesReadyVersion: 'updates:ready-version',
+  UpdatesReady: 'updates:ready',
+  UpdatesInstall: 'updates:install',
   SystemUserProfile: 'system:user-profile',
   SystemFocusWindow: 'system:focus-window',
   AppCommand: 'app:command',

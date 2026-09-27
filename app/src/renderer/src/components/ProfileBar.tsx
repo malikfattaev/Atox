@@ -1,4 +1,5 @@
 import { Settings } from 'lucide-react'
+import { useReadyUpdate } from '../hooks/useReadyUpdate'
 import { useUserProfile } from '../hooks/useUserProfile'
 
 interface ProfileBarProps {
@@ -8,6 +9,7 @@ interface ProfileBarProps {
 export function ProfileBar({ onOpenSettings }: ProfileBarProps) {
   const profile = useUserProfile()
   const initial = profile?.name.charAt(0).toUpperCase()
+  const updateVersion = useReadyUpdate()
 
   return (
     <footer className="profile-bar">
@@ -17,9 +19,26 @@ export function ProfileBar({ onOpenSettings }: ProfileBarProps) {
         </span>
         <span className="profile-bar__name">{profile?.name}</span>
       </div>
-      <button type="button" className="icon-button" aria-label="Settings" onClick={onOpenSettings}>
-        <Settings className="icon" />
-      </button>
+      <div className="profile-bar__actions">
+        {updateVersion && (
+          <button
+            type="button"
+            className="update-button"
+            title={`Restart to update to Atox ${updateVersion}`}
+            onClick={() => window.atox.updates.install()}
+          >
+            Update
+          </button>
+        )}
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Settings"
+          onClick={onOpenSettings}
+        >
+          <Settings className="icon" />
+        </button>
+      </div>
     </footer>
   )
 }

@@ -6,6 +6,11 @@ interface Flushable {
   flush(): Promise<void>
 }
 
+export interface QuitHandling {
+  /** Пользователь отказался выходить в окне подтверждения. */
+  onQuitCancelled(listener: () => void): void
+}
+
 interface QuitHandlingOptions {
   terminals: TerminalManager
   /** Хранилища, чьи записи на диск нужно дождаться перед выходом. */
@@ -16,9 +21,10 @@ interface QuitHandlingOptions {
  * Выход из приложения: подтверждение, если в чатах что-то работает, остановка терминалов
  * и ожидание записи данных на диск.
  */
-export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): void {
+export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): QuitHandling {
   let quitConfirmed = false
   let storesFlushed = false
+  const cancelListeners = new Set<() => void>()
 
   app.on('before-quit', (event) => {
     if (!quitConfirmed) {
@@ -29,6 +35,8 @@ export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): v
           if (confirmed) {
             quitConfirmed = true
             app.quit()
+          } else {
+            cancelListeners.forEach((listener) => listener())
           }
         })
         return
@@ -60,6 +68,8 @@ export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): v
       app.quit()
     })
   }
+
+  return { onQuitCancelled: (listener) => cancelListeners.add(listener) }
 }
 
 function confirmQuit(programs: string[]): Promise<boolean> {

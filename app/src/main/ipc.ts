@@ -25,12 +25,15 @@ import { savePastedImage } from './pastedImages'
 import { getUserProfile } from './system'
 import { normalizeTerminalTitle } from './terminalTitle'
 import type { TerminalManager } from './terminals'
+import type { AppUpdater } from './updater'
 
 export function registerIpcHandlers(
   store: ProjectStore,
   settings: SettingsStore,
   terminals: TerminalManager,
-  branches: GitBranchTracker
+  branches: GitBranchTracker,
+  /** `null` — обновления недоступны, например при запуске из исходников. */
+  updater: AppUpdater | null
 ): void {
   const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
   trackProjectBranches()
@@ -156,6 +159,9 @@ export function registerIpcHandlers(
 
   ipcMain.handle(IpcChannel.GitBranches, () => branches.list())
 
+  ipcMain.handle(IpcChannel.UpdatesReadyVersion, () => updater?.readyVersion ?? null)
+  ipcMain.on(IpcChannel.UpdatesInstall, () => updater?.installAndRelaunch())
+
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
 
   ipcMain.on(IpcChannel.SystemFocusWindow, (event) => {
@@ -201,6 +207,10 @@ function showContextMenu(
       callback: () => setTimeout(() => resolve(null))
     })
   })
+}
+
+export function broadcastUpdateReady(version: string): void {
+  broadcast(IpcChannel.UpdatesReady, version)
 }
 
 export function broadcastGitBranches(branches: GitBranches): void {
