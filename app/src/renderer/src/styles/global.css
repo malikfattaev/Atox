@@ -1,13 +1,19 @@
 :root {
-  --sidebar-width: 260px;
+  --sidebar-width: 280px;
+  --sidebar-padding: 10px;
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
-  --titlebar-height: 52px;
-  --row-height: 28px;
-  --radius: 6px;
-  --icon-size: 14px;
+  --titlebar-height: 44px;
+  --row-height: 34px;
+  --row-padding: 10px;
+  --row-gap: 10px;
+  --radius: 8px;
+  --icon-size: 17px;
+  --avatar-size: 26px;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
+  --font-size: 14px;
+  --font-size-title: 19px;
   --terminal-font-size: 13px;
 
   --color-surface: #ffffff;
@@ -17,10 +23,11 @@
   --color-hover: rgba(0, 0, 0, 0.05);
   --color-active: rgba(0, 0, 0, 0.08);
   --color-selection: rgba(0, 122, 255, 0.25);
+  --color-avatar: rgba(0, 0, 0, 0.12);
 
   color-scheme: light dark;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--font-size);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
 }
@@ -34,6 +41,7 @@
     --color-hover: rgba(255, 255, 255, 0.06);
     --color-active: rgba(255, 255, 255, 0.1);
     --color-selection: rgba(10, 132, 255, 0.35);
+    --color-avatar: rgba(255, 255, 255, 0.16);
   }
 }
 
@@ -76,6 +84,21 @@ ul {
   width: var(--icon-size);
   height: var(--icon-size);
   flex-shrink: 0;
+  stroke-width: 1.75;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: var(--row-height);
+  height: var(--row-height);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+}
+
+.icon-button:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
 }
 
 .app {
@@ -98,42 +121,56 @@ ul {
   -webkit-app-region: drag;
 }
 
-.sidebar__actions {
-  padding: 0 8px 12px;
+.sidebar__header {
+  padding: 4px calc(var(--sidebar-padding) + var(--row-padding)) 12px;
 }
 
-.sidebar__action {
+.sidebar__title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 600;
+}
+
+.sidebar__nav {
+  padding: 0 var(--sidebar-padding) 16px;
+}
+
+.sidebar-button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--row-gap);
   width: 100%;
   height: var(--row-height);
-  padding: 0 8px;
+  padding: 0 var(--row-padding);
   border-radius: var(--radius);
 }
 
-.sidebar__action:hover {
+.sidebar-button:hover:not(:disabled) {
   background: var(--color-hover);
+}
+
+.sidebar-button:disabled {
+  color: var(--color-text-muted);
 }
 
 .sidebar__section {
   flex: 1;
   min-height: 0;
-  padding: 0 8px 12px;
+  padding: 0 var(--sidebar-padding) 12px;
   overflow-y: auto;
 }
 
 .sidebar__heading {
   margin: 0 0 4px;
-  padding: 0 8px;
-  font-size: 11px;
-  font-weight: 600;
+  padding: 0 var(--row-padding);
+  font-size: var(--font-size);
+  font-weight: 400;
   color: var(--color-text-muted);
 }
 
 .sidebar__empty {
   margin: 0;
-  padding: 4px 8px;
+  padding: 6px var(--row-padding);
   color: var(--color-text-muted);
 }
 
@@ -157,16 +194,17 @@ ul {
 .row__main {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--row-gap);
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 8px;
+  padding: 0 var(--row-padding);
   text-align: left;
 }
 
+/* Название чата выравнивается по названию проекта, а не по его иконке. */
 .row--chat .row__main {
-  padding-left: 28px;
+  padding-left: calc(var(--row-padding) + var(--icon-size) + var(--row-gap));
 }
 
 .row__label {
@@ -175,30 +213,13 @@ ul {
   white-space: nowrap;
 }
 
-.row--chat .row__label {
-  color: var(--color-text-muted);
-}
-
-.row--chat[data-active='true'] .row__label {
-  color: var(--color-text);
-}
-
-.row__chevron {
-  color: var(--color-text-muted);
-  transition: transform 120ms ease;
-}
-
-.row__chevron[data-expanded='true'] {
-  transform: rotate(90deg);
-}
-
 /* Кнопка действия появляется только при наведении, чтобы список оставался чистым. */
 .row__action {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-right: 3px;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
   border-radius: var(--radius);
   color: var(--color-text-muted);
   visibility: hidden;
@@ -211,6 +232,44 @@ ul {
 .row__action:hover {
   color: var(--color-text);
   background: var(--color-hover);
+}
+
+/* Профиль внизу сайдбара */
+
+.profile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--row-gap);
+  padding: 10px var(--sidebar-padding);
+  border-top: 1px solid var(--color-border);
+}
+
+.profile-bar__user {
+  display: flex;
+  align-items: center;
+  gap: var(--row-gap);
+  min-width: 0;
+  padding: 0 var(--row-padding);
+}
+
+.profile-bar__avatar {
+  display: grid;
+  place-items: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-avatar);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-bar__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
 }
 
 /* Рабочая область */

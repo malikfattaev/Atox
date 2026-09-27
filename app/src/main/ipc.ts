@@ -7,6 +7,7 @@ import {
   type TerminalSize
 } from '../shared/api'
 import type { ProjectStore } from './store'
+import { getUserProfile } from './system'
 import type { TerminalManager } from './terminals'
 
 export function registerIpcHandlers(store: ProjectStore, terminals: TerminalManager): void {
@@ -68,6 +69,8 @@ export function registerIpcHandlers(store: ProjectStore, terminals: TerminalMana
   ipcMain.on(IpcChannel.TerminalResize, (_event, chatId: string, size: TerminalSize) => {
     terminals.resize(chatId, size)
   })
+
+  ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
 
   ipcMain.handle(IpcChannel.ContextMenu, showContextMenu)
 }

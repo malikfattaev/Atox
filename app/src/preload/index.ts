@@ -63,6 +63,9 @@ const api: AtoxApi = {
     onData: onTerminalData,
     onExit: (chatId, listener) => onTerminalExit(chatId, () => listener())
   },
+  system: {
+    getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile)
+  },
   showContextMenu: (items) => ipcRenderer.invoke(IpcChannel.ContextMenu, items)
 }
 

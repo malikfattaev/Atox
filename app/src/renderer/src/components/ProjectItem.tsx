@@ -1,5 +1,5 @@
 import { useState, type MouseEvent } from 'react'
-import { ChevronRight, Plus } from 'lucide-react'
+import { Folder, FolderOpen, Plus } from 'lucide-react'
 import type { Project } from '../../../shared/models'
 import { ChatItem } from './ChatItem'
 
@@ -23,6 +23,7 @@ export function ProjectItem({
   onRemoveChat
 }: ProjectItemProps) {
   const [expanded, setExpanded] = useState(true)
+  const FolderIcon = expanded ? FolderOpen : Folder
 
   const createChat = () => {
     setExpanded(true)
@@ -51,7 +52,7 @@ export function ProjectItem({
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
-          <ChevronRight className="icon row__chevron" data-expanded={expanded} />
+          <FolderIcon className="icon" />
           <span className="row__label">{project.name}</span>
         </button>
         <button type="button" className="row__action" aria-label="Новый чат" onClick={createChat}>
@@ -60,7 +61,7 @@ export function ProjectItem({
       </div>
 
       {expanded && project.chats.length > 0 && (
-        <ul className="chat-list">
+        <ul>
           {project.chats.map((chat) => (
             <ChatItem
               key={chat.id}

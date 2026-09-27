@@ -1,6 +1,8 @@
-import { FolderPlus } from 'lucide-react'
+import { FolderPlus, SquarePen } from 'lucide-react'
 import type { Project } from '../../../shared/models'
+import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
+import { SidebarButton } from './SidebarButton'
 
 interface SidebarProps {
   projects: Project[]
@@ -21,15 +23,26 @@ export function Sidebar({
   onSelectChat,
   onRemoveChat
 }: SidebarProps) {
+  // «Новый чат» открывается в проекте текущего чата, а если чат не выбран — в первом проекте.
+  const currentProject =
+    projects.find((project) => project.chats.some(({ id }) => id === activeChatId)) ?? projects[0]
+
   return (
     <aside className="sidebar">
       <div className="sidebar__titlebar" />
 
-      <nav className="sidebar__actions">
-        <button type="button" className="sidebar__action" onClick={onAddProject}>
-          <FolderPlus className="icon" />
-          Новый проект
-        </button>
+      <header className="sidebar__header">
+        <h1 className="sidebar__title">Atox</h1>
+      </header>
+
+      <nav className="sidebar__nav">
+        <SidebarButton
+          icon={SquarePen}
+          label="Новый чат"
+          disabled={!currentProject}
+          onClick={() => currentProject && onCreateChat(currentProject.id)}
+        />
+        <SidebarButton icon={FolderPlus} label="Новый проект" onClick={onAddProject} />
       </nav>
 
       <section className="sidebar__section">
@@ -37,7 +50,7 @@ export function Sidebar({
         {projects.length === 0 ? (
           <p className="sidebar__empty">Пока нет проектов</p>
         ) : (
-          <ul className="project-list">
+          <ul>
             {projects.map((project) => (
               <ProjectItem
                 key={project.id}
@@ -52,6 +65,8 @@ export function Sidebar({
           </ul>
         )}
       </section>
+
+      <ProfileBar />
     </aside>
   )
 }

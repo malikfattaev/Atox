@@ -1,4 +1,4 @@
-import type { Project } from './models'
+import type { Project, UserProfile } from './models'
 
 export interface ContextMenuItem<Action extends string> {
   action: Action
@@ -34,6 +34,9 @@ export interface AtoxApi {
     onData(chatId: string, listener: (data: string) => void): () => void
     onExit(chatId: string, listener: () => void): () => void
   }
+  system: {
+    getUserProfile(): Promise<UserProfile>
+  }
   showContextMenu<Action extends string>(items: ContextMenuItem<Action>[]): Promise<Action | null>
 }
 
@@ -49,6 +52,7 @@ export const IpcChannel = {
   TerminalResize: 'terminal:resize',
   TerminalData: 'terminal:data',
   TerminalExit: 'terminal:exit',
+  SystemUserProfile: 'system:user-profile',
   ContextMenu: 'context-menu'
 } as const
 

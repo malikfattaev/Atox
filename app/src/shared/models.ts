@@ -11,3 +11,8 @@ export interface Project {
   path: string
   chats: Chat[]
 }
+
+export interface UserProfile {
+  /** Имя автора из git, а если его нет — из учётной записи macOS. */
+  name: string
+}
