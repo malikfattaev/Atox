@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { userInfo } from 'node:os'
+import { basename } from 'node:path'
 import { spawn, type IPty } from 'node-pty'
 import type { TerminalSize } from '../shared/api'
 
@@ -35,6 +36,13 @@ const OUTPUT_BUFFER_LIMIT = 512 * 1024
 interface Session {
   pty: IPty
   output: string
+  /** Имя процесса оболочки: всё, что отличается от него, — запущенная в терминале программа. */
+  shellName: string
+}
+
+export interface RunningProgram {
+  chatId: string
+  program: string
 }
 
 interface TerminalEvents {
@@ -69,14 +77,15 @@ export class TerminalManager {
       throw new Error(`Project folder not found: ${cwd}`)
     }
 
-    const pty = spawn(resolveShell(), ['-l'], {
+    const shell = resolveShell()
+    const pty = spawn(shell, ['-l'], {
       name: 'xterm-256color',
       cols: size.cols,
       rows: size.rows,
       cwd,
       env: this.createEnvironment()
     })
-    const session: Session = { pty, output: '' }
+    const session: Session = { pty, output: '', shellName: basename(shell) }
     this.sessions.set(chatId, session)
 
     pty.onData((data) => {
@@ -106,6 +115,24 @@ export class TerminalManager {
 
   resize(chatId: string, size: TerminalSize): void {
     this.sessions.get(chatId)?.pty.resize(size.cols, size.rows)
+  }
+
+  /** Программа, которая сейчас работает в терминале чата поверх оболочки; `null` — терминал свободен. */
+  getRunningProgram(chatId: string): string | null {
+    const session = this.sessions.get(chatId)
+    if (!session) {
+      return null
+    }
+    // Оболочку входа macOS показывает с дефисом в начале имени (-zsh).
+    const program = session.pty.process.replace(/^-/, '')
+    return program && program !== session.shellName ? program : null
+  }
+
+  listRunningPrograms(): RunningProgram[] {
+    return [...this.sessions.keys()].flatMap((chatId) => {
+      const program = this.getRunningProgram(chatId)
+      return program ? [{ chatId, program }] : []
+    })
   }
 
   kill(chatId: string): void {

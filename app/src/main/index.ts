@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { broadcastTerminalData, broadcastTerminalExit, registerIpcHandlers } from './ipc'
 import { installAppMenu } from './menu'
+import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
@@ -26,28 +27,7 @@ async function bootstrap(): Promise<void> {
   registerIpcHandlers(store, settings, terminals)
   installAppMenu(settings)
 
-  app.on('before-quit', () => terminals.killAll())
-
-  // Выход откладывается, пока не допишутся изменения: последние из них приходят из окна,
-  // которое закрывается уже после начала выхода.
-  let storeFlushed = false
-  app.on('will-quit', (event) => {
-    if (storeFlushed) {
-      return
-    }
-    event.preventDefault()
-    void Promise.all([store.flush(), settings.flush()]).finally(() => {
-      storeFlushed = true
-      // Повторный выход — в следующем тике: пока Electron обрабатывает прерванный will-quit,
-      // app.quit() молча игнорируется, а запись могла завершиться ещё до конца обработки.
-      setImmediate(() => app.quit())
-    })
-  })
-
-  // Ctrl+C в терминале и остановка процесса должны закрывать приложение так же, как Cmd+Q.
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.on(signal, () => app.quit())
-  }
+  setupQuitHandling({ terminals, stores: [store, settings] })
 
   createMainWindow()
 

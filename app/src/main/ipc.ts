@@ -15,6 +15,7 @@ import {
   type TerminalSize
 } from '../shared/api'
 import type { Settings } from '../shared/settings'
+import { confirm, describeRunningPrograms } from './dialogs'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import { getUserProfile } from './system'
@@ -47,9 +48,20 @@ export function registerIpcHandlers(
     return { projects: store.list(), projectId: project.id }
   })
 
-  ipcMain.handle(IpcChannel.ProjectsRemove, (_event, projectId: string) => {
-    const project = store.removeProject(projectId)
-    project?.chats.forEach((chat) => terminals.kill(chat.id))
+  ipcMain.handle(IpcChannel.ProjectsRemove, async (event, projectId: string) => {
+    const project = store.getProject(projectId)
+    const programs = project.chats.flatMap((chat) => terminals.getRunningProgram(chat.id) ?? [])
+    const confirmed =
+      programs.length === 0 ||
+      (await confirm(BrowserWindow.fromWebContents(event.sender), {
+        message: `Remove “${project.name}” from the list?`,
+        detail: `${describeRunningPrograms(programs, 'in this project', 'Removing the project')} The folder stays on disk.`,
+        confirmLabel: 'Remove'
+      }))
+    if (confirmed) {
+      store.removeProject(projectId)
+      project.chats.forEach((chat) => terminals.kill(chat.id))
+    }
     return store.list()
   })
 
@@ -70,9 +82,19 @@ export function registerIpcHandlers(
     return { projects: store.list(), chatId: chat.id }
   })
 
-  ipcMain.handle(IpcChannel.ChatsRemove, (_event, chatId: string) => {
-    terminals.kill(chatId)
-    store.removeChat(chatId)
+  ipcMain.handle(IpcChannel.ChatsRemove, async (event, chatId: string) => {
+    const program = terminals.getRunningProgram(chatId)
+    const confirmed =
+      program === null ||
+      (await confirm(BrowserWindow.fromWebContents(event.sender), {
+        message: `Delete “${store.findChat(chatId)?.chat.title ?? 'chat'}”?`,
+        detail: describeRunningPrograms([program], 'in this chat', 'Deleting the chat'),
+        confirmLabel: 'Delete'
+      }))
+    if (confirmed) {
+      terminals.kill(chatId)
+      store.removeChat(chatId)
+    }
     return store.list()
   })
 
