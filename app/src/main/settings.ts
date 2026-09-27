@@ -1,4 +1,9 @@
-import { DEFAULT_SETTINGS, TERMINAL_FONT_SIZE, type Settings } from '../shared/settings'
+import {
+  clampSidebarWidth,
+  DEFAULT_SETTINGS,
+  TERMINAL_FONT_SIZE,
+  type Settings
+} from '../shared/settings'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
 const SETTINGS_VERSION = 1
@@ -51,6 +56,7 @@ function normalize(settings: Settings): Settings {
   return {
     terminalFontSize: Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, fontSize)),
     startupCommand:
-      typeof settings.startupCommand === 'string' ? settings.startupCommand.trim() : ''
+      typeof settings.startupCommand === 'string' ? settings.startupCommand.trim() : '',
+    sidebarWidth: clampSidebarWidth(settings.sidebarWidth)
   }
 }

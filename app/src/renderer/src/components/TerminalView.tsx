@@ -19,6 +19,12 @@ const TITLE_SETTLE_DELAY_MS = 500
 
 const SCROLLBACK_LINES = 10_000
 
+/**
+ * Новый размер передаётся программе, когда он устоялся: пока тянут край окна или сайдбара,
+ * агент иначе перерисовывал бы весь экран на каждом кадре.
+ */
+const PTY_RESIZE_DELAY_MS = 100
+
 const EXIT_MESSAGE = '\r\n\x1b[2mProcess exited. Press any key to restart.\x1b[0m'
 
 /** OSC 9 — уведомление от программы в терминале (так их отправляют, например, агенты). */
@@ -216,11 +222,16 @@ export function TerminalView({
 
     const identityHandler = registerTerminalIdentity(terminal)
 
-    const resizeSubscription = terminal.onResize((size) => atox.terminal.resize(chatId, size))
+    let ptyResizeTimer: ReturnType<typeof setTimeout> | undefined
+    const resizeSubscription = terminal.onResize((size) => {
+      clearTimeout(ptyResizeTimer)
+      ptyResizeTimer = setTimeout(() => atox.terminal.resize(chatId, size), PTY_RESIZE_DELAY_MS)
+    })
 
     let titleTimer: ReturnType<typeof setTimeout> | undefined
     const titleSubscription = terminal.onTitleChange((title) => {
       clearTimeout(titleTimer)
+      clearTimeout(ptyResizeTimer)
       const trimmed = title.trim()
       if (trimmed) {
         titleTimer = setTimeout(() => onTitleChangeRef.current(trimmed), TITLE_SETTLE_DELAY_MS)
