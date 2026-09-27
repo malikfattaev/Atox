@@ -1,0 +1,63 @@
+# Каждый коммит в main с изменениями приложения выпускается релизом на GitHub:
+# установленный Atox находит его и предлагает обновиться.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Релизы выходят строго по очереди, в порядке коммитов.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      # Версия — major.minor из package.json и номер сборки: 0.1.42.
+      - name: Set version
+        run: |
+          base=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
+          echo "VERSION=$base.${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - run: npx electron-vite build
+
+      - run: npx electron-builder --mac --arm64 --x64 --publish never -c.extraMetadata.version="$VERSION"
+
+      - name: Sign update manifest
+        run: npm run release:manifest -- dist "$VERSION"
+        env:
+          ATOX_UPDATE_SIGNING_KEY: ${{ secrets.ATOX_UPDATE_SIGNING_KEY }}
+
+      - name: Publish release
+        run: |
+          gh release create "v$VERSION" \
+            dist/Atox-"$VERSION"-*.dmg dist/Atox-"$VERSION"-*.zip dist/latest-mac.json \
+            --title "Atox $VERSION" \
+            --notes "$(git log -1 --format=%s)" \
+            --target "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
