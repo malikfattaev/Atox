@@ -1,6 +1,6 @@
 :root {
-  --sidebar-width: 280px;
   --sidebar-padding: 10px;
+  --sidebar-resizer-width: 8px;
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
   --titlebar-height: 44px;
   --row-height: 34px;
@@ -126,10 +126,21 @@ ul {
 /* Сайдбар */
 
 .sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
-  width: var(--sidebar-width);
   flex-shrink: 0;
+}
+
+/* Край сайдбара, за который меняют его ширину: узкая невидимая полоса поверх границы. */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: calc(var(--sidebar-resizer-width) / -2);
+  bottom: 0;
+  z-index: 2;
+  width: var(--sidebar-resizer-width);
+  cursor: col-resize;
 }
 
 .sidebar__titlebar {

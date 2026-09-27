@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { FolderPlus, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { useSettings } from '../hooks/SettingsContext'
 import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
 import { SidebarButton } from './SidebarButton'
+import { SidebarResizer } from './SidebarResizer'
 import { SortableList } from './SortableList'
 
 interface SidebarProps {
@@ -11,9 +14,13 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenSettings }: SidebarProps) {
   const { projects, currentProjectId, addProject, createChat, moveProject } = useProjectsContext()
+  const { sidebarWidth } = useSettings()
+  // Пока тянут край, ширина живёт здесь; в настройки попадает только итоговая.
+  const [draftWidth, setDraftWidth] = useState<number | null>(null)
+  const width = draftWidth ?? sidebarWidth
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width }}>
       <div className="sidebar__titlebar" />
 
       <nav className="sidebar__nav">
@@ -38,6 +45,12 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
       </section>
 
       <ProfileBar onOpenSettings={onOpenSettings} />
+
+      <SidebarResizer
+        width={width}
+        onDrag={setDraftWidth}
+        onCommit={(next) => void window.atox.settings.update({ sidebarWidth: next })}
+      />
     </aside>
   )
 }
