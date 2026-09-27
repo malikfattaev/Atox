@@ -4,6 +4,8 @@ export interface Chat {
   /** Название задал пользователь — заголовок терминала его больше не перезаписывает. */
   hasCustomTitle?: boolean
   createdAt: number
+  /** Когда программа в чате последний раз закончила работу (мс с начала эпохи). */
+  lastActiveAt?: number
 }
 
 export interface Project {

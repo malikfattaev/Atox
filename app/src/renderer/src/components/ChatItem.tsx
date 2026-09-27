@@ -3,6 +3,7 @@ import type { Chat } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { ChatStatus } from './ChatStatus'
+import { ChatTime } from './ChatTime'
 import { InlineRename } from './InlineRename'
 import { useSortableItem } from './SortableList'
 
@@ -64,6 +65,8 @@ export function ChatItem({ chat }: ChatItemProps) {
             <ChatStatus status={activity} />
             <span className="row__label">{chat.title}</span>
           </span>
+          {/* Пока программа работает, время не показываем: о работе говорит пульсирующий кружок. */}
+          {activity !== 'working' && <ChatTime at={chat.lastActiveAt ?? chat.createdAt} />}
         </button>
       )}
     </li>

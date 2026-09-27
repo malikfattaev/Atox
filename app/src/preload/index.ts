@@ -61,6 +61,8 @@ const api: AtoxApi = {
     remove: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsRemove, chatId),
     rename: (chatId, title) => ipcRenderer.invoke(IpcChannel.ChatsRename, chatId, title),
     move: (chatId, toIndex) => ipcRenderer.invoke(IpcChannel.ChatsMove, chatId, toIndex),
+    recordActivity: (chatId, at) =>
+      ipcRenderer.invoke(IpcChannel.ChatsRecordActivity, chatId, at),
     applyTerminalTitle: (chatId, title) =>
       ipcRenderer.invoke(IpcChannel.ChatsApplyTerminalTitle, chatId, title)
   },

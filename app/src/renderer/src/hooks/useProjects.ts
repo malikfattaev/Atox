@@ -23,6 +23,7 @@ export interface ProjectsState {
   removeChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
   moveChat(chatId: string, toIndex: number): Promise<void>
+  recordChatActivity(chatId: string, at: number): Promise<void>
   applyTerminalTitle(chatId: string, title: string): Promise<void>
 }
 
@@ -134,6 +135,12 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  const recordChatActivity = useCallback(
+    async (chatId: string, at: number) =>
+      applyProjects(await atox.chats.recordActivity(chatId, at)),
+    [applyProjects]
+  )
+
   const applyTerminalTitle = useCallback(
     async (chatId: string, title: string) =>
       applyProjects(await atox.chats.applyTerminalTitle(chatId, title)),
@@ -156,6 +163,7 @@ export function useProjects(): ProjectsState {
     removeChat,
     renameChat,
     moveChat,
+    recordChatActivity,
     applyTerminalTitle
   }
 }

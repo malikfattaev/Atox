@@ -121,6 +121,15 @@ export class ProjectStore {
     }
   }
 
+  /** Запоминает время последней работы в чате; более ранняя отметка не затирает свежую. */
+  recordChatActivity(chatId: string, at: number): void {
+    const chat = this.findChat(chatId)?.chat
+    if (chat && Number.isFinite(at) && at > (chat.lastActiveAt ?? 0)) {
+      chat.lastActiveAt = at
+      this.persist()
+    }
+  }
+
   /** Название из заголовка терминала применяется, только пока пользователь не задал своё. */
   applyTerminalTitle(chatId: string, title: string): void {
     const chat = this.findChat(chatId)?.chat
