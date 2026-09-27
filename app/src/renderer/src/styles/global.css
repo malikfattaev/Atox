@@ -619,21 +619,20 @@ ul {
   border-left: 1px solid var(--color-border);
 }
 
-/* Без сайдбара рабочая область сама уступает место кнопкам окна и служит зоной перетаскивания. */
-.app[data-sidebar='hidden'] .workspace {
-  border-left: none;
-}
-
-.app[data-sidebar='hidden'] .terminal-view {
-  top: var(--titlebar-height);
-}
-
-.app[data-sidebar='hidden'] .workspace::before {
+/*
+ * Невидимая полоса высотой в заголовок окна продолжает заголовок сайдбара на всю ширину:
+ * окно можно перетаскивать за любое место сверху. Терминал начинается под ней.
+ */
+.workspace::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
   height: var(--titlebar-height);
   -webkit-app-region: drag;
+}
+
+.app[data-sidebar='hidden'] .workspace {
+  border-left: none;
 }
 
 .workspace__empty {
@@ -647,8 +646,8 @@ ul {
 
 .terminal-view {
   position: absolute;
-  inset: 0;
-  padding: 12px 0 12px 16px;
+  inset: var(--titlebar-height) 0 0;
+  padding: 0 0 12px 16px;
 }
 
 .terminal-view[hidden] {
