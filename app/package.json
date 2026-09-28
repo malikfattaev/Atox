@@ -59,6 +59,10 @@
       "node_modules/node-pty/**"
     ],
     "npmRebuild": false,
+    "electronLanguages": [
+      "en",
+      "ru"
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
