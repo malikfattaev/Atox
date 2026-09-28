@@ -3,6 +3,7 @@ import { Minus, Plus, X } from 'lucide-react'
 import { AGENTS, TERMINAL_AGENT_ID, type AgentId } from '../../../shared/agents'
 import { TERMINAL_FONT_SIZE } from '../../../shared/settings'
 import { useSettings } from '../hooks/SettingsContext'
+import { ShortcutList } from './ShortcutList'
 
 const { atox } = window
 
@@ -40,46 +41,56 @@ export function SettingsView({ onClose }: SettingsViewProps) {
 
       <div className="settings__group">
         <h2 className="settings__group-title">Agents</h2>
-        {AGENTS.filter(({ id }) => id !== TERMINAL_AGENT_ID).map((agent) => (
-          <AgentCommandRow
-            key={agent.id}
-            agentId={agent.id}
-            name={agent.name}
-            defaultCommand={agent.command}
-            command={settings.agentCommands[agent.id] ?? ''}
-          />
-        ))}
+        <p className="settings__description">
+          The startup command runs in the terminal of a new chat. Use your own, for example an alias
+          or extra flags; leave it empty for the default.
+        </p>
+        <div className="settings__card">
+          {AGENTS.filter(({ id }) => id !== TERMINAL_AGENT_ID).map((agent) => (
+            <AgentCommandRow
+              key={agent.id}
+              agentId={agent.id}
+              name={agent.name}
+              defaultCommand={agent.command}
+              command={settings.agentCommands[agent.id] ?? ''}
+            />
+          ))}
+        </div>
       </div>
 
       <div className="settings__group">
         <h2 className="settings__group-title">Terminal</h2>
-        <div className="settings__row">
-          <span className="settings__label">
-            Font size
-            <span className="settings__hint">Also ⌘+, ⌘− and ⌘0</span>
-          </span>
-          <div className="stepper">
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Decrease font size"
-              disabled={settings.terminalFontSize <= TERMINAL_FONT_SIZE.min}
-              onClick={() => changeFontSize(-1)}
-            >
-              <Minus className="icon" />
-            </button>
-            <span className="stepper__value">{settings.terminalFontSize}</span>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Increase font size"
-              disabled={settings.terminalFontSize >= TERMINAL_FONT_SIZE.max}
-              onClick={() => changeFontSize(1)}
-            >
-              <Plus className="icon" />
-            </button>
+        <div className="settings__card">
+          <div className="settings__row">
+            <span className="settings__label">Font size</span>
+            <div className="stepper">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Decrease font size"
+                disabled={settings.terminalFontSize <= TERMINAL_FONT_SIZE.min}
+                onClick={() => changeFontSize(-1)}
+              >
+                <Minus className="icon" />
+              </button>
+              <span className="stepper__value">{settings.terminalFontSize}</span>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Increase font size"
+                disabled={settings.terminalFontSize >= TERMINAL_FONT_SIZE.max}
+                onClick={() => changeFontSize(1)}
+              >
+                <Plus className="icon" />
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="settings__group">
+        <h2 className="settings__group-title">Keyboard shortcuts</h2>
+        <ShortcutList />
       </div>
     </section>
   )
@@ -120,7 +131,7 @@ function AgentCommandRow({ agentId, name, defaultCommand, command }: AgentComman
     <label className="settings__row">
       <span className="settings__label">
         {name}
-        <span className="settings__hint">Command that starts {name} in a new chat</span>
+        <span className="settings__hint">Startup command</span>
       </span>
       <input
         className="settings__input"

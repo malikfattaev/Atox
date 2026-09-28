@@ -583,14 +583,56 @@ ul {
   color: var(--color-text-muted);
 }
 
+/* Строки группы собраны в одну карточку и разделены тонкой линией, как в Системных настройках. */
+.settings__card {
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) + 4px);
+}
+
 .settings__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
   padding: 14px 16px;
+}
+
+.settings__row + .settings__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.settings__row--compact {
+  padding-block: 10px;
+}
+
+.settings__description {
+  margin: 0 0 12px;
+  font-size: var(--font-size-small);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.settings__subgroup + .settings__subgroup {
+  margin-top: 16px;
+}
+
+.settings__subgroup-title {
+  margin: 0 0 6px;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.shortcut-keys {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  background: var(--color-hover);
   border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius) + 4px);
+  border-radius: calc(var(--radius) - 2px);
 }
 
 .settings__label {

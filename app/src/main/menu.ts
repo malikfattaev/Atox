@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'elect
 import { IpcChannel } from '../shared/api'
 import type { AppCommand } from '../shared/commands'
 import { TERMINAL_FONT_SIZE } from '../shared/settings'
+import { SHORTCUTS } from '../shared/shortcuts'
 import type { SettingsStore } from './settings'
 
 function sendCommand(command: AppCommand): void {
@@ -32,7 +33,7 @@ export function installAppMenu(settings: SettingsStore): void {
       submenu: [
         { role: 'about' },
         { type: 'separator' },
-        commandItem('Settings…', 'CmdOrCtrl+,', { type: 'open-settings' }),
+        commandItem('Settings…', SHORTCUTS.openSettings.accelerator, { type: 'open-settings' }),
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -46,10 +47,10 @@ export function installAppMenu(settings: SettingsStore): void {
     {
       label: 'File',
       submenu: [
-        commandItem('New Chat', 'CmdOrCtrl+N', { type: 'new-chat' }),
-        commandItem('Open Project…', 'CmdOrCtrl+O', { type: 'open-project' }),
+        commandItem('New Chat', SHORTCUTS.newChat.accelerator, { type: 'new-chat' }),
+        commandItem('Open Project…', SHORTCUTS.openProject.accelerator, { type: 'open-project' }),
         { type: 'separator' },
-        commandItem('Close Chat', 'CmdOrCtrl+W', { type: 'close-chat' })
+        commandItem('Close Chat', SHORTCUTS.closeChat.accelerator, { type: 'close-chat' })
       ]
     },
     {
@@ -63,25 +64,29 @@ export function installAppMenu(settings: SettingsStore): void {
         { role: 'paste' },
         { role: 'selectAll' },
         { type: 'separator' },
-        commandItem('Find…', 'CmdOrCtrl+F', { type: 'find' })
+        commandItem('Find…', SHORTCUTS.find.accelerator, { type: 'find' })
       ]
     },
     {
       label: 'View',
       submenu: [
-        commandItem('Toggle Sidebar', 'CmdOrCtrl+B', { type: 'toggle-sidebar' }),
+        commandItem('Toggle Sidebar', SHORTCUTS.toggleSidebar.accelerator, {
+          type: 'toggle-sidebar'
+        }),
         { type: 'separator' },
-        commandItem('Previous Chat', 'CmdOrCtrl+Shift+[', { type: 'previous-chat' }),
-        commandItem('Next Chat', 'CmdOrCtrl+Shift+]', { type: 'next-chat' }),
+        commandItem('Previous Chat', SHORTCUTS.previousChat.accelerator, {
+          type: 'previous-chat'
+        }),
+        commandItem('Next Chat', SHORTCUTS.nextChat.accelerator, { type: 'next-chat' }),
         { type: 'separator' },
         {
           label: 'Actual Size',
-          accelerator: 'CmdOrCtrl+0',
+          accelerator: SHORTCUTS.actualSize.accelerator,
           click: changeFontSize(() => TERMINAL_FONT_SIZE.default)
         },
         {
           label: 'Zoom In',
-          accelerator: 'CmdOrCtrl+Plus',
+          accelerator: SHORTCUTS.zoomIn.accelerator,
           click: changeFontSize((size) => size + 1)
         },
         // На раскладках без отдельной «+» увеличение срабатывает и по ⌘=, как в браузерах.
@@ -94,7 +99,7 @@ export function installAppMenu(settings: SettingsStore): void {
         },
         {
           label: 'Zoom Out',
-          accelerator: 'CmdOrCtrl+-',
+          accelerator: SHORTCUTS.zoomOut.accelerator,
           click: changeFontSize((size) => size - 1)
         },
         ...developmentItems
