@@ -21,7 +21,9 @@ const execFileAsync = promisify(execFile)
 
 /** Первая проверка — вскоре после запуска, чтобы не мешать открытию окна. */
 const FIRST_CHECK_DELAY_MS = 10_000
-const CHECK_INTERVAL_MS = 60 * 60 * 1000
+const CHECK_INTERVAL_MS = 15 * 60 * 1000
+/** При возвращении в окно проверяем снова, но не чаще этого интервала. */
+const FOCUS_CHECK_INTERVAL_MS = 2 * 60 * 1000
 
 /** Скачанные обновления лежат во временном каталоге системы. */
 const UPDATES_DIR = 'updates'
@@ -61,6 +63,7 @@ export class AppUpdater {
   private checking = false
   private relaunchAfterInstall = false
   private installerStarted = false
+  private lastCheckAt = 0
 
   constructor(private readonly options: AppUpdaterOptions) {}
 
@@ -70,9 +73,20 @@ export class AppUpdater {
   }
 
   start(): void {
-    const check = () => void this.check().catch((error) => console.error('Update check failed', error))
-    setTimeout(check, FIRST_CHECK_DELAY_MS)
-    setInterval(check, CHECK_INTERVAL_MS)
+    setTimeout(() => this.runCheck(), FIRST_CHECK_DELAY_MS)
+    setInterval(() => this.runCheck(), CHECK_INTERVAL_MS)
+  }
+
+  /** Проверка при возвращении в окно: свежий релиз виден сразу, а не через интервал. */
+  checkOnFocus(): void {
+    if (Date.now() - this.lastCheckAt >= FOCUS_CHECK_INTERVAL_MS) {
+      this.runCheck()
+    }
+  }
+
+  private runCheck(): void {
+    this.lastCheckAt = Date.now()
+    void this.check().catch((error) => console.error('Update check failed', error))
   }
 
   /** Выходит из приложения, ставит обновление и запускает новую версию. */
