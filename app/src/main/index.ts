@@ -59,6 +59,7 @@ async function bootstrap(): Promise<void> {
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())
     app.on('will-quit', () => updater.installOnQuit())
+    app.on('browser-window-focus', () => updater.checkOnFocus())
     updater.start()
   }
 
