@@ -12,7 +12,6 @@ export const AGENTS = [
   { id: 'claude', name: 'Claude Code', command: 'claude', symbol: 'sparkle' },
   { id: 'codex', name: 'Codex', command: 'codex', symbol: 'chevron.left.forwardslash.chevron.right' },
   { id: 'gemini', name: 'Gemini CLI', command: 'gemini', symbol: 'diamond' },
-  { id: 'opencode', name: 'OpenCode', command: 'opencode', symbol: 'curlybraces' },
   { id: 'terminal', name: 'Terminal', command: '', symbol: 'apple.terminal' }
 ] as const satisfies readonly Agent[]
 
