@@ -1,3 +1,4 @@
+import type { AgentId } from './agents'
 import type { AppCommand } from './commands'
 import type { Project, UserProfile } from './models'
 import type { Settings } from './settings'
@@ -9,6 +10,8 @@ export type ContextMenuItem<Action extends string> =
       label: string
       /** Имя SF Symbol — иконка пункта в системном меню macOS. */
       symbol?: string
+      /** Пункт отмечен галочкой, например текущий выбор. */
+      checked?: boolean
     }
   | { type: 'separator' }
 
@@ -36,8 +39,16 @@ export interface AtoxApi {
     /** Открывает папку проекта в Finder. */
     reveal(projectId: string): Promise<void>
   }
+  agents: {
+    /** Агенты, которые установлены на компьютере; пустой терминал доступен всегда. */
+    available(): Promise<AgentId[]>
+  }
   chats: {
-    create(projectId: string): Promise<{ projects: Project[]; chatId: string }>
+    /**
+     * Создаёт чат с агентом. Выбранный агент становится агентом по умолчанию; без агента
+     * берётся агент по умолчанию (если он установлен) или пустой терминал.
+     */
+    create(projectId: string, agent?: AgentId): Promise<{ projects: Project[]; chatId: string }>
     remove(chatId: string): Promise<Project[]>
     /** Переименование пользователем: после него заголовок терминала название не меняет. */
     rename(chatId: string, title: string): Promise<Project[]>
@@ -96,6 +107,7 @@ export const IpcChannel = {
   ProjectsRename: 'projects:rename',
   ProjectsMove: 'projects:move',
   ProjectsReveal: 'projects:reveal',
+  AgentsAvailable: 'agents:available',
   ChatsCreate: 'chats:create',
   ChatsRemove: 'chats:remove',
   ChatsRename: 'chats:rename',

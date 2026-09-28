@@ -17,6 +17,13 @@ import {
   type TerminalSize
 } from '../shared/api'
 import type { Settings } from '../shared/settings'
+import {
+  isAgentId,
+  resolveAgentCommand,
+  TERMINAL_AGENT_ID,
+  type AgentId
+} from '../shared/agents'
+import type { AgentDetector } from './agents'
 import { confirm, describeRunningPrograms } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
@@ -27,14 +34,24 @@ import { normalizeTerminalTitle } from './terminalTitle'
 import type { TerminalManager } from './terminals'
 import type { AppUpdater } from './updater'
 
-export function registerIpcHandlers(
-  store: ProjectStore,
-  settings: SettingsStore,
-  terminals: TerminalManager,
-  branches: GitBranchTracker,
+interface AppServices {
+  store: ProjectStore
+  settings: SettingsStore
+  terminals: TerminalManager
+  branches: GitBranchTracker
+  agents: AgentDetector
   /** `null` — обновления недоступны, например при запуске из исходников. */
   updater: AppUpdater | null
-): void {
+}
+
+export function registerIpcHandlers({
+  store,
+  settings,
+  terminals,
+  branches,
+  agents,
+  updater
+}: AppServices): void {
   const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
   trackProjectBranches()
 
@@ -95,8 +112,20 @@ export function registerIpcHandlers(
     }
   })
 
-  ipcMain.handle(IpcChannel.ChatsCreate, (_event, projectId: string) => {
-    const chat = store.createChat(projectId)
+  ipcMain.handle(IpcChannel.AgentsAvailable, () => agents.list())
+
+  /** Агент по умолчанию, если он установлен, иначе пустой терминал. */
+  const resolveDefaultAgent = async (): Promise<AgentId> => {
+    const { defaultAgent } = settings.get()
+    return (await agents.list()).includes(defaultAgent) ? defaultAgent : TERMINAL_AGENT_ID
+  }
+
+  ipcMain.handle(IpcChannel.ChatsCreate, async (_event, projectId: string, agent?: unknown) => {
+    // Агента выбрали явно — он становится агентом по умолчанию для следующих чатов.
+    if (isAgentId(agent) && agent !== settings.get().defaultAgent) {
+      settings.update({ defaultAgent: agent })
+    }
+    const chat = store.createChat(projectId, isAgentId(agent) ? agent : await resolveDefaultAgent())
     return { projects: store.list(), chatId: chat.id }
   })
 
@@ -141,7 +170,8 @@ export function registerIpcHandlers(
     if (!location) {
       throw new Error(`Chat ${chatId} not found`)
     }
-    return terminals.attach(chatId, location.project.path, size)
+    const command = resolveAgentCommand(location.chat.agent, settings.get().agentCommands)
+    return terminals.attach(chatId, location.project.path, size, command)
   })
 
   ipcMain.on(IpcChannel.TerminalWrite, (_event, chatId: string, data: string) => {
@@ -196,6 +226,8 @@ function showContextMenu(
           : {
               label: item.label,
               icon: item.symbol ? nativeImage.createMenuSymbol(item.symbol) : undefined,
+              type: item.checked === undefined ? ('normal' as const) : ('checkbox' as const),
+              checked: item.checked,
               click: () => resolve(item.action)
             }
       )

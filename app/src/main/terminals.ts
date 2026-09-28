@@ -52,8 +52,6 @@ interface TerminalEvents {
 
 interface TerminalOptions {
   appName: string
-  /** Команда, которую нужно выполнить в только что запущенной оболочке; пустая строка — ничего. */
-  getStartupCommand(): string
 }
 
 /** Процессы оболочки для чатов: один псевдотерминал на чат. */
@@ -65,8 +63,11 @@ export class TerminalManager {
     private readonly events: TerminalEvents
   ) {}
 
-  /** Запускает оболочку чата, если она ещё не запущена, и возвращает накопленный вывод. */
-  attach(chatId: string, cwd: string, size: TerminalSize): string {
+  /**
+   * Запускает оболочку чата, если она ещё не запущена, и возвращает накопленный вывод.
+   * `startupCommand` выполняется в новой оболочке — так запускается агент чата.
+   */
+  attach(chatId: string, cwd: string, size: TerminalSize, startupCommand: string): string {
     const existing = this.sessions.get(chatId)
     if (existing) {
       existing.pty.resize(size.cols, size.rows)
@@ -93,7 +94,6 @@ export class TerminalManager {
       this.events.onData(chatId, data)
     })
     // Оболочка сама прочитает команду, как только будет готова: ввод буферизуется терминалом.
-    const startupCommand = this.options.getStartupCommand()
     if (startupCommand) {
       pty.write(`${startupCommand}\r`)
     }
@@ -167,6 +167,6 @@ export class TerminalManager {
   }
 }
 
-function resolveShell(): string {
+export function resolveShell(): string {
   return process.env['SHELL'] || userInfo().shell || DEFAULT_SHELL
 }

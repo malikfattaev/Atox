@@ -1,5 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
 import { Minus, Plus, X } from 'lucide-react'
+import { AGENTS, TERMINAL_AGENT_ID, type AgentId } from '../../../shared/agents'
 import { TERMINAL_FONT_SIZE } from '../../../shared/settings'
 import { useSettings } from '../hooks/SettingsContext'
 
@@ -11,10 +12,6 @@ interface SettingsViewProps {
 
 export function SettingsView({ onClose }: SettingsViewProps) {
   const settings = useSettings()
-  const [startupCommand, setStartupCommand] = useState(settings.startupCommand)
-
-  // Настройки могут поменяться и снаружи (например, из меню) — поле следует за ними.
-  useEffect(() => setStartupCommand(settings.startupCommand), [settings.startupCommand])
 
   useEffect(() => {
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
@@ -25,18 +22,6 @@ export function SettingsView({ onClose }: SettingsViewProps) {
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [onClose])
-
-  const saveStartupCommand = () => {
-    if (startupCommand.trim() !== settings.startupCommand) {
-      void atox.settings.update({ startupCommand })
-    }
-  }
-
-  const handleCommandKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      event.currentTarget.blur()
-    }
-  }
 
   const changeFontSize = (step: number) => {
     void atox.settings.update({ terminalFontSize: settings.terminalFontSize + step })
@@ -54,24 +39,16 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       </header>
 
       <div className="settings__group">
-        <h2 className="settings__group-title">Chats</h2>
-        <label className="settings__row">
-          <span className="settings__label">
-            Startup command
-            <span className="settings__hint">
-              Runs in every new chat terminal, for example claude or codex
-            </span>
-          </span>
-          <input
-            className="settings__input"
-            value={startupCommand}
-            placeholder="None"
-            spellCheck={false}
-            onChange={(event) => setStartupCommand(event.target.value)}
-            onBlur={saveStartupCommand}
-            onKeyDown={handleCommandKeyDown}
+        <h2 className="settings__group-title">Agents</h2>
+        {AGENTS.filter(({ id }) => id !== TERMINAL_AGENT_ID).map((agent) => (
+          <AgentCommandRow
+            key={agent.id}
+            agentId={agent.id}
+            name={agent.name}
+            defaultCommand={agent.command}
+            command={settings.agentCommands[agent.id] ?? ''}
           />
-        </label>
+        ))}
       </div>
 
       <div className="settings__group">
@@ -105,5 +82,55 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </div>
       </div>
     </section>
+  )
+}
+
+interface AgentCommandRowProps {
+  agentId: AgentId
+  name: string
+  defaultCommand: string
+  /** Своя команда из настроек; пустая строка — стандартная. */
+  command: string
+}
+
+/** Команда запуска агента: пустое поле — стандартная, например `claude`. */
+function AgentCommandRow({ agentId, name, defaultCommand, command }: AgentCommandRowProps) {
+  const settings = useSettings()
+  const [value, setValue] = useState(command)
+
+  // Настройки могут поменяться и снаружи — поле следует за ними.
+  useEffect(() => setValue(command), [command])
+
+  const save = () => {
+    const trimmed = value.trim()
+    if (trimmed !== command) {
+      void atox.settings.update({
+        agentCommands: { ...settings.agentCommands, [agentId]: trimmed }
+      })
+    }
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur()
+    }
+  }
+
+  return (
+    <label className="settings__row">
+      <span className="settings__label">
+        {name}
+        <span className="settings__hint">Command that starts {name} in a new chat</span>
+      </span>
+      <input
+        className="settings__input"
+        value={value}
+        placeholder={defaultCommand}
+        spellCheck={false}
+        onChange={(event) => setValue(event.target.value)}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+      />
+    </label>
   )
 }

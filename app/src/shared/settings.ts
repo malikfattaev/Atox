@@ -1,8 +1,12 @@
+import { DEFAULT_AGENT_ID, type AgentCommands, type AgentId } from './agents'
+
 export interface Settings {
   /** Размер шрифта терминалов в пикселях. */
   terminalFontSize: number
-  /** Команда, которая запускается в каждом новом терминале чата (например, `claude`); пусто — ничего. */
-  startupCommand: string
+  /** Агент нового чата по ⌘N; меняется на последний выбранный в меню нового чата. */
+  defaultAgent: AgentId
+  /** Свои команды запуска агентов вместо стандартных. */
+  agentCommands: AgentCommands
   /** Ширина сайдбара в пикселях; меняется перетаскиванием его края. */
   sidebarWidth: number
 }
@@ -22,7 +26,8 @@ export const SIDEBAR_WIDTH = {
 
 export const DEFAULT_SETTINGS: Settings = {
   terminalFontSize: TERMINAL_FONT_SIZE.default,
-  startupCommand: '',
+  defaultAgent: DEFAULT_AGENT_ID,
+  agentCommands: {},
   sidebarWidth: SIDEBAR_WIDTH.default
 }
 

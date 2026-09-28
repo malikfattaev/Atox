@@ -1,3 +1,4 @@
+import { AGENTS, DEFAULT_AGENT_ID, isAgentId, type AgentCommands } from '../shared/agents'
 import {
   clampSidebarWidth,
   DEFAULT_SETTINGS,
@@ -55,8 +56,21 @@ function normalize(settings: Settings): Settings {
     : TERMINAL_FONT_SIZE.default
   return {
     terminalFontSize: Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, fontSize)),
-    startupCommand:
-      typeof settings.startupCommand === 'string' ? settings.startupCommand.trim() : '',
+    defaultAgent: isAgentId(settings.defaultAgent) ? settings.defaultAgent : DEFAULT_AGENT_ID,
+    agentCommands: normalizeAgentCommands(settings.agentCommands),
     sidebarWidth: clampSidebarWidth(settings.sidebarWidth)
   }
+}
+
+/** Оставляет только непустые команды известных агентов. */
+function normalizeAgentCommands(commands: unknown): AgentCommands {
+  const source = typeof commands === 'object' && commands !== null ? commands : {}
+  const normalized: AgentCommands = {}
+  for (const { id } of AGENTS) {
+    const command = (source as Record<string, unknown>)[id]
+    if (typeof command === 'string' && command.trim()) {
+      normalized[id] = command.trim()
+    }
+  }
+  return normalized
 }
