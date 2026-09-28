@@ -1,6 +1,10 @@
+import type { AgentId } from './agents'
+
 export interface Chat {
   id: string
   title: string
+  /** Агент, который запускается в терминале чата; нет — пустой терминал. */
+  agent?: AgentId
   /** Название задал пользователь — заголовок терминала его больше не перезаписывает. */
   hasCustomTitle?: boolean
   createdAt: number

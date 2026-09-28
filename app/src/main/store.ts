@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
+import type { AgentId } from '../shared/agents'
 import { moveItem } from '../shared/list'
 import type { Chat, Project } from '../shared/models'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
@@ -75,12 +76,13 @@ export class ProjectStore {
     }
   }
 
-  createChat(projectId: string): Chat {
+  createChat(projectId: string, agent: AgentId): Chat {
     const project = this.getProject(projectId)
 
     const chat: Chat = {
       id: randomUUID(),
       title: `Chat ${project.chats.length + 1}`,
+      agent,
       createdAt: Date.now()
     }
     // Новые чаты сверху, как в Codex и Cursor.

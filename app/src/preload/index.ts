@@ -57,8 +57,11 @@ const api: AtoxApi = {
     move: (projectId, toIndex) => ipcRenderer.invoke(IpcChannel.ProjectsMove, projectId, toIndex),
     reveal: (projectId) => ipcRenderer.invoke(IpcChannel.ProjectsReveal, projectId)
   },
+  agents: {
+    available: () => ipcRenderer.invoke(IpcChannel.AgentsAvailable)
+  },
   chats: {
-    create: (projectId) => ipcRenderer.invoke(IpcChannel.ChatsCreate, projectId),
+    create: (projectId, agent) => ipcRenderer.invoke(IpcChannel.ChatsCreate, projectId, agent),
     remove: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsRemove, chatId),
     rename: (chatId, title) => ipcRenderer.invoke(IpcChannel.ChatsRename, chatId, title),
     move: (chatId, toIndex) => ipcRenderer.invoke(IpcChannel.ChatsMove, chatId, toIndex),

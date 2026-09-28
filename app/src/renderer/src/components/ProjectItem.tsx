@@ -2,6 +2,7 @@ import { useId, useState, type MouseEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import type { Project } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { useAgentPicker } from '../hooks/useAgentPicker'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
@@ -23,9 +24,17 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
   const FolderIcon = expanded ? FolderOpen : Folder
   const chatsId = useId()
 
+  const pickAgentAndCreateChat = useAgentPicker()
+
+  // Из контекстного меню чат создаётся сразу с агентом по умолчанию: второе меню подряд неудобно.
   const createProjectChat = () => {
     setExpanded(true)
     void createChat(project.id)
+  }
+
+  const pickAgentForProjectChat = () => {
+    setExpanded(true)
+    void pickAgentAndCreateChat(project.id)
   }
 
   const openContextMenu = async (event: MouseEvent) => {
@@ -95,7 +104,7 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
           type="button"
           className="row__action"
           aria-label="New chat"
-          onClick={createProjectChat}
+          onClick={pickAgentForProjectChat}
         >
           <Plus className="icon" />
         </button>

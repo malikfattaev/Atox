@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
+import { AgentDetector } from './agents'
 import { GitBranchTracker } from './gitBranches'
 import {
   broadcastGitBranches,
@@ -33,7 +34,7 @@ async function bootstrap(): Promise<void> {
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
   const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
   const terminals = new TerminalManager(
-    { appName: app.getName(), getStartupCommand: () => settings.get().startupCommand },
+    { appName: app.getName() },
     {
       onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
       onExit: (chatId) => broadcastTerminalExit({ chatId })
@@ -47,7 +48,8 @@ async function bootstrap(): Promise<void> {
         onReady: broadcastUpdateReady
       })
     : null
-  registerIpcHandlers(store, settings, terminals, branches, updater)
+  const agents = new AgentDetector(() => settings.get().agentCommands)
+  registerIpcHandlers({ store, settings, terminals, branches, updater, agents })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshAll())
   app.on('will-quit', () => branches.dispose())

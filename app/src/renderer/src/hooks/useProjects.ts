@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { AgentId } from '../../../shared/agents'
 import { moveItem } from '../../../shared/list'
 import type { Project } from '../../../shared/models'
 
@@ -19,7 +20,8 @@ export interface ProjectsState {
   renameProject(projectId: string, name: string): Promise<void>
   moveProject(projectId: string, toIndex: number): Promise<void>
   revealProject(projectId: string): Promise<void>
-  createChat(projectId: string): Promise<void>
+  /** Без агента чат создаётся с агентом по умолчанию. */
+  createChat(projectId: string, agent?: AgentId): Promise<void>
   removeChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
   moveChat(chatId: string, toIndex: number): Promise<void>
@@ -60,8 +62,8 @@ export function useProjects(): ProjectsState {
   }, [])
 
   const createChat = useCallback(
-    async (projectId: string) => {
-      const { projects: next, chatId } = await atox.chats.create(projectId)
+    async (projectId: string, agent?: AgentId) => {
+      const { projects: next, chatId } = await atox.chats.create(projectId, agent)
       applyProjects(next)
       selectChat(chatId)
     },
