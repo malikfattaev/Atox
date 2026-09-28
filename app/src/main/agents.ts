@@ -11,8 +11,12 @@ import { resolveShell } from './terminals'
 
 const execFileAsync = promisify(execFile)
 
-/** Печатает те из переданных программ, которые найдены в PATH. */
-const FIND_PROGRAMS_SCRIPT = 'for p in "$@"; do command -v "$p" >/dev/null 2>&1 && echo "$p"; done'
+/**
+ * Печатает те из переданных программ, которые найдены в PATH. Завершается успешно, даже если
+ * последней программы нет: иначе код выхода цикла — от неудачного `command -v`.
+ */
+const FIND_PROGRAMS_SCRIPT =
+  'for p in "$@"; do command -v "$p" >/dev/null 2>&1 && echo "$p"; done; exit 0'
 
 /** Интерактивная оболочка читает .zshrc; если он завис, поиск не должен держать меню. */
 const DETECT_TIMEOUT_MS = 5000
