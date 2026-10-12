@@ -6,7 +6,8 @@ import {
   Menu,
   nativeImage,
   shell,
-  type IpcMainInvokeEvent
+  type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions
 } from 'electron'
 import {
   IpcChannel,
@@ -16,18 +17,15 @@ import {
   type TerminalExitEvent,
   type TerminalSize
 } from '../shared/api'
+import { isProjectColor } from '../shared/projectColors'
 import type { Settings } from '../shared/settings'
-import {
-  isAgentId,
-  resolveAgentCommand,
-  TERMINAL_AGENT_ID,
-  type AgentId
-} from '../shared/agents'
+import { isAgentId, resolveAgentCommand, TERMINAL_AGENT_ID, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
 import { confirm, describeRunningPrograms } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
+import { createColorSwatch } from './menuSwatch'
 import { savePastedImage } from './pastedImages'
 import { getUserProfile } from './system'
 import { normalizeTerminalTitle } from './terminalTitle'
@@ -97,6 +95,11 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.ProjectsRename, (_event, projectId: string, name: string) => {
     store.renameProject(projectId, name)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ProjectsSetColor, (_event, projectId: string, color: unknown) => {
+    store.setProjectColor(projectId, isProjectColor(color) ? color : null)
     return store.list()
   })
 
@@ -182,9 +185,8 @@ export function registerIpcHandlers({
     terminals.resize(chatId, size)
   })
 
-  ipcMain.handle(
-    IpcChannel.FilesSavePastedImage,
-    (_event, data: ArrayBuffer, type: string) => savePastedImage(data, type)
+  ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
+    savePastedImage(data, type)
   )
 
   ipcMain.handle(IpcChannel.GitBranches, () => branches.list())
@@ -219,25 +221,43 @@ function showContextMenu(
   items: ContextMenuItem<string>[]
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const menu = Menu.buildFromTemplate(
-      items.map((item) =>
-        item.type === 'separator'
-          ? { type: 'separator' as const }
-          : {
-              label: item.label,
-              icon: item.symbol ? nativeImage.createMenuSymbol(item.symbol) : undefined,
-              type: item.checked === undefined ? ('normal' as const) : ('checkbox' as const),
-              checked: item.checked,
-              click: () => resolve(item.action)
-            }
-      )
-    )
+    const menu = Menu.buildFromTemplate(buildMenuTemplate(items, resolve))
     menu.popup({
       window: BrowserWindow.fromWebContents(event.sender) ?? undefined,
       // На macOS закрытие меню приходит раньше клика по пункту, поэтому «ничего не выбрано»
       // фиксируем в следующем тике: если клик был, промис к этому моменту уже разрешён.
       callback: () => setTimeout(() => resolve(null))
     })
+  })
+}
+
+function buildMenuTemplate(
+  items: ContextMenuItem<string>[],
+  onSelect: (action: string) => void
+): MenuItemConstructorOptions[] {
+  return items.map((item) => {
+    switch (item.type) {
+      case 'separator':
+        return { type: 'separator' }
+      case 'submenu':
+        return {
+          label: item.label,
+          icon: item.symbol ? nativeImage.createMenuSymbol(item.symbol) : undefined,
+          submenu: buildMenuTemplate(item.items, onSelect)
+        }
+      default:
+        return {
+          label: item.label,
+          icon: item.swatch
+            ? createColorSwatch(item.swatch)
+            : item.symbol
+              ? nativeImage.createMenuSymbol(item.symbol)
+              : undefined,
+          type: item.checked === undefined ? 'normal' : 'checkbox',
+          checked: item.checked,
+          click: () => onSelect(item.action)
+        }
+    }
   })
 }
 

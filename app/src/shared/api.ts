@@ -1,6 +1,7 @@
 import type { AgentId } from './agents'
 import type { AppCommand } from './commands'
 import type { Project, UserProfile } from './models'
+import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
 
 export type ContextMenuItem<Action extends string> =
@@ -10,8 +11,16 @@ export type ContextMenuItem<Action extends string> =
       label: string
       /** Имя SF Symbol — иконка пункта в системном меню macOS. */
       symbol?: string
+      /** Цвет в формате #RRGGBB — вместо иконки у пункта цветной кружок. */
+      swatch?: string
       /** Пункт отмечен галочкой, например текущий выбор. */
       checked?: boolean
+    }
+  | {
+      type: 'submenu'
+      label: string
+      symbol?: string
+      items: ContextMenuItem<Action>[]
     }
   | { type: 'separator' }
 
@@ -34,6 +43,8 @@ export interface AtoxApi {
     add(): Promise<{ projects: Project[]; projectId: string } | null>
     remove(projectId: string): Promise<Project[]>
     rename(projectId: string, name: string): Promise<Project[]>
+    /** Цвет папки проекта; `null` — без цвета. */
+    setColor(projectId: string, color: ProjectColor | null): Promise<Project[]>
     /** Переносит проект на позицию `toIndex` в списке. */
     move(projectId: string, toIndex: number): Promise<Project[]>
     /** Открывает папку проекта в Finder. */
@@ -105,6 +116,7 @@ export const IpcChannel = {
   ProjectsAdd: 'projects:add',
   ProjectsRemove: 'projects:remove',
   ProjectsRename: 'projects:rename',
+  ProjectsSetColor: 'projects:set-color',
   ProjectsMove: 'projects:move',
   ProjectsReveal: 'projects:reveal',
   AgentsAvailable: 'agents:available',

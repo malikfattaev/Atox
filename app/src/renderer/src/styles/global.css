@@ -25,6 +25,8 @@
   --chat-branch-gap: 4px;
   --chat-branch-icon-size: 12px;
   --chat-rename-inset: 2px;
+  /* Насколько плотно залита цветная папка проекта. */
+  --project-icon-fill: 40%;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
@@ -223,6 +225,15 @@ ul {
 
 .row--chat[data-active='true'] {
   background: var(--color-active);
+}
+
+/*
+ * Цветная папка проекта: контур в цвете и полупрозрачная заливка, как у цветных папок Finder.
+ * Сам цвет приходит из строки проекта в --project-color.
+ */
+.row--project[data-colored='true'] .project-icon {
+  color: var(--project-color);
+  fill: color-mix(in srgb, var(--project-color) var(--project-icon-fill), transparent);
 }
 
 /* Перетаскиваемый элемент идёт поверх соседей, которые расступаются под ним. */

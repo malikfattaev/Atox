@@ -1,13 +1,19 @@
-import { useEffect, useId, useState, type MouseEvent } from 'react'
+import { useEffect, useId, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import type { Project } from '../../../shared/models'
+import { findProjectColor, isProjectColor, PROJECT_COLORS } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentPicker } from '../hooks/useAgentPicker'
+import { colorSchemeQuery } from '../lib/terminalTheme'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
 
 const { atox } = window
+
+/** Пункт меню цвета: `color:red`, `color:none` и т. д. */
+const COLOR_ACTION_PREFIX = 'color:'
+const NO_COLOR = 'none'
 
 interface ProjectItemProps {
   project: Project
@@ -16,8 +22,15 @@ interface ProjectItemProps {
 }
 
 export function ProjectItem({ project, branch }: ProjectItemProps) {
-  const { activeChatId, createChat, renameProject, revealProject, removeProject, moveChat } =
-    useProjectsContext()
+  const {
+    activeChatId,
+    createChat,
+    renameProject,
+    setProjectColor,
+    revealProject,
+    removeProject,
+    moveChat
+  } = useProjectsContext()
   // При запуске все проекты свёрнуты: список остаётся коротким, а состояние не запоминается.
   const [expanded, setExpanded] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -36,7 +49,6 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
     }
   }, [containsActiveChat, activeChatId])
 
-
   // Из контекстного меню чат создаётся сразу с агентом по умолчанию: второе меню подряд неудобно.
   const createProjectChat = () => {
     setExpanded(true)
@@ -54,11 +66,31 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
       { action: 'create-chat', label: 'New chat', symbol: 'square.and.pencil' },
       { type: 'separator' },
       { action: 'rename', label: 'Rename', symbol: 'pencil' },
+      {
+        type: 'submenu',
+        label: 'Color',
+        symbol: 'paintpalette',
+        items: [
+          { action: `${COLOR_ACTION_PREFIX}${NO_COLOR}`, label: 'None', checked: !project.color },
+          { type: 'separator' },
+          ...PROJECT_COLORS.map(({ id, name, light, dark }) => ({
+            action: `${COLOR_ACTION_PREFIX}${id}` as const,
+            label: name,
+            swatch: colorSchemeQuery.matches ? dark : light,
+            checked: project.color === id
+          }))
+        ]
+      },
       { action: 'reveal', label: 'Open in Finder', symbol: 'folder' },
       { action: 'copy-path', label: 'Copy path', symbol: 'doc.on.doc' },
       { type: 'separator' },
       { action: 'remove', label: 'Remove from list', symbol: 'folder.badge.minus' }
     ])
+    if (action?.startsWith(COLOR_ACTION_PREFIX)) {
+      const color = action.slice(COLOR_ACTION_PREFIX.length)
+      void setProjectColor(project.id, isProjectColor(color) ? color : null)
+      return
+    }
     switch (action) {
       case 'create-chat':
         createProjectChat()
@@ -78,17 +110,25 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
     }
   }
 
+  const color = findProjectColor(project.color)
+  // Цвет задаётся сразу для обеих тем, а нужный выбирает CSS по текущей теме.
+  const colorStyle = color
+    ? ({ '--project-color': `light-dark(${color.light}, ${color.dark})` } as CSSProperties)
+    : undefined
+
   return (
     <li {...itemProps}>
       <div
         className="row row--project"
+        data-colored={Boolean(color)}
+        style={colorStyle}
         title={project.path}
         onContextMenu={openContextMenu}
         {...handleProps}
       >
         {renaming ? (
           <div className="row__main">
-            <FolderIcon className="icon" />
+            <FolderIcon className="icon project-icon" />
             <InlineRename
               value={project.name}
               label="Project name"
@@ -107,7 +147,7 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
             aria-controls={chatsId}
             onClick={() => setExpanded((value) => !value)}
           >
-            <FolderIcon className="icon" />
+            <FolderIcon className="icon project-icon" />
             <span className="row__label">{project.name}</span>
           </button>
         )}
