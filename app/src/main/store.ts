@@ -4,6 +4,7 @@ import type { AgentId } from '../shared/agents'
 import { moveItem } from '../shared/list'
 import type { Chat, Project } from '../shared/models'
 import type { ProjectColor } from '../shared/projectColors'
+import { clampSplitPosition, DEFAULT_SPLIT_POSITION } from '../shared/split'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
 const STORE_VERSION = 1
@@ -81,6 +82,45 @@ export class ProjectStore {
     this.persist()
   }
 
+  /**
+   * Запоминает два чата проекта, открытые рядом; `null` — рядом ничего не открыто.
+   * Положение разделителя сохраняется, когда меняется один из чатов.
+   */
+  setProjectSplit(projectId: string, chatIds: readonly string[] | null): void {
+    const project = this.getProject(projectId)
+    if (!chatIds) {
+      if (project.split) {
+        delete project.split
+        this.persist()
+      }
+      return
+    }
+    const [left, right] = chatIds
+    const belongsToProject = (id: string | undefined) =>
+      project.chats.some((chat) => chat.id === id)
+    if (
+      chatIds.length !== 2 ||
+      left === right ||
+      !belongsToProject(left) ||
+      !belongsToProject(right)
+    ) {
+      throw new Error(`Invalid chats to open side by side: ${chatIds.join(', ')}`)
+    }
+    project.split = {
+      chatIds: [left!, right!],
+      position: project.split?.position ?? DEFAULT_SPLIT_POSITION
+    }
+    this.persist()
+  }
+
+  setProjectSplitPosition(projectId: string, position: number): void {
+    const split = this.getProject(projectId).split
+    if (split) {
+      split.position = clampSplitPosition(position)
+      this.persist()
+    }
+  }
+
   /** Переносит проект на позицию `toIndex` в списке. */
   moveProject(projectId: string, toIndex: number): void {
     const fromIndex = this.projects.findIndex(({ id }) => id === projectId)
@@ -109,7 +149,12 @@ export class ProjectStore {
   removeChat(chatId: string): void {
     const location = this.findChat(chatId)
     if (location) {
-      location.project.chats = location.project.chats.filter(({ id }) => id !== chatId)
+      const { project } = location
+      project.chats = project.chats.filter(({ id }) => id !== chatId)
+      // Без удалённого чата открывать рядом больше нечего.
+      if (project.split?.chatIds.includes(chatId)) {
+        delete project.split
+      }
       this.persist()
     }
   }

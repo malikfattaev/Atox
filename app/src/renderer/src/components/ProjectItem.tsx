@@ -169,7 +169,9 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
               items={project.chats}
               onMove={(id, toIndex) => void moveChat(id, toIndex)}
             >
-              {(chat) => <ChatItem key={chat.id} chat={chat} branch={branch} />}
+              {(chat) => (
+                <ChatItem key={chat.id} chat={chat} projectId={project.id} branch={branch} />
+              )}
             </SortableList>
           )}
         </div>

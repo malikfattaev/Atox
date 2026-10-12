@@ -12,13 +12,24 @@ const { atox } = window
 
 interface ChatItemProps {
   chat: Chat
+  projectId: string
   /** Ветка git, в которой работает чат; `null` — папка проекта не репозиторий. */
   branch: string | null
 }
 
-export function ChatItem({ chat, branch }: ChatItemProps) {
-  const { activeChatId, visibleChatIds, selectChat, openChatBeside, renameChat, removeChat } =
-    useProjectsContext()
+export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
+  const {
+    activeChatId,
+    visibleChatIds,
+    currentProjectId,
+    selectChat,
+    openChatBeside,
+    renameChat,
+    removeChat
+  } = useProjectsContext()
+  const visible = visibleChatIds.includes(chat.id)
+  // Рядом открываются чаты того проекта, что сейчас на экране: раскладка у каждого проекта своя.
+  const canOpenBeside = Boolean(activeChatId) && projectId === currentProjectId && !visible
   const [renaming, setRenaming] = useState(false)
   const activity = useChatActivity(chat.id)
   const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
@@ -26,8 +37,16 @@ export function ChatItem({ chat, branch }: ChatItemProps) {
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
     const action = await atox.showContextMenu([
-      { action: 'open-beside', label: 'Open to the Side', symbol: 'rectangle.split.2x1' },
-      { type: 'separator' },
+      ...(canOpenBeside
+        ? [
+            {
+              action: 'open-beside' as const,
+              label: 'Open to the Side',
+              symbol: 'rectangle.split.2x1'
+            },
+            { type: 'separator' as const }
+          ]
+        : []),
       { action: 'rename', label: 'Rename', symbol: 'pencil' },
       { type: 'separator' },
       { action: 'remove', label: 'Delete chat', symbol: 'trash' }
@@ -76,7 +95,7 @@ export function ChatItem({ chat, branch }: ChatItemProps) {
     <li
       className="row row--chat"
       data-active={chat.id === activeChatId}
-      data-visible={visibleChatIds.includes(chat.id)}
+      data-visible={visible}
       onContextMenu={openContextMenu}
       {...itemProps}
       {...handleProps}

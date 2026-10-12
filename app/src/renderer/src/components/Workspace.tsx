@@ -1,8 +1,9 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { X } from 'lucide-react'
+import { DEFAULT_SPLIT_POSITION } from '../../../shared/split'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { SettingsView } from './SettingsView'
-import { DEFAULT_SPLIT, SplitResizer } from './SplitResizer'
+import { SplitResizer } from './SplitResizer'
 import { TerminalView } from './TerminalView'
 
 interface WorkspaceProps {
@@ -24,13 +25,17 @@ export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: 
     activeChatId,
     visibleChatIds,
     openedChatIds,
+    currentProjectId,
     selectChat,
     closeChatPane,
+    setSplitPosition,
     applyTerminalTitle
   } = useProjectsContext()
   const workspaceRef = useRef<HTMLElement>(null)
-  // Положение разделителя живёт только до закрытия окна, как и сами открытые рядом чаты.
-  const [split, setSplit] = useState(DEFAULT_SPLIT)
+  // Пока тянут разделитель, положение живёт здесь; у проекта сохраняется только итоговое.
+  const [draftPosition, setDraftPosition] = useState<number | null>(null)
+  const currentProject = projects.find(({ id }) => id === currentProjectId)
+  const splitPosition = draftPosition ?? currentProject?.split?.position ?? DEFAULT_SPLIT_POSITION
   const isSplit = !settingsOpen && visibleChatIds.length > 1
   const chatTitles = new Map(
     projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
@@ -41,7 +46,7 @@ export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: 
       ref={workspaceRef}
       className="workspace"
       data-split={isSplit}
-      style={{ '--split-position': `${split * 100}%` } as CSSProperties}
+      style={{ '--split-position': `${splitPosition * 100}%` } as CSSProperties}
     >
       {openedChatIds.map((chatId) => {
         const pane = visibleChatIds.indexOf(chatId)
@@ -82,7 +87,14 @@ export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: 
           </section>
         )
       })}
-      {isSplit && <SplitResizer split={split} containerRef={workspaceRef} onChange={setSplit} />}
+      {isSplit && currentProjectId && (
+        <SplitResizer
+          position={splitPosition}
+          containerRef={workspaceRef}
+          onDrag={setDraftPosition}
+          onCommit={(position) => void setSplitPosition(currentProjectId, position)}
+        />
+      )}
       {settingsOpen && <SettingsView onClose={onCloseSettings} />}
       {!settingsOpen && !activeChatId && (
         <p className="workspace__empty">Select a chat or create a new one</p>
