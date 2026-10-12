@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import type { AgentId } from '../shared/agents'
 import { moveItem } from '../shared/list'
 import type { Chat, Project } from '../shared/models'
+import type { ProjectColor } from '../shared/projectColors'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
 const STORE_VERSION = 1
@@ -64,6 +65,20 @@ export class ProjectStore {
       project.name = trimmed
       this.persist()
     }
+  }
+
+  /** Задаёт цвет папки проекта; `null` возвращает обычную. */
+  setProjectColor(projectId: string, color: ProjectColor | null): void {
+    const project = this.getProject(projectId)
+    if ((project.color ?? null) === color) {
+      return
+    }
+    if (color) {
+      project.color = color
+    } else {
+      delete project.color
+    }
+    this.persist()
   }
 
   /** Переносит проект на позицию `toIndex` в списке. */

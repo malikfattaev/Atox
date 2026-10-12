@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentId } from '../../../shared/agents'
 import { moveItem } from '../../../shared/list'
 import type { Project } from '../../../shared/models'
+import type { ProjectColor } from '../../../shared/projectColors'
 
 const { atox } = window
 
@@ -18,6 +19,7 @@ export interface ProjectsState {
   addProject(): Promise<void>
   removeProject(projectId: string): Promise<void>
   renameProject(projectId: string, name: string): Promise<void>
+  setProjectColor(projectId: string, color: ProjectColor | null): Promise<void>
   moveProject(projectId: string, toIndex: number): Promise<void>
   revealProject(projectId: string): Promise<void>
   /** Без агента чат создаётся с агентом по умолчанию. */
@@ -98,6 +100,12 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  const setProjectColor = useCallback(
+    async (projectId: string, color: ProjectColor | null) =>
+      applyProjects(await atox.projects.setColor(projectId, color)),
+    [applyProjects]
+  )
+
   // Перенос применяется сразу, не дожидаясь main-процесса: иначе брошенный элемент
   // на мгновение вернулся бы на старое место.
   const moveProject = useCallback(
@@ -159,6 +167,7 @@ export function useProjects(): ProjectsState {
     addProject,
     removeProject,
     renameProject,
+    setProjectColor,
     moveProject,
     revealProject,
     createChat,

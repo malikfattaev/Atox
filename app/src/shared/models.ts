@@ -1,4 +1,5 @@
 import type { AgentId } from './agents'
+import type { ProjectColor } from './projectColors'
 
 export interface Chat {
   id: string
@@ -17,6 +18,8 @@ export interface Project {
   name: string
   /** Абсолютный путь к папке проекта — в ней открываются терминалы чатов. */
   path: string
+  /** Цвет папки в сайдбаре; нет — обычная папка. */
+  color?: ProjectColor
   chats: Chat[]
 }
 
