@@ -97,6 +97,13 @@ export interface AtoxApi {
     /** Перезапускает приложение с установкой обновления. */
     install(): void
   }
+  shortcuts: {
+    /**
+     * Пока в настройках записывают новое сочетание, горячие клавиши меню не срабатывают:
+     * иначе нажатое сочетание выполнило бы команду вместо того, чтобы записаться.
+     */
+    setRecording(recording: boolean): void
+  }
   system: {
     getUserProfile(): Promise<UserProfile>
     /** Выводит окно приложения на передний план, например по клику на уведомление. */
@@ -146,6 +153,7 @@ export const IpcChannel = {
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',
   SettingsChanged: 'settings:changed',
+  ShortcutsRecording: 'shortcuts:recording',
   ContextMenu: 'context-menu'
 } as const
 

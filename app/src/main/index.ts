@@ -9,7 +9,7 @@ import {
   broadcastUpdateReady,
   registerIpcHandlers
 } from './ipc'
-import { installAppMenu } from './menu'
+import { AppMenu } from './menu'
 import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
 import { ProjectStore } from './store'
@@ -49,11 +49,12 @@ async function bootstrap(): Promise<void> {
       })
     : null
   const agents = new AgentDetector(() => settings.get().agentCommands)
-  registerIpcHandlers({ store, settings, terminals, branches, updater, agents })
+  const menu = new AppMenu(settings)
+  registerIpcHandlers({ store, settings, terminals, branches, updater, agents, menu })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshAll())
   app.on('will-quit', () => branches.dispose())
-  installAppMenu(settings)
+  menu.install()
 
   const quitHandling = setupQuitHandling({ terminals, stores: [store, settings] })
   if (updater) {

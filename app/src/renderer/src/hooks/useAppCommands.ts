@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { AppCommand } from '../../../shared/commands'
+import { SHORTCUT_RECORDER_ATTRIBUTE } from '../components/ShortcutRecorder'
 import type { ProjectsState } from './useProjects'
 
 /** ⌘1…⌘9 выбирают чат по номеру в сайдбаре. */
@@ -68,6 +69,13 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
     // Перехват на этапе погружения: иначе нажатие съест сфокусированный терминал.
     const selectByNumber = (event: KeyboardEvent) => {
       if (!event.metaKey || event.shiftKey || event.altKey || !CHAT_NUMBER_KEYS.test(event.key)) {
+        return
+      }
+      // Сочетание, которое записывают в настройках, — не команда.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(`[${SHORTCUT_RECORDER_ATTRIBUTE}]`)
+      ) {
         return
       }
       const chatId = handlersRef.current.projects.orderedChatIds[Number(event.key) - 1]
