@@ -13,6 +13,7 @@ export const SHORTCUTS = {
   previousChat: { label: 'Previous chat', accelerator: 'CmdOrCtrl+Shift+[' },
   nextChat: { label: 'Next chat', accelerator: 'CmdOrCtrl+Shift+]' },
   chatByNumber: { label: 'Go to chat by number', keys: '⌘1 – ⌘9' },
+  openChatBeside: { label: 'Open chat to the side', keys: '⌘ Click' },
   openProject: { label: 'Open project', accelerator: 'CmdOrCtrl+O' },
   find: { label: 'Find in terminal', accelerator: 'CmdOrCtrl+F' },
   newLine: { label: 'New line without sending', keys: '⇧↩' },
@@ -33,6 +34,7 @@ export const SHORTCUT_GROUPS: ReadonlyArray<{ title: string; shortcuts: readonly
       SHORTCUTS.previousChat,
       SHORTCUTS.nextChat,
       SHORTCUTS.chatByNumber,
+      SHORTCUTS.openChatBeside,
       SHORTCUTS.openProject
     ]
   },

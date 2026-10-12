@@ -6,16 +6,36 @@ import type { ProjectColor } from '../../../shared/projectColors'
 
 const { atox } = window
 
+/** Сколько чатов можно открыть рядом в одном окне. */
+const MAX_VISIBLE_CHATS = 2
+
+interface ChatView {
+  /** Чаты на экране слева направо: один или два рядом. */
+  visibleChatIds: string[]
+  /** Чат в фокусе — один из видимых. */
+  activeChatId: string | null
+}
+
+const EMPTY_VIEW: ChatView = { visibleChatIds: [], activeChatId: null }
+
 export interface ProjectsState {
   projects: Project[]
+  /** Чат в фокусе: к нему относятся поиск, закрытие и переключение с клавиатуры. */
   activeChatId: string | null
+  /** Чаты на экране слева направо; два — когда чаты открыты рядом. */
+  visibleChatIds: string[]
   /** Чаты, которые открывались в этой сессии: их терминалы держим смонтированными. */
   openedChatIds: string[]
   /** Все чаты в порядке сайдбара — по нему работает переключение с клавиатуры. */
   orderedChatIds: string[]
   /** Проект текущего чата, а если чат не выбран — первый проект. */
   currentProjectId: string | null
+  /** Открывает чат на месте того, что в фокусе; уже видимый чат просто получает фокус. */
   selectChat(chatId: string): void
+  /** Открывает чат рядом с тем, что в фокусе. */
+  openChatBeside(chatId: string): void
+  /** Убирает чат с экрана, когда чаты открыты рядом; сам чат остаётся в списке. */
+  closeChatPane(chatId: string): void
   addProject(): Promise<void>
   removeProject(projectId: string): Promise<void>
   renameProject(projectId: string, name: string): Promise<void>
@@ -33,7 +53,7 @@ export interface ProjectsState {
 
 export function useProjects(): ProjectsState {
   const [projects, setProjects] = useState<Project[]>([])
-  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [{ visibleChatIds, activeChatId }, setView] = useState<ChatView>(EMPTY_VIEW)
   const [openedChatIds, setOpenedChatIds] = useState<string[]>([])
 
   useEffect(() => {
@@ -50,9 +70,50 @@ export function useProjects(): ProjectsState {
     return (current ?? projects[0])?.id ?? null
   }, [projects, activeChatId])
 
-  const selectChat = useCallback((chatId: string) => {
-    setActiveChatId(chatId)
+  const markOpened = useCallback((chatId: string) => {
     setOpenedChatIds((ids) => (ids.includes(chatId) ? ids : [...ids, chatId]))
+  }, [])
+
+  const selectChat = useCallback(
+    (chatId: string) => {
+      setView((view) => {
+        if (view.activeChatId === chatId) {
+          return view
+        }
+        if (view.visibleChatIds.includes(chatId)) {
+          return { ...view, activeChatId: chatId }
+        }
+        const index = view.activeChatId ? view.visibleChatIds.indexOf(view.activeChatId) : -1
+        const visible = index >= 0 ? view.visibleChatIds.with(index, chatId) : [chatId]
+        return { visibleChatIds: visible, activeChatId: chatId }
+      })
+      markOpened(chatId)
+    },
+    [markOpened]
+  )
+
+  const openChatBeside = useCallback(
+    (chatId: string) => {
+      setView((view) => {
+        if (view.visibleChatIds.includes(chatId)) {
+          return { ...view, activeChatId: chatId }
+        }
+        // Чат в фокусе остаётся на месте, новый встаёт справа — вместо второго, если он был.
+        const kept = view.visibleChatIds.filter((id) => id === view.activeChatId)
+        const visible = [...kept, chatId].slice(-MAX_VISIBLE_CHATS)
+        return { visibleChatIds: visible, activeChatId: chatId }
+      })
+      markOpened(chatId)
+    },
+    [markOpened]
+  )
+
+  const closeChatPane = useCallback((chatId: string) => {
+    setView((view) => {
+      const visible = view.visibleChatIds.filter((id) => id !== chatId)
+      const active = view.activeChatId === chatId ? (visible[0] ?? null) : view.activeChatId
+      return { visibleChatIds: visible, activeChatId: active }
+    })
   }, [])
 
   /** Применяет свежий список проектов и забывает чаты, которых в нём больше нет. */
@@ -60,7 +121,18 @@ export function useProjects(): ProjectsState {
     const existingChatIds = new Set(next.flatMap((project) => project.chats.map(({ id }) => id)))
     setProjects(next)
     setOpenedChatIds((ids) => ids.filter((id) => existingChatIds.has(id)))
-    setActiveChatId((id) => (id && existingChatIds.has(id) ? id : null))
+    // Если удалили чат в фокусе, а рядом открыт второй, фокус переходит к нему.
+    setView((view) => {
+      const visible = view.visibleChatIds.filter((id) => existingChatIds.has(id))
+      if (visible.length === view.visibleChatIds.length) {
+        return view
+      }
+      const active =
+        view.activeChatId && existingChatIds.has(view.activeChatId)
+          ? view.activeChatId
+          : (visible[0] ?? null)
+      return { visibleChatIds: visible, activeChatId: active }
+    })
   }, [])
 
   const createChat = useCallback(
@@ -160,10 +232,13 @@ export function useProjects(): ProjectsState {
   return {
     projects,
     activeChatId,
+    visibleChatIds,
     openedChatIds,
     orderedChatIds,
     currentProjectId,
     selectChat,
+    openChatBeside,
+    closeChatPane,
     addProject,
     removeProject,
     renameProject,

@@ -48,7 +48,10 @@ interface TerminalSearch {
 
 interface TerminalViewProps {
   chatId: string
-  active: boolean
+  /** Чат на экране — один или рядом с другим. */
+  visible: boolean
+  /** Ввод с клавиатуры идёт в этот чат. */
+  focused: boolean
   /** Номер запроса поиска (⌘F) для этого чата; `null` — панель поиска закрыта. */
   findRequest: number | null
   onCloseFind(): void
@@ -57,7 +60,8 @@ interface TerminalViewProps {
 
 export function TerminalView({
   chatId,
-  active,
+  visible,
+  focused,
   findRequest,
   onCloseFind,
   onTitleChange
@@ -279,23 +283,29 @@ export function TerminalView({
     const terminal = terminalRef.current
     if (terminal && terminal.options.fontSize !== terminalFontSize) {
       terminal.options.fontSize = terminalFontSize
-      if (active) {
+      if (visible) {
         fitRef.current?.fit()
       }
     }
-  }, [terminalFontSize, active])
+  }, [terminalFontSize, visible])
+
+  // Показанный терминал подгоняется под своё место: пока чат был скрыт, размер не менялся.
+  useEffect(() => {
+    if (visible) {
+      fitRef.current?.fit()
+    }
+  }, [visible])
 
   // Фокус возвращается в терминал при переключении на чат и после закрытия поиска.
   const findOpen = findRequest !== null
   useEffect(() => {
-    if (active && !findOpen) {
-      fitRef.current?.fit()
+    if (focused && !findOpen) {
       terminalRef.current?.focus()
     }
-  }, [active, findOpen])
+  }, [focused, findOpen])
 
   return (
-    <div className="terminal-view" hidden={!active}>
+    <div className="terminal-view">
       <div ref={containerRef} className="terminal-view__host" />
       {search && findRequest !== null && (
         <TerminalFindBar
