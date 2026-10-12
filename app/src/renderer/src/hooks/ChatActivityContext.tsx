@@ -24,8 +24,7 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
       new ChatActivityTracker({
         isChatInView: (chatId) =>
           projectsRef.current.visibleChatIds.includes(chatId) && document.hasFocus(),
-        notify: (chatId, message) => showChatNotification(projectsRef.current, chatId, message),
-        recordActivity: (chatId, at) => void projectsRef.current.recordChatActivity(chatId, at)
+        notify: (chatId, message) => showChatNotification(projectsRef.current, chatId, message)
       })
   )
 

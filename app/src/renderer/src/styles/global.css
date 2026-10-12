@@ -311,7 +311,7 @@ ul {
 
 .chat-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: baseline;
   align-content: center;
   align-self: stretch;
@@ -344,13 +344,6 @@ ul {
   height: var(--chat-branch-icon-size);
   flex-shrink: 0;
   stroke-width: 2;
-}
-
-.chat-time {
-  flex-shrink: 0;
-  font-size: var(--font-size-small);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
 }
 
 /* Кружок вынесен из потока: иначе блок взял бы базовую линию у него, а не встал на линию текста. */
