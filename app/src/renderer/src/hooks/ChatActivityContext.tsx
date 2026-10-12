@@ -23,23 +23,23 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
     () =>
       new ChatActivityTracker({
         isChatInView: (chatId) =>
-          projectsRef.current.activeChatId === chatId && document.hasFocus(),
+          projectsRef.current.visibleChatIds.includes(chatId) && document.hasFocus(),
         notify: (chatId, message) => showChatNotification(projectsRef.current, chatId, message),
         recordActivity: (chatId, at) => void projectsRef.current.recordChatActivity(chatId, at)
       })
   )
 
-  // Открытый чат в окне, которое в фокусе, считается просмотренным.
-  const { activeChatId, orderedChatIds } = projects
+  // Чаты на экране в окне, которое в фокусе, считаются просмотренными.
+  const { visibleChatIds, orderedChatIds } = projects
   useEffect(() => {
-    if (!activeChatId) {
+    if (visibleChatIds.length === 0) {
       return
     }
-    const markSeen = () => tracker.markSeen(activeChatId)
+    const markSeen = () => visibleChatIds.forEach((chatId) => tracker.markSeen(chatId))
     markSeen()
     window.addEventListener('focus', markSeen)
     return () => window.removeEventListener('focus', markSeen)
-  }, [activeChatId, tracker])
+  }, [visibleChatIds, tracker])
 
   // Удалённые чаты больше не отслеживаются.
   const trackedChatIdsRef = useRef<string[]>([])

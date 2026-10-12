@@ -17,7 +17,8 @@ interface ChatItemProps {
 }
 
 export function ChatItem({ chat, branch }: ChatItemProps) {
-  const { activeChatId, selectChat, renameChat, removeChat } = useProjectsContext()
+  const { activeChatId, visibleChatIds, selectChat, openChatBeside, renameChat, removeChat } =
+    useProjectsContext()
   const [renaming, setRenaming] = useState(false)
   const activity = useChatActivity(chat.id)
   const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
@@ -25,11 +26,15 @@ export function ChatItem({ chat, branch }: ChatItemProps) {
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
     const action = await atox.showContextMenu([
+      { action: 'open-beside', label: 'Open to the Side', symbol: 'rectangle.split.2x1' },
+      { type: 'separator' },
       { action: 'rename', label: 'Rename', symbol: 'pencil' },
       { type: 'separator' },
       { action: 'remove', label: 'Delete chat', symbol: 'trash' }
     ])
-    if (action === 'rename') {
+    if (action === 'open-beside') {
+      openChatBeside(chat.id)
+    } else if (action === 'rename') {
       setRenaming(true)
     } else if (action === 'remove') {
       void removeChat(chat.id)
@@ -57,9 +62,7 @@ export function ChatItem({ chat, branch }: ChatItemProps) {
         {title}
       </span>
       {/* Пока программа работает, время не показываем: о работе говорит пульсирующий кружок. */}
-      {!renaming && activity !== 'working' && (
-        <ChatTime at={chat.lastActiveAt ?? chat.createdAt} />
-      )}
+      {!renaming && activity !== 'working' && <ChatTime at={chat.lastActiveAt ?? chat.createdAt} />}
       {branch && (
         <span className="chat-branch" title={branch}>
           <GitBranch className="chat-branch__icon" aria-hidden />
@@ -73,6 +76,7 @@ export function ChatItem({ chat, branch }: ChatItemProps) {
     <li
       className="row row--chat"
       data-active={chat.id === activeChatId}
+      data-visible={visibleChatIds.includes(chat.id)}
       onContextMenu={openContextMenu}
       {...itemProps}
       {...handleProps}
@@ -83,7 +87,8 @@ export function ChatItem({ chat, branch }: ChatItemProps) {
         <button
           type="button"
           className="row__main chat-row"
-          onClick={() => selectChat(chat.id)}
+          // ⌘-клик открывает чат рядом с текущим, как в редакторах кода.
+          onClick={(event) => (event.metaKey ? openChatBeside(chat.id) : selectChat(chat.id))}
           onDoubleClick={() => setRenaming(true)}
         >
           {content}

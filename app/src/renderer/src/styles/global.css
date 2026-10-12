@@ -25,6 +25,9 @@
   --chat-branch-gap: 4px;
   --chat-branch-icon-size: 12px;
   --chat-rename-inset: 2px;
+  --chat-pane-header-height: 32px;
+  --chat-pane-close-size: 22px;
+  --chat-pane-close-icon-size: 14px;
   /* Насколько плотно залита цветная папка проекта. */
   --project-icon-fill: 40%;
 
@@ -225,6 +228,11 @@ ul {
 
 .row--chat[data-active='true'] {
   background: var(--color-active);
+}
+
+/* Второй чат, открытый рядом, выделен слабее того, что в фокусе. */
+.row--chat[data-visible='true'][data-active='false'] {
+  background: var(--color-hover);
 }
 
 /*
@@ -721,8 +729,11 @@ ul {
   border-left: none;
 }
 
-.app[data-sidebar='hidden'] .terminal-view {
+.app[data-sidebar='hidden'] .chat-pane {
   top: var(--titlebar-height);
+}
+
+.app[data-sidebar='hidden'] .terminal-view {
   padding-top: 0;
 }
 
@@ -735,14 +746,91 @@ ul {
   color: var(--color-text-muted);
 }
 
-.terminal-view {
+/* Чат в рабочей области; когда чаты открыты рядом, каждый занимает свою часть ширины. */
+.chat-pane {
   position: absolute;
   inset: 0;
-  padding: var(--terminal-padding-top) 0 12px 16px;
+  display: flex;
+  flex-direction: column;
 }
 
-.terminal-view[hidden] {
+.chat-pane[hidden] {
   display: none;
+}
+
+.workspace[data-split='true'] .chat-pane[data-pane='0'] {
+  right: calc(100% - var(--split-position));
+}
+
+.workspace[data-split='true'] .chat-pane[data-pane='1'] {
+  left: var(--split-position);
+  border-left: 1px solid var(--color-border);
+}
+
+/* Заголовок чата виден, только когда чаты открыты рядом: по нему понятно, где какой. */
+.chat-pane__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: var(--chat-pane-header-height);
+  padding: 0 8px 0 16px;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  -webkit-app-region: drag;
+}
+
+.chat-pane[data-focused='true'] .chat-pane__title {
+  color: var(--color-text);
+}
+
+.chat-pane__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+}
+
+.chat-pane__close {
+  display: grid;
+  place-items: center;
+  width: var(--chat-pane-close-size);
+  height: var(--chat-pane-close-size);
+  border-radius: calc(var(--radius) - 2px);
+  -webkit-app-region: no-drag;
+}
+
+.chat-pane__close .icon {
+  width: var(--chat-pane-close-icon-size);
+  height: var(--chat-pane-close-icon-size);
+}
+
+.chat-pane__close:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+/* Разделитель между чатами: узкая невидимая полоса поверх их общей границы. */
+.split-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--split-position);
+  z-index: 2;
+  width: var(--sidebar-resizer-width);
+  translate: -50% 0;
+  cursor: col-resize;
+  -webkit-app-region: no-drag;
+}
+
+.terminal-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: var(--terminal-padding-top) 0 12px 16px;
 }
 
 .terminal-view__host {
