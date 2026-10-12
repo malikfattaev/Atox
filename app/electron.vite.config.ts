@@ -10,6 +10,12 @@ export default defineConfig({
   main: {
     define: {
       __UPDATE_FEED_URL__: JSON.stringify(updateFeedUrl)
+    },
+    build: {
+      rollupOptions: {
+        // Встроенный модуль Electron — файловые функции без поддержки asar.
+        external: ['original-fs']
+      }
     }
   },
   preload: {},
