@@ -1,4 +1,5 @@
 import { DEFAULT_AGENT_ID, type AgentCommands, type AgentId } from './agents'
+import type { ShortcutOverrides } from './shortcuts'
 
 export interface Settings {
   /** Размер шрифта терминалов в пикселях. */
@@ -9,6 +10,8 @@ export interface Settings {
   agentCommands: AgentCommands
   /** Ширина сайдбара в пикселях; меняется перетаскиванием его края. */
   sidebarWidth: number
+  /** Свои горячие клавиши вместо стандартных. */
+  shortcuts: ShortcutOverrides
 }
 
 export const TERMINAL_FONT_SIZE = {
@@ -28,7 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalFontSize: TERMINAL_FONT_SIZE.default,
   defaultAgent: DEFAULT_AGENT_ID,
   agentCommands: {},
-  sidebarWidth: SIDEBAR_WIDTH.default
+  sidebarWidth: SIDEBAR_WIDTH.default,
+  shortcuts: {}
 }
 
 /** Приводит ширину сайдбара к целому числу пикселей в допустимых пределах. */

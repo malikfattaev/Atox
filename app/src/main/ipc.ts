@@ -25,6 +25,7 @@ import { confirm, describeRunningPrograms } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
+import type { AppMenu } from './menu'
 import { createColorSwatch } from './menuSwatch'
 import { savePastedImage } from './pastedImages'
 import { getUserProfile } from './system'
@@ -40,6 +41,7 @@ interface AppServices {
   agents: AgentDetector
   /** `null` — обновления недоступны, например при запуске из исходников. */
   updater: AppUpdater | null
+  menu: AppMenu
 }
 
 export function registerIpcHandlers({
@@ -48,7 +50,8 @@ export function registerIpcHandlers({
   terminals,
   branches,
   agents,
-  updater
+  updater,
+  menu
 }: AppServices): void {
   const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
   trackProjectBranches()
@@ -220,6 +223,10 @@ export function registerIpcHandlers({
     settings.update(patch)
   )
   settings.onChange((next) => broadcast(IpcChannel.SettingsChanged, next))
+
+  ipcMain.on(IpcChannel.ShortcutsRecording, (_event, recording: boolean) =>
+    menu.setRecordingShortcut(recording === true)
+  )
 
   ipcMain.handle(IpcChannel.ContextMenu, showContextMenu)
 }

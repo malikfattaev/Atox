@@ -26,6 +26,8 @@
   --chat-branch-icon-size: 12px;
   --chat-rename-inset: 2px;
   --chat-pane-header-height: 32px;
+  --shortcut-reset-size: 22px;
+  --shortcut-reset-icon-size: 13px;
   --chat-pane-close-size: 22px;
   --chat-pane-close-icon-size: 14px;
   /* Насколько плотно залита цветная папка проекта. */
@@ -653,6 +655,49 @@ ul {
   background: var(--color-hover);
   border: 1px solid var(--color-border);
   border-radius: calc(var(--radius) - 2px);
+}
+
+.shortcut-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Переназначаемое сочетание: по клику ждёт новые клавиши. */
+.shortcut-keys--editable:hover {
+  color: var(--color-text);
+}
+
+.shortcut-keys--editable[data-recording='true'] {
+  letter-spacing: normal;
+  color: var(--color-text);
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+/* Подсказка вместо сочетания: оно занято или в нём нет ⌘ и ⌃. */
+.shortcut-keys--editable[data-recording='true'][data-hint='true'] {
+  color: var(--color-text-muted);
+}
+
+.shortcut-reset {
+  display: grid;
+  place-items: center;
+  width: var(--shortcut-reset-size);
+  height: var(--shortcut-reset-size);
+  color: var(--color-text-muted);
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.shortcut-reset .icon {
+  width: var(--shortcut-reset-icon-size);
+  height: var(--shortcut-reset-icon-size);
+}
+
+.shortcut-reset:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
 }
 
 .settings__label {

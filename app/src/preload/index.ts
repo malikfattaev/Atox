@@ -105,6 +105,9 @@ const api: AtoxApi = {
     },
     install: () => ipcRenderer.send(IpcChannel.UpdatesInstall)
   },
+  shortcuts: {
+    setRecording: (recording) => ipcRenderer.send(IpcChannel.ShortcutsRecording, recording)
+  },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),
     focusWindow: () => ipcRenderer.send(IpcChannel.SystemFocusWindow)

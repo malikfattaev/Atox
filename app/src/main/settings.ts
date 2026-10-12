@@ -5,6 +5,15 @@ import {
   TERMINAL_FONT_SIZE,
   type Settings
 } from '../shared/settings'
+import {
+  canonicalAccelerator,
+  findShortcutConflict,
+  isValidAccelerator,
+  SHORTCUTS,
+  type Shortcut,
+  type ShortcutId,
+  type ShortcutOverrides
+} from '../shared/shortcuts'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
 const SETTINGS_VERSION = 1
@@ -25,7 +34,10 @@ export class SettingsStore {
   static async load(filePath: string): Promise<SettingsStore> {
     const { version: _version, ...saved } =
       (await readVersionedJson<SettingsFile>(filePath, SETTINGS_VERSION)) ?? {}
-    return new SettingsStore(new JsonFileWriter(filePath), normalize({ ...DEFAULT_SETTINGS, ...saved }))
+    return new SettingsStore(
+      new JsonFileWriter(filePath),
+      normalize({ ...DEFAULT_SETTINGS, ...saved })
+    )
   }
 
   get(): Settings {
@@ -58,8 +70,32 @@ function normalize(settings: Settings): Settings {
     terminalFontSize: Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, fontSize)),
     defaultAgent: isAgentId(settings.defaultAgent) ? settings.defaultAgent : DEFAULT_AGENT_ID,
     agentCommands: normalizeAgentCommands(settings.agentCommands),
-    sidebarWidth: clampSidebarWidth(settings.sidebarWidth)
+    sidebarWidth: clampSidebarWidth(settings.sidebarWidth),
+    shortcuts: normalizeShortcuts(settings.shortcuts)
   }
+}
+
+/**
+ * Оставляет свои сочетания только у переназначаемых действий, если сочетание допустимо,
+ * отличается от стандартного и не занято другим действием.
+ */
+function normalizeShortcuts(shortcuts: unknown): ShortcutOverrides {
+  const source = typeof shortcuts === 'object' && shortcuts !== null ? shortcuts : {}
+  const normalized: ShortcutOverrides = {}
+  for (const id of Object.keys(SHORTCUTS) as ShortcutId[]) {
+    const shortcut: Shortcut = SHORTCUTS[id]
+    const value = (source as Record<string, unknown>)[id]
+    if (
+      shortcut.accelerator &&
+      typeof value === 'string' &&
+      isValidAccelerator(value) &&
+      canonicalAccelerator(value) !== canonicalAccelerator(shortcut.accelerator) &&
+      !findShortcutConflict(id, value, normalized)
+    ) {
+      normalized[id] = canonicalAccelerator(value)
+    }
+  }
+  return normalized
 }
 
 /** Оставляет только непустые команды известных агентов. */
