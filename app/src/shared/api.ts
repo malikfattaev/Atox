@@ -69,8 +69,6 @@ export interface AtoxApi {
     rename(chatId: string, title: string): Promise<Project[]>
     /** Переносит чат на позицию `toIndex` внутри его проекта. */
     move(chatId: string, toIndex: number): Promise<Project[]>
-    /** Отмечает, что программа в чате закончила работу в момент `at`. */
-    recordActivity(chatId: string, at: number): Promise<Project[]>
     /** Заголовок, который выставила программа в терминале; игнорируется, если название задано вручную. */
     applyTerminalTitle(chatId: string, title: string): Promise<Project[]>
   }
@@ -130,7 +128,6 @@ export const IpcChannel = {
   ChatsRemove: 'chats:remove',
   ChatsRename: 'chats:rename',
   ChatsMove: 'chats:move',
-  ChatsRecordActivity: 'chats:record-activity',
   ChatsApplyTerminalTitle: 'chats:apply-terminal-title',
   TerminalAttach: 'terminal:attach',
   TerminalWrite: 'terminal:write',
