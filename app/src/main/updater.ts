@@ -1,7 +1,8 @@
 import { execFile, spawn } from 'node:child_process'
 import { createHash, createPublicKey, verify } from 'node:crypto'
-import { createWriteStream } from 'node:fs'
-import { access, constants, mkdir, readdir, rm } from 'node:fs/promises'
+// Файловые функции без поддержки asar: обычные fs в Electron считают app.asar папкой
+// и не могут удалить бандл приложения целиком — от него остаётся оболочка с одним app.asar.
+import { constants, createWriteStream, promises as fs } from 'original-fs'
 import { dirname, join, resolve } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -29,13 +30,15 @@ const FOCUS_CHECK_INTERVAL_MS = 2 * 60 * 1000
 const UPDATES_DIR = 'updates'
 
 /**
- * Заменяет приложение новой версией после выхода: ждёт завершения процесса, переименовывает
- * старую версию, ставит новую и возвращает старую, если что-то пошло не так.
+ * Заменяет приложение новой версией после выхода: ждёт завершения процесса, ещё раз проверяет
+ * подпись новой версии, переименовывает старую, ставит новую и возвращает старую,
+ * если что-то пошло не так. Повреждённая новая версия не ставится вовсе.
  * Аргументы: pid приложения, путь к его бандлу, путь к новому бандлу, 1 — запустить после замены.
  */
 const INSTALL_SCRIPT = `
 pid="$1"; target="$2"; update="$3"; relaunch="$4"; backup="$target.previous"
 while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
+codesign --verify --deep --strict "$update" || exit 1
 rm -rf "$backup"
 mv "$target" "$backup" || exit 1
 if mv "$update" "$target"; then rm -rf "$backup"; else mv "$backup" "$target"; fi
@@ -135,8 +138,12 @@ export class AppUpdater {
       if (!isNewer || !file || manifest.version === this.readyUpdate?.version) {
         return
       }
-      this.readyUpdate = { version: manifest.version, bundlePath: await this.download(manifest, file) }
+      const bundlePath = await this.download(manifest, file)
+      this.readyUpdate = { version: manifest.version, bundlePath }
       this.options.onReady(manifest.version)
+      // Прежние скачивания удаляются, только когда готовым стало новое: до этого на одно
+      // из них могло указывать обновление, ожидающее установки.
+      await removeOtherDownloads(updatesRoot(), manifest.version)
     } finally {
       this.checking = false
     }
@@ -163,10 +170,9 @@ export class AppUpdater {
     if (!isSafeReleaseFileName(file.name)) {
       throw new Error(`Unexpected update file name: ${file.name}`)
     }
-    const updatesRoot = join(app.getPath('temp'), app.getName(), UPDATES_DIR)
-    const directory = join(updatesRoot, manifest.version)
-    await rm(directory, { recursive: true, force: true })
-    await mkdir(directory, { recursive: true })
+    const directory = join(updatesRoot(), manifest.version)
+    await fs.rm(directory, { recursive: true, force: true })
+    await fs.mkdir(directory, { recursive: true })
 
     const response = await net.fetch(`${this.options.feedUrl}/${file.name}`)
     if (!response.ok || !response.body) {
@@ -189,7 +195,7 @@ export class AppUpdater {
 
     const extractDir = join(directory, 'extracted')
     await execFileAsync('ditto', ['-x', '-k', archivePath, extractDir])
-    const bundleName = (await readdir(extractDir)).find((name) => name.endsWith('.app'))
+    const bundleName = (await fs.readdir(extractDir)).find((name) => name.endsWith('.app'))
     if (!bundleName) {
       throw new Error('Update archive does not contain an app bundle')
     }
@@ -197,19 +203,23 @@ export class AppUpdater {
     await execFileAsync('codesign', ['--verify', '--deep', '--strict', bundlePath])
     // Архив проверен по подписи релиза; снимаем карантин, чтобы новая версия открылась без вопросов.
     await execFileAsync('xattr', ['-dr', 'com.apple.quarantine', bundlePath]).catch(() => undefined)
-    await rm(archivePath)
-    await removeOtherDownloads(updatesRoot, manifest.version)
+    await fs.rm(archivePath)
     return bundlePath
   }
 }
 
+/** Каталог, в который скачиваются обновления. */
+function updatesRoot(): string {
+  return join(app.getPath('temp'), app.getName(), UPDATES_DIR)
+}
+
 /** Прежние скачивания больше не нужны: хранится только последнее проверенное обновление. */
-async function removeOtherDownloads(updatesRoot: string, keepVersion: string): Promise<void> {
-  const versions = await readdir(updatesRoot)
+async function removeOtherDownloads(root: string, keepVersion: string): Promise<void> {
+  const versions = await fs.readdir(root)
   await Promise.all(
     versions
       .filter((version) => version !== keepVersion)
-      .map((version) => rm(join(updatesRoot, version), { recursive: true, force: true }))
+      .map((version) => fs.rm(join(root, version), { recursive: true, force: true }))
   )
 }
 
@@ -228,8 +238,8 @@ async function canReplaceBundle(): Promise<boolean> {
     return false
   }
   try {
-    await access(dirname(bundle), constants.W_OK)
-    await access(bundle, constants.W_OK)
+    await fs.access(dirname(bundle), constants.W_OK)
+    await fs.access(bundle, constants.W_OK)
     return true
   } catch {
     return false
