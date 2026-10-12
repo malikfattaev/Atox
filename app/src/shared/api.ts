@@ -45,6 +45,10 @@ export interface AtoxApi {
     rename(projectId: string, name: string): Promise<Project[]>
     /** Цвет папки проекта; `null` — без цвета. */
     setColor(projectId: string, color: ProjectColor | null): Promise<Project[]>
+    /** Запоминает чаты проекта, открытые рядом (слева направо); `null` — один чат. */
+    setSplit(projectId: string, chatIds: [string, string] | null): Promise<Project[]>
+    /** Положение разделителя между чатами — доля ширины левого. */
+    setSplitPosition(projectId: string, position: number): Promise<Project[]>
     /** Переносит проект на позицию `toIndex` в списке. */
     move(projectId: string, toIndex: number): Promise<Project[]>
     /** Открывает папку проекта в Finder. */
@@ -117,6 +121,8 @@ export const IpcChannel = {
   ProjectsRemove: 'projects:remove',
   ProjectsRename: 'projects:rename',
   ProjectsSetColor: 'projects:set-color',
+  ProjectsSetSplit: 'projects:set-split',
+  ProjectsSetSplitPosition: 'projects:set-split-position',
   ProjectsMove: 'projects:move',
   ProjectsReveal: 'projects:reveal',
   AgentsAvailable: 'agents:available',

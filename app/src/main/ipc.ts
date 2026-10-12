@@ -103,6 +103,19 @@ export function registerIpcHandlers({
     return store.list()
   })
 
+  ipcMain.handle(IpcChannel.ProjectsSetSplit, (_event, projectId: string, chatIds: unknown) => {
+    store.setProjectSplit(projectId, Array.isArray(chatIds) ? chatIds.map(String) : null)
+    return store.list()
+  })
+
+  ipcMain.handle(
+    IpcChannel.ProjectsSetSplitPosition,
+    (_event, projectId: string, position: number) => {
+      store.setProjectSplitPosition(projectId, Number(position))
+      return store.list()
+    }
+  )
+
   ipcMain.handle(IpcChannel.ProjectsMove, (_event, projectId: string, toIndex: number) => {
     store.moveProject(projectId, toIndex)
     return store.list()

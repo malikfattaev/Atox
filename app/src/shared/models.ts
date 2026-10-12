@@ -13,6 +13,14 @@ export interface Chat {
   lastActiveAt?: number
 }
 
+/** Два чата проекта, открытые рядом; сохраняются вместе с проектом. */
+export interface ProjectSplit {
+  /** Чаты слева направо. */
+  chatIds: [string, string]
+  /** Доля ширины рабочей области, которую занимает левый чат. */
+  position: number
+}
+
 export interface Project {
   id: string
   name: string
@@ -20,6 +28,8 @@ export interface Project {
   path: string
   /** Цвет папки в сайдбаре; нет — обычная папка. */
   color?: ProjectColor
+  /** Чаты, открытые рядом: у каждого проекта свои. */
+  split?: ProjectSplit
   chats: Chat[]
 }
 
