@@ -356,23 +356,20 @@ ul {
 
 .chat-status__dot[data-status='working'] {
   background: var(--color-text);
-  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+/* Мигание без перехода: плавная смена опять перерисовывала бы окно на каждом кадре. */
+.chat-status__dot[data-dimmed='true'] {
+  opacity: 0.25;
 }
 
 .chat-status__dot[data-status='unread'] {
   background: var(--color-accent);
 }
 
-@keyframes status-pulse {
-  50% {
-    opacity: 0.25;
-    transform: scale(0.75);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .chat-status__dot[data-status='working'] {
-    animation: none;
+  .chat-status__dot[data-dimmed='true'] {
+    opacity: 1;
   }
 }
 

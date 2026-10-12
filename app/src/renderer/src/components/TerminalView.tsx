@@ -86,7 +86,9 @@ export function TerminalView({
       fontFamily: appearance.fontFamily,
       fontSize: initialFontSizeRef.current,
       theme: appearance.theme,
-      cursorBlink: true,
+      // Мигающий курсор перерисовывает терминал дважды в секунду, пока окно в фокусе, —
+      // даже когда в нём ничего не происходит. Как и в Terminal.app, курсор не мигает.
+      cursorBlink: false,
       macOptionIsMeta: true,
       scrollback: SCROLLBACK_LINES,
       // Подсветка совпадений поиска построена на декорациях — это «предлагаемый» API xterm.
