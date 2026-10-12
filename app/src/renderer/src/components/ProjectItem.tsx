@@ -1,4 +1,4 @@
-import { useId, useState, type MouseEvent } from 'react'
+import { useEffect, useId, useState, type MouseEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import type { Project } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
@@ -16,8 +16,10 @@ interface ProjectItemProps {
 }
 
 export function ProjectItem({ project, branch }: ProjectItemProps) {
-  const { createChat, renameProject, revealProject, removeProject, moveChat } = useProjectsContext()
-  const [expanded, setExpanded] = useState(true)
+  const { activeChatId, createChat, renameProject, revealProject, removeProject, moveChat } =
+    useProjectsContext()
+  // При запуске все проекты свёрнуты: список остаётся коротким, а состояние не запоминается.
+  const [expanded, setExpanded] = useState(false)
   const [renaming, setRenaming] = useState(false)
   // Проект тянут за его строку, а переносится он вместе со своими чатами.
   const { itemProps, handleProps } = useSortableItem(project.id, renaming)
@@ -25,6 +27,15 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
   const chatsId = useId()
 
   const pickAgentAndCreateChat = useAgentPicker()
+
+  // Чат, открытый с клавиатуры или из уведомления, должен быть виден в сайдбаре.
+  const containsActiveChat = project.chats.some(({ id }) => id === activeChatId)
+  useEffect(() => {
+    if (containsActiveChat) {
+      setExpanded(true)
+    }
+  }, [containsActiveChat, activeChatId])
+
 
   // Из контекстного меню чат создаётся сразу с агентом по умолчанию: второе меню подряд неудобно.
   const createProjectChat = () => {
