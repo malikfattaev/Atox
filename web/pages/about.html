@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>About — Atox</title>
+    <meta
+      name="description"
+      content="Why Atox exists, what it is trying to be, and how it works under the hood."
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- header -->
+    <main class="page prose">
+      <h1 id="about">About Atox</h1>
+      <p>
+        The best coding agents live in the terminal. Claude Code and Codex are at their sharpest
+        there — but once you run a few of them across a few projects, the terminal turns into a
+        pile of tabs. Which window is working on what? Which one finished ten minutes ago and is
+        waiting for you?
+      </p>
+      <p>
+        Atox is the answer to that pile. It is a Mac app with a sidebar of projects and chats,
+        and every chat is a real terminal with an agent in it. You always see what is running,
+        what is done and where.
+      </p>
+
+      <h2 id="goals">Project goals</h2>
+      <p>
+        Atox isn't trying to be an IDE, and it doesn't replace your agent's interface. It is a
+        calm place to run agents — nothing more.
+      </p>
+      <ul>
+        <li><strong>Stay light.</strong> It should never be the reason your laptop is warm.</li>
+        <li>
+          <strong>Stay out of the way.</strong> Your agent runs exactly as it does in the
+          terminal, with its own commands, keys and settings.
+        </li>
+        <li>
+          <strong>Work with any agent.</strong> If it runs in a terminal, it runs in Atox.
+        </li>
+        <li>
+          <strong>Never lose context.</strong> Projects, chats and layouts are saved to disk
+          the moment they change.
+        </li>
+      </ul>
+
+      <h2 id="under-the-hood">Under the hood</h2>
+      <ul>
+        <li>
+          Each chat is a login shell in the project folder, started through a pseudo-terminal
+          and drawn with xterm.js on the GPU.
+        </li>
+        <li>
+          Your projects and chats are stored in a single file on your Mac:
+          <code>~/Library/Application Support/Atox/projects.json</code>.
+        </li>
+        <li>
+          Agents talk to each other through the <code>atox</code> command over a local socket
+          that only your user account can open.
+        </li>
+        <li>
+          No accounts and no analytics. The only request Atox makes on its own is checking
+          GitHub for a new version.
+        </li>
+      </ul>
+
+      <h2 id="get-started">Get started</h2>
+      <p>
+        Download Atox, open a project folder and start a chat with your agent. The
+        <a href="/docs">docs</a> cover everything else, from shortcuts to agent teams.
+      </p>
+      <div class="cta cta--left">
+        <a class="button button--primary" href="/download/arm64" data-download="primary">
+          Download Atox for Mac
+        </a>
+        <a class="button button--link" href="/download/x64" data-download="alternate">Intel Mac</a>
+      </div>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

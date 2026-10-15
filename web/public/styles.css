@@ -1,0 +1,532 @@
+/* Цвета и шрифты — те же, что в светлой теме самого Atox. */
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f5f5f7;
+  --color-text: #1d1d1f;
+  --color-muted: #6e6e73;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-hover: rgba(0, 0, 0, 0.05);
+  --color-accent: #007aff;
+  --color-accent-hover: #0068d9;
+  --color-on-accent: #ffffff;
+  --color-status-idle: rgba(0, 0, 0, 0.2);
+  --radius: 12px;
+  --radius-large: 16px;
+  --page-width: 760px;
+  --docs-width: 1040px;
+  --docs-nav-width: 200px;
+  --gutter: 20px;
+  --header-height: 88px;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, Monaco, monospace;
+  --shadow-shot: 0 24px 64px -24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.06);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+code {
+  padding: 0.1em 0.35em;
+  background: var(--color-surface);
+  border-radius: 6px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.8em;
+  padding: 0.1em 0.45em;
+  text-align: center;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+}
+
+/* Шапка */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(var(--page-width), 100% - 2 * var(--gutter));
+  height: var(--header-height);
+  margin-inline: auto;
+}
+
+.brand {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--color-text);
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-weight: 600;
+}
+
+.nav a {
+  color: var(--color-text);
+}
+
+.nav a:hover {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.nav a[aria-current='page'] {
+  color: var(--color-accent);
+}
+
+.nav__icon {
+  display: flex;
+}
+
+/* Страницы */
+
+.page {
+  width: min(var(--page-width), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  padding-bottom: 96px;
+}
+
+.hero {
+  padding-top: 56px;
+  text-align: center;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(36px, 6.4vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  font-weight: 800;
+}
+
+.hero__lead {
+  margin: 16px auto 0;
+  max-width: 560px;
+  font-size: clamp(19px, 2.6vw, 23px);
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.download {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 20px;
+  padding-block: 36px 52px;
+}
+
+.download__meta {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot img {
+  width: 100%;
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-shot);
+}
+
+.intro {
+  padding-top: 40px;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: clamp(36px, 6vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.intro__lead {
+  margin: 14px 0 0;
+  font-size: 20px;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+
+/* Кнопки */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+
+.button:hover {
+  text-decoration: none;
+}
+
+.button--primary {
+  padding: 15px 28px;
+  font-size: 18px;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.button--primary:hover {
+  background: var(--color-accent-hover);
+}
+
+.button--primary:active {
+  transform: scale(0.98);
+}
+
+.button--secondary {
+  padding: 10px 18px;
+  font-size: 16px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.button--secondary:hover {
+  background: var(--color-hover);
+}
+
+.button--secondary small {
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.button--link {
+  padding: 8px 4px;
+  color: var(--color-text);
+}
+
+.button--link:hover {
+  color: var(--color-accent);
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 20px;
+  margin-top: 56px;
+}
+
+.cta--left {
+  justify-content: flex-start;
+  margin-top: 24px;
+}
+
+/* Возможности */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 40px;
+}
+
+.feature {
+  padding: 24px;
+  background: var(--color-surface);
+  border-radius: var(--radius-large);
+}
+
+.feature h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.feature p {
+  margin: 0;
+  font-size: 16px;
+  color: var(--color-muted);
+}
+
+/* Текстовые страницы */
+
+.prose h1 {
+  margin: 40px 0 20px;
+  font-size: clamp(34px, 5.6vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.prose h2 {
+  margin: 48px 0 12px;
+  font-size: 26px;
+}
+
+.prose h3 {
+  margin: 28px 0 8px;
+  font-size: 19px;
+}
+
+.prose p,
+.prose ul,
+.prose ol {
+  margin: 0 0 14px;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 22px;
+}
+
+.prose li + li {
+  margin-top: 6px;
+}
+
+.prose [id] {
+  scroll-margin-top: 24px;
+}
+
+/* Документация */
+
+.docs {
+  display: grid;
+  grid-template-columns: var(--docs-nav-width) minmax(0, 1fr);
+  gap: 56px;
+  width: min(var(--docs-width), 100% - 2 * var(--gutter));
+  margin: 0 auto;
+  padding-bottom: 96px;
+}
+
+.docs-page .header {
+  width: min(var(--docs-width), 100% - 2 * var(--gutter));
+}
+
+.docs__nav {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 48px;
+}
+
+.docs__nav a {
+  padding: 5px 10px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-muted);
+  border-radius: 8px;
+}
+
+.docs__nav a:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+  text-decoration: none;
+}
+
+.docs__nav a[aria-current='true'] {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.docs__content {
+  min-width: 0;
+  max-width: 720px;
+}
+
+.download-card {
+  margin: 0 0 16px;
+  padding: 20px 22px;
+  background: var(--color-surface);
+  border-radius: var(--radius-large);
+}
+
+.download-card__label {
+  margin: 0 0 12px !important;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+.download-card__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.download-card p:last-child {
+  margin: 0;
+  font-size: 15px;
+  color: var(--color-muted);
+}
+
+.table {
+  margin: 0 0 16px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+td {
+  padding: 10px 14px;
+  vertical-align: top;
+}
+
+tr + tr td {
+  border-top: 1px solid var(--color-border);
+}
+
+td:last-child {
+  color: var(--color-muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  vertical-align: 1px;
+  border-radius: 50%;
+  background: var(--color-status-idle);
+}
+
+.dot--working {
+  background: var(--color-accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.dot--done {
+  background: var(--color-accent);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Узкие экраны */
+
+@media (max-width: 860px) {
+  .docs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .docs__nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --header-height: 72px;
+  }
+
+  .brand {
+    font-size: 28px;
+  }
+
+  .nav {
+    gap: 14px;
+    font-size: 15px;
+  }
+
+  /* На телефоне кнопка загрузки и так первая на главной — пункт меню уступает место. */
+  .nav a[data-nav='download'] {
+    display: none;
+  }
+
+  .hero {
+    padding-top: 32px;
+  }
+
+  .button--primary {
+    width: 100%;
+  }
+
+  .features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .dot--working {
+    animation: none;
+  }
+}
