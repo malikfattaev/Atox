@@ -1,4 +1,4 @@
-import { useId, useState, type MouseEvent } from 'react'
+import { useId, useMemo, useState, type MouseEvent } from 'react'
 import {
   ChevronDown,
   CodeXml,
@@ -44,6 +44,7 @@ export function ChatItem({ chat, workers, projectId, branch }: ChatItemProps) {
   const workersId = useId()
   const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
   const hasWorkers = workers.length > 0
+  const workerChatIds = useMemo(() => workers.map(({ id }) => id), [workers])
 
   return (
     <li className="chat-group" data-has-workers={hasWorkers} {...itemProps}>
@@ -51,6 +52,7 @@ export function ChatItem({ chat, workers, projectId, branch }: ChatItemProps) {
         chat={chat}
         projectId={projectId}
         branch={branch}
+        workerChatIds={workerChatIds}
         renaming={renaming}
         onRenamingChange={setRenaming}
         dragHandleProps={handleProps}
@@ -105,7 +107,9 @@ interface ChatRowProps {
   chat: Chat
   projectId: string
   branch?: string | null
-  /** Строка помощника: в одну строку и со значком его агента вместо ветки. */
+  /** Помощники чата: пока работает любой из них, индикатор чата показывает работу. */
+  workerChatIds?: readonly string[]
+  /** Строка помощника: в одну строку, со значком агента вместо индикатора и ветки. */
   compact?: boolean
   renaming: boolean
   onRenamingChange(renaming: boolean): void
@@ -117,6 +121,7 @@ function ChatRow({
   chat,
   projectId,
   branch = null,
+  workerChatIds,
   compact = false,
   renaming,
   onRenamingChange,
@@ -134,7 +139,6 @@ function ChatRow({
   const visible = visibleChatIds.includes(chat.id)
   // Рядом открываются чаты того проекта, что сейчас на экране: раскладка у каждого проекта своя.
   const canOpenBeside = Boolean(activeChatId) && projectId === currentProjectId && !visible
-  const activity = useChatActivity(chat.id)
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
@@ -176,12 +180,17 @@ function ChatRow({
     <span className="row__label">{chat.title}</span>
   )
 
-  const AgentIcon = compact ? AGENT_ICONS[chat.agent ?? 'terminal'] : null
+  const AgentIcon = AGENT_ICONS[chat.agent ?? 'terminal']
   const content = (
     <>
       <span className="chat-title">
-        <ChatStatus status={activity} />
-        {AgentIcon && <AgentIcon className="agent-icon" aria-hidden />}
+        {compact ? (
+          <span className="worker-agent">
+            <AgentIcon className="agent-icon" aria-hidden />
+          </span>
+        ) : (
+          <ChatActivityStatus chatId={chat.id} workerChatIds={workerChatIds} />
+        )}
         {title}
       </span>
       {branch && (
@@ -217,4 +226,15 @@ function ChatRow({
       )}
     </div>
   )
+}
+
+/** Индикатор чата верхнего уровня: подписка на состояние только там, где индикатор виден. */
+function ChatActivityStatus({
+  chatId,
+  workerChatIds
+}: {
+  chatId: string
+  workerChatIds?: readonly string[]
+}) {
+  return <ChatStatus status={useChatActivity(chatId, workerChatIds)} />
 }

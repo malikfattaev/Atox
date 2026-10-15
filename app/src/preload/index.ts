@@ -90,8 +90,7 @@ const api: AtoxApi = {
     move: (chatId, toIndex) => ipcRenderer.invoke(IpcChannel.ChatsMove, chatId, toIndex),
     applyTerminalTitle: (chatId, title) =>
       ipcRenderer.invoke(IpcChannel.ChatsApplyTerminalTitle, chatId, title),
-    onChanged: (listener) => subscribe(IpcChannel.ProjectsChanged, listener),
-    onWorkerStarted: (listener) => subscribe(IpcChannel.ChatsWorkerStarted, listener)
+    onChanged: (listener) => subscribe(IpcChannel.ProjectsChanged, listener)
   },
   terminal: {
     attach: (chatId, size) => ipcRenderer.invoke(IpcChannel.TerminalAttach, chatId, size),

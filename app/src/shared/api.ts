@@ -96,8 +96,6 @@ export interface AtoxApi {
     applyTerminalTitle(chatId: string, title: string): Promise<Project[]>
     /** Список чатов изменился без участия окна — например, агент запустил помощника. */
     onChanged(listener: (projects: Project[]) => void): () => void
-    /** Агент запустил помощника в новом чате. */
-    onWorkerStarted(listener: (chatId: string) => void): () => void
   }
   terminal: {
     /** Запускает терминал чата, если он ещё не запущен, и возвращает уже накопленный вывод. */
@@ -178,7 +176,6 @@ export const IpcChannel = {
   ChatsMove: 'chats:move',
   ChatsApplyTerminalTitle: 'chats:apply-terminal-title',
   ProjectsChanged: 'projects:changed',
-  ChatsWorkerStarted: 'chats:worker-started',
   TerminalAttach: 'terminal:attach',
   TerminalWrite: 'terminal:write',
   TerminalResize: 'terminal:resize',

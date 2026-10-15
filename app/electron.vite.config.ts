@@ -8,6 +8,15 @@ const updateFeedUrl = `${packageJson.repository.url}/releases/latest/download`
 
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        // В пакете 6.0.0 поле module указывает на файл, которого нет в сборке пакета.
+        '@xterm/headless': resolve(
+          __dirname,
+          'node_modules/@xterm/headless/lib-headless/xterm-headless.mjs'
+        )
+      }
+    },
     define: {
       __UPDATE_FEED_URL__: JSON.stringify(updateFeedUrl)
     },

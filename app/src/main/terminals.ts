@@ -49,6 +49,9 @@ const CONTROL_CHARACTERS = /[\x00-\x08\x0b-\x1f\x7f]/g
 interface Session {
   pty: IPty
   output: string
+  size: TerminalSize
+  /** Когда пользователь последний раз что-то набрал в терминале. */
+  lastInputAt: number
   /** Имя процесса оболочки: всё, что отличается от него, — запущенная в терминале программа. */
   shellName: string
 }
@@ -85,7 +88,7 @@ export class TerminalManager {
   attach(chatId: string, cwd: string, size: TerminalSize, startupCommand: string): string {
     const existing = this.sessions.get(chatId)
     if (existing) {
-      existing.pty.resize(size.cols, size.rows)
+      this.resizeSession(existing, size)
       return existing.output
     }
 
@@ -101,7 +104,7 @@ export class TerminalManager {
       cwd,
       env: this.createEnvironment(chatId)
     })
-    const session: Session = { pty, output: '', shellName: basename(shell) }
+    const session: Session = { pty, output: '', size, lastInputAt: 0, shellName: basename(shell) }
     this.sessions.set(chatId, session)
 
     pty.onData((data) => {
@@ -124,8 +127,30 @@ export class TerminalManager {
     return ''
   }
 
+  /** Ввод пользователя. */
   write(chatId: string, data: string): void {
-    this.sessions.get(chatId)?.pty.write(data)
+    const session = this.sessions.get(chatId)
+    if (session) {
+      session.lastInputAt = Date.now()
+      session.pty.write(data)
+    }
+  }
+
+  /** Сколько миллисекунд пользователь ничего не набирал в терминале чата. */
+  inputIdleTime(chatId: string): number {
+    const session = this.sessions.get(chatId)
+    return session ? Date.now() - session.lastInputAt : Infinity
+  }
+
+  /** Строки, которые сейчас видны в терминале чата; `null` — терминал не запущен. */
+  async readScreen(chatId: string): Promise<string[] | null> {
+    const session = this.sessions.get(chatId)
+    if (!session) {
+      return null
+    }
+    // Эмулятор нужен редко — он загружается при первом запросе, а не при запуске приложения.
+    const { renderScreen } = await import('./terminalScreen')
+    return renderScreen(session.output, session.size.cols, session.size.rows)
   }
 
   /**
@@ -157,7 +182,15 @@ export class TerminalManager {
   }
 
   resize(chatId: string, size: TerminalSize): void {
-    this.sessions.get(chatId)?.pty.resize(size.cols, size.rows)
+    const session = this.sessions.get(chatId)
+    if (session) {
+      this.resizeSession(session, size)
+    }
+  }
+
+  private resizeSession(session: Session, size: TerminalSize): void {
+    session.size = size
+    session.pty.resize(size.cols, size.rows)
   }
 
   /** Программа, которая сейчас работает в терминале чата поверх оболочки; `null` — терминал свободен. */
