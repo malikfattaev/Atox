@@ -46,6 +46,9 @@ const PASTE_SUBMIT_DELAY_MS = 500
 /** Управляющие символы, кроме перевода строки и табуляции: в тексте они могли бы закрыть вставку. */
 const CONTROL_CHARACTERS = /[\x00-\x08\x0b-\x1f\x7f]/g
 
+/** Управляющие последовательности ввода: стрелки, функциональные клавиши, фокус, Alt+клавиша. */
+const ESCAPE_SEQUENCES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|O.|.)?/g
+
 interface Session {
   pty: IPty
   output: string
@@ -56,6 +59,8 @@ interface Session {
   size: TerminalSize
   /** Когда пользователь последний раз что-то набрал в терминале. */
   lastInputAt: number
+  /** Пользователь набрал текст и ещё не отправил его: в строке ввода лежит черновик. */
+  hasDraft: boolean
   /** Имя процесса оболочки: всё, что отличается от него, — запущенная в терминале программа. */
   shellName: string
 }
@@ -114,6 +119,7 @@ export class TerminalManager {
       outputVersion: 0,
       size,
       lastInputAt: 0,
+      hasDraft: false,
       shellName: basename(shell)
     }
     this.sessions.set(chatId, session)
@@ -144,6 +150,7 @@ export class TerminalManager {
     const session = this.sessions.get(chatId)
     if (session) {
       session.lastInputAt = Date.now()
+      session.hasDraft = draftAfterInput(session.hasDraft, data)
       session.pty.write(data)
     }
   }
@@ -152,6 +159,11 @@ export class TerminalManager {
   inputIdleTime(chatId: string): number {
     const session = this.sessions.get(chatId)
     return session ? Date.now() - session.lastInputAt : Infinity
+  }
+
+  /** Лежит ли в строке ввода чата неотправленный текст пользователя. */
+  hasDraft(chatId: string): boolean {
+    return this.sessions.get(chatId)?.hasDraft ?? false
   }
 
   /** Строки, которые сейчас видны в терминале чата; `null` — терминал не запущен. */
@@ -190,6 +202,8 @@ export class TerminalManager {
       // За паузу терминал могли закрыть или перезапустить.
       if (this.sessions.get(chatId) === session) {
         session.pty.write('\r')
+        // Enter отправил и вставку, и черновик, если он был.
+        session.hasDraft = false
       }
     }, PASTE_SUBMIT_DELAY_MS)
     return true
@@ -264,4 +278,22 @@ export class TerminalManager {
 
 export function resolveShell(): string {
   return process.env['SHELL'] || userInfo().shell || DEFAULT_SHELL
+}
+
+/**
+ * Черновик по вводу пользователя: Enter отправляет строку, Ctrl+C и Ctrl+U очищают её,
+ * печатный символ начинает или продолжает черновик. Стрелки и прочие управляющие
+ * последовательности черновик не меняют.
+ */
+function draftAfterInput(hasDraft: boolean, data: string): boolean {
+  const lastBreak = Math.max(
+    data.lastIndexOf('\r'),
+    data.lastIndexOf('\x03'),
+    data.lastIndexOf('\x15')
+  )
+  const rest = data.slice(lastBreak + 1).replace(ESCAPE_SEQUENCES, '')
+  if (/[^\x00-\x1f\x7f]/.test(rest)) {
+    return true
+  }
+  return lastBreak >= 0 ? false : hasDraft
 }
