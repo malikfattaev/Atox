@@ -36,7 +36,8 @@
   --chat-pane-close-icon-size: 14px;
   --worker-row-height: 28px;
   --worker-toggle-height: 24px;
-  --agent-icon-size: 14px;
+  --agent-icon-size: 16px;
+  --worker-chevron-size: 14px;
   /* Насколько плотно залита цветная папка проекта. */
   --project-icon-fill: 40%;
 
@@ -489,8 +490,8 @@ ul {
 }
 
 .chat-workers__toggle .icon {
-  width: var(--agent-icon-size);
-  height: var(--agent-icon-size);
+  width: var(--worker-chevron-size);
+  height: var(--worker-chevron-size);
   margin-left: auto;
   transition: rotate var(--collapse-duration) var(--collapse-easing);
 }
@@ -539,7 +540,7 @@ ul {
 .agent-icon {
   width: var(--agent-icon-size);
   height: var(--agent-icon-size);
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
 .project-chats {
