@@ -6,6 +6,19 @@ const QUIET_PERIOD_MS = 1500
 /** Вывод сразу после ввода — эхо набранного текста, а не работа программы. */
 const ECHO_WINDOW_MS = 250
 
+/**
+ * Дольше запуск или перерисовка не длятся: если вывод всё ещё идёт, программа уже работает —
+ * например, агенту пришло сообщение сразу после открытия чата.
+ */
+const SETTLE_LIMIT_MS = 5000
+
+/**
+ * Служебные последовательности терминала: команды курсора и экрана, заголовки, запросы
+ * возможностей. Вывод только из них — перерисовка, а не работа программы.
+ */
+const TERMINAL_CONTROLS =
+  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[P_^X][\s\S]*?(?:\x1b\\|$)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]|[\x00-\x1f\x7f]/g
+
 /** Уведомлять о завершении только долгой работы — быстрые команды не должны отвлекать. */
 const NOTIFY_MIN_WORK_MS = 10_000
 
@@ -20,6 +33,13 @@ interface ChatState {
   workStartedAt: number
   lastOutputAt: number
   lastInputAt: number
+  /**
+   * Программа запускается или перерисовывает экран под новый размер: её вывод — не работа,
+   * пока он не затихнет или пользователь что-нибудь не наберёт.
+   */
+  settling: boolean
+  settleDeadline: number
+  settleTimer?: ReturnType<typeof setTimeout>
   quietTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -52,15 +72,37 @@ export class ChatActivityTracker {
   }
 
   reportInput(chatId: string): void {
-    this.state(chatId).lastInputAt = Date.now()
+    const state = this.state(chatId)
+    state.lastInputAt = Date.now()
+    // Пользователь что-то отправил — дальше вывод снова может быть работой.
+    state.settling = false
+    clearTimeout(state.settleTimer)
   }
 
-  reportOutput(chatId: string): void {
+  /**
+   * Терминал чата подключили или изменили его размер: программа сейчас запустится или
+   * перерисует экран. Так бывает, когда чат просто открывают, — это не работа.
+   */
+  reportRedraw(chatId: string): void {
+    const state = this.state(chatId)
+    if (state.status !== 'working') {
+      state.settling = true
+      state.settleDeadline = Date.now() + SETTLE_LIMIT_MS
+      this.restartSettleTimer(state)
+    }
+  }
+
+  reportOutput(chatId: string, data: string): void {
     const state = this.state(chatId)
     const now = Date.now()
-    if (now - state.lastInputAt < ECHO_WINDOW_MS) {
+    if (now - state.lastInputAt < ECHO_WINDOW_MS || !hasVisibleText(data)) {
       return
     }
+    if (state.settling && now < state.settleDeadline) {
+      this.restartSettleTimer(state)
+      return
+    }
+    state.settling = false
 
     state.lastOutputAt = now
     if (state.status !== 'working') {
@@ -91,6 +133,7 @@ export class ChatActivityTracker {
 
   forget(chatId: string): void {
     clearTimeout(this.chats.get(chatId)?.quietTimer)
+    clearTimeout(this.chats.get(chatId)?.settleTimer)
     this.chats.delete(chatId)
   }
 
@@ -105,10 +148,22 @@ export class ChatActivityTracker {
     }
   }
 
+  private restartSettleTimer(state: ChatState): void {
+    clearTimeout(state.settleTimer)
+    state.settleTimer = setTimeout(() => (state.settling = false), QUIET_PERIOD_MS)
+  }
+
   private state(chatId: string): ChatState {
     let state = this.chats.get(chatId)
     if (!state) {
-      state = { status: 'idle', workStartedAt: 0, lastOutputAt: 0, lastInputAt: 0 }
+      state = {
+        status: 'idle',
+        workStartedAt: 0,
+        lastOutputAt: 0,
+        lastInputAt: 0,
+        settling: false,
+        settleDeadline: 0
+      }
       this.chats.set(chatId, state)
     }
     return state
@@ -120,4 +175,8 @@ export class ChatActivityTracker {
       this.listeners.forEach((listener) => listener())
     }
   }
+}
+
+function hasVisibleText(data: string): boolean {
+  return data.replace(TERMINAL_CONTROLS, '').trim().length > 0
 }
