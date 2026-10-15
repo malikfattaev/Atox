@@ -51,7 +51,9 @@ const onTerminalExit = createChatEventHub<TerminalExitEvent, void>(
 const api: AtoxApi = {
   projects: {
     list: () => ipcRenderer.invoke(IpcChannel.ProjectsList),
-    add: () => ipcRenderer.invoke(IpcChannel.ProjectsAdd),
+    add: (spaceId) => ipcRenderer.invoke(IpcChannel.ProjectsAdd, spaceId),
+    moveToSpace: (projectId, spaceId) =>
+      ipcRenderer.invoke(IpcChannel.ProjectsMoveToSpace, projectId, spaceId),
     remove: (projectId) => ipcRenderer.invoke(IpcChannel.ProjectsRemove, projectId),
     rename: (projectId, name) => ipcRenderer.invoke(IpcChannel.ProjectsRename, projectId, name),
     setColor: (projectId, color) =>
@@ -62,6 +64,14 @@ const api: AtoxApi = {
       ipcRenderer.invoke(IpcChannel.ProjectsSetSplitPosition, projectId, position),
     move: (projectId, toIndex) => ipcRenderer.invoke(IpcChannel.ProjectsMove, projectId, toIndex),
     reveal: (projectId) => ipcRenderer.invoke(IpcChannel.ProjectsReveal, projectId)
+  },
+  spaces: {
+    list: () => ipcRenderer.invoke(IpcChannel.SpacesList),
+    create: () => ipcRenderer.invoke(IpcChannel.SpacesCreate),
+    rename: (spaceId, name) => ipcRenderer.invoke(IpcChannel.SpacesRename, spaceId, name),
+    setColor: (spaceId, color) => ipcRenderer.invoke(IpcChannel.SpacesSetColor, spaceId, color),
+    setActive: (spaceId) => ipcRenderer.invoke(IpcChannel.SpacesSetActive, spaceId),
+    remove: (spaceId) => ipcRenderer.invoke(IpcChannel.SpacesRemove, spaceId)
   },
   agents: {
     available: () => ipcRenderer.invoke(IpcChannel.AgentsAvailable)

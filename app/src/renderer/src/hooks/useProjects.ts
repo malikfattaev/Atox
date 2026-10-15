@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentId } from '../../../shared/agents'
-import { moveItem } from '../../../shared/list'
-import type { Project } from '../../../shared/models'
+import { moveItem, moveItemWithinGroup } from '../../../shared/list'
+import type { Project, Space } from '../../../shared/models'
 import type { ProjectColor } from '../../../shared/projectColors'
 import {
   EMPTY_LAYOUT,
@@ -13,33 +13,49 @@ import {
   splitChatIds,
   type ChatLayout
 } from '../lib/chatLayout'
+import { useSpaces } from './useSpaces'
 
 const { atox } = window
 
 /**
  * Что открыто в рабочей области. Раскладка своя у каждого проекта: при переходе в другой
  * проект его чаты, открытые рядом, возвращаются, а у прежнего сохраняются до возвращения.
+ * Так же и с пространствами: в каждом на экране остаётся свой проект.
  */
 interface WorkspaceView {
-  /** Проект, чаты которого на экране; `null` — чат ещё не выбран. */
-  projectId: string | null
+  /** Проект на экране в каждом пространстве (по id пространства). */
+  shownProjectIds: Readonly<Record<string, string>>
   layouts: Readonly<Record<string, ChatLayout>>
 }
 
-const INITIAL_VIEW: WorkspaceView = { projectId: null, layouts: {} }
+const INITIAL_VIEW: WorkspaceView = { shownProjectIds: {}, layouts: {} }
 
 export interface ProjectsState {
+  /** Проекты всех пространств. */
   projects: Project[]
+  spaces: Space[]
+  /** `null` — пространства ещё загружаются. */
+  activeSpaceId: string | null
+  /** Проекты открытого пространства — их и показывает сайдбар. */
+  spaceProjects: Project[]
   /** Чат в фокусе: к нему относятся поиск, закрытие и переключение с клавиатуры. */
   activeChatId: string | null
   /** Чаты на экране слева направо; два — когда чаты открыты рядом. */
   visibleChatIds: string[]
   /** Чаты, которые открывались в этой сессии: их терминалы держим смонтированными. */
   openedChatIds: string[]
-  /** Все чаты в порядке сайдбара — по нему работает переключение с клавиатуры. */
+  /** Чаты открытого пространства в порядке сайдбара — по ним работает переключение с клавиатуры. */
   orderedChatIds: string[]
-  /** Проект текущего чата, а если чат не выбран — первый проект. */
+  /** Проект текущего чата, а если чат не выбран — первый проект открытого пространства. */
   currentProjectId: string | null
+  selectSpace(spaceId: string): void
+  /** Создаёт пространство, открывает его и возвращает его id. */
+  createSpace(): Promise<string>
+  renameSpace(spaceId: string, name: string): Promise<void>
+  setSpaceColor(spaceId: string, color: ProjectColor | null): Promise<void>
+  /** Удаляет пространство; его проекты переходят в соседнее. */
+  removeSpace(spaceId: string): Promise<void>
+  moveProjectToSpace(projectId: string, spaceId: string): Promise<void>
   /** Открывает чат на месте того, что в фокусе; уже видимый чат просто получает фокус. */
   selectChat(chatId: string): void
   /** Открывает чат рядом с тем, что в фокусе; чат другого проекта открывается вместо него. */
@@ -70,16 +86,32 @@ export function useProjects(): ProjectsState {
   // открывается в том же вызове, в котором пришёл обновлённый список проектов.
   const projectsRef = useRef(projects)
   const viewRef = useRef(view)
+  const {
+    spaces,
+    activeSpaceId,
+    selectSpace,
+    createSpace,
+    renameSpace,
+    setSpaceColor,
+    removeSpace: removeSpaceReturningProjects
+  } = useSpaces()
+  const activeSpaceIdRef = useRef(activeSpaceId)
+  activeSpaceIdRef.current = activeSpaceId
 
-  const layout = (view.projectId && view.layouts[view.projectId]) || EMPTY_LAYOUT
+  const spaceProjects = useMemo(
+    () => projects.filter((project) => project.spaceId === activeSpaceId),
+    [projects, activeSpaceId]
+  )
+  const shownProjectId = findShownProjectId(view, projects, activeSpaceId)
+  const layout = (shownProjectId && view.layouts[shownProjectId]) || EMPTY_LAYOUT
   const { visibleChatIds, activeChatId } = layout
 
   const orderedChatIds = useMemo(
-    () => projects.flatMap((project) => project.chats.map(({ id }) => id)),
-    [projects]
+    () => spaceProjects.flatMap((project) => project.chats.map(({ id }) => id)),
+    [spaceProjects]
   )
 
-  const currentProjectId = view.projectId ?? projects[0]?.id ?? null
+  const currentProjectId = shownProjectId ?? spaceProjects[0]?.id ?? null
 
   const commitView = useCallback((next: WorkspaceView) => {
     viewRef.current = next
@@ -106,8 +138,13 @@ export function useProjects(): ProjectsState {
           return [[project.id, removed.reduce(hideChat, layout)]]
         })
       )
-      const projectId = next.some(({ id }) => id === current.projectId) ? current.projectId : null
-      commitView({ projectId, layouts })
+      // Проект на экране остаётся, только пока он существует и лежит в том же пространстве.
+      const shownProjectIds = Object.fromEntries(
+        Object.entries(current.shownProjectIds).filter(([spaceId, projectId]) =>
+          next.some((project) => project.id === projectId && project.spaceId === spaceId)
+        )
+      )
+      commitView({ shownProjectIds, layouts })
     },
     [commitView]
   )
@@ -117,28 +154,43 @@ export function useProjects(): ProjectsState {
   }, [applyProjects])
 
   /**
-   * Меняет раскладку проекта и показывает его. Чаты, открытые рядом, сохраняются у проекта,
-   * поэтому после перезапуска они снова откроются вместе.
+   * Меняет раскладку проекта и показывает его, открыв его пространство. Чаты, открытые рядом,
+   * сохраняются у проекта, поэтому после перезапуска они снова откроются вместе.
    */
   const changeLayout = useCallback(
     (projectId: string, change: (layout: ChatLayout) => ChatLayout) => {
       const current = viewRef.current
       const project = projectsRef.current.find(({ id }) => id === projectId)
-      const before = current.layouts[projectId] ?? layoutFromSplit(project?.split)
-      const after = change(before)
-      if (after === before && projectId === current.projectId) {
+      if (!project) {
         return
       }
-      commitView({ projectId, layouts: { ...current.layouts, [projectId]: after } })
+      const before = current.layouts[projectId] ?? layoutFromSplit(project.split)
+      const after = change(before)
+      const alreadyShown =
+        project.spaceId === activeSpaceIdRef.current &&
+        current.shownProjectIds[project.spaceId] === projectId
+      if (after === before && alreadyShown) {
+        return
+      }
+      commitView({
+        shownProjectIds: { ...current.shownProjectIds, [project.spaceId]: projectId },
+        layouts: { ...current.layouts, [projectId]: after }
+      })
       setOpenedChatIds((ids) => [...new Set([...ids, ...after.visibleChatIds])])
+      // Чат из другого пространства (например, по клику на уведомление) открывает и его.
+      selectSpace(project.spaceId)
 
       const split = splitChatIds(after)
-      if (project && !isSameSplit(project.split?.chatIds, split)) {
+      if (!isSameSplit(project.split?.chatIds, split)) {
         void atox.projects.setSplit(projectId, split).then(applyProjects)
       }
     },
-    [commitView, applyProjects]
+    [commitView, applyProjects, selectSpace]
   )
+
+  /** Проект на экране в открытом пространстве — для действий, которые читают состояние сразу. */
+  const currentShownProjectId = () =>
+    findShownProjectId(viewRef.current, projectsRef.current, activeSpaceIdRef.current)
 
   const selectChat = useCallback(
     (chatId: string) => {
@@ -155,7 +207,7 @@ export function useProjects(): ProjectsState {
     (chatId: string) => {
       const projectId = findChatProjectId(projectsRef.current, chatId)
       if (projectId) {
-        const sameProject = projectId === viewRef.current.projectId
+        const sameProject = projectId === currentShownProjectId()
         changeLayout(projectId, (layout) =>
           sameProject ? showChatBeside(layout, chatId) : showChat(layout, chatId)
         )
@@ -166,7 +218,7 @@ export function useProjects(): ProjectsState {
 
   const closeChatPane = useCallback(
     (chatId: string) => {
-      const { projectId } = viewRef.current
+      const projectId = currentShownProjectId()
       if (projectId) {
         changeLayout(projectId, (layout) => hideChat(layout, chatId))
       }
@@ -184,7 +236,11 @@ export function useProjects(): ProjectsState {
   )
 
   const addProject = useCallback(async () => {
-    const result = await atox.projects.add()
+    const spaceId = activeSpaceIdRef.current
+    if (!spaceId) {
+      return
+    }
+    const result = await atox.projects.add(spaceId)
     if (!result) {
       return
     }
@@ -229,11 +285,34 @@ export function useProjects(): ProjectsState {
     async (projectId: string, toIndex: number) => {
       setProjects((current) => {
         const fromIndex = current.findIndex(({ id }) => id === projectId)
-        return moveItem(current, fromIndex, toIndex) ?? current
+        const moved = moveItemWithinGroup(
+          current,
+          fromIndex,
+          toIndex,
+          (a, b) => a.spaceId === b.spaceId
+        )
+        return moved ?? current
       })
       applyProjects(await atox.projects.move(projectId, toIndex))
     },
     [applyProjects]
+  )
+
+  const moveProjectToSpace = useCallback(
+    async (projectId: string, spaceId: string) =>
+      applyProjects(await atox.projects.moveToSpace(projectId, spaceId)),
+    [applyProjects]
+  )
+
+  // Проекты удалённого пространства переезжают в соседнее — список проектов тоже обновляется.
+  const removeSpace = useCallback(
+    async (spaceId: string) => {
+      const next = await removeSpaceReturningProjects(spaceId)
+      if (next) {
+        applyProjects(next)
+      }
+    },
+    [removeSpaceReturningProjects, applyProjects]
   )
 
   const revealProject = useCallback((projectId: string) => atox.projects.reveal(projectId), [])
@@ -270,11 +349,20 @@ export function useProjects(): ProjectsState {
 
   return {
     projects,
+    spaces,
+    activeSpaceId,
+    spaceProjects,
     activeChatId,
     visibleChatIds,
     openedChatIds,
     orderedChatIds,
     currentProjectId,
+    selectSpace,
+    createSpace,
+    renameSpace,
+    setSpaceColor,
+    removeSpace,
+    moveProjectToSpace,
     selectChat,
     openChatBeside,
     closeChatPane,
@@ -295,4 +383,16 @@ export function useProjects(): ProjectsState {
 
 function findChatProjectId(projects: readonly Project[], chatId: string): string | undefined {
   return projects.find(({ chats }) => chats.some(({ id }) => id === chatId))?.id
+}
+
+/** Проект на экране в пространстве, если он всё ещё существует и лежит в нём. */
+function findShownProjectId(
+  view: WorkspaceView,
+  projects: readonly Project[],
+  spaceId: string | null
+): string | null {
+  const projectId = spaceId ? view.shownProjectIds[spaceId] : undefined
+  return projects.some((project) => project.id === projectId && project.spaceId === spaceId)
+    ? projectId!
+    : null
 }

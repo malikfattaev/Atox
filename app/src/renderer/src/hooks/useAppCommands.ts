@@ -3,8 +3,11 @@ import type { AppCommand } from '../../../shared/commands'
 import { SHORTCUT_RECORDER_ATTRIBUTE } from '../components/ShortcutRecorder'
 import type { ProjectsState } from './useProjects'
 
-/** ⌘1…⌘9 выбирают чат по номеру в сайдбаре. */
-const CHAT_NUMBER_KEYS = /^[1-9]$/
+/**
+ * ⌘1…⌘9 выбирают чат по номеру в сайдбаре, ⌃1…⌃9 — пространство. Цифра берётся по положению
+ * клавиши, поэтому сочетания одинаково работают на любой раскладке.
+ */
+const NUMBER_KEY_CODE = /^Digit([1-9])$/
 
 interface AppCommandHandlers {
   projects: ProjectsState
@@ -68,7 +71,9 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
 
     // Перехват на этапе погружения: иначе нажатие съест сфокусированный терминал.
     const selectByNumber = (event: KeyboardEvent) => {
-      if (!event.metaKey || event.shiftKey || event.altKey || !CHAT_NUMBER_KEYS.test(event.key)) {
+      const digit = NUMBER_KEY_CODE.exec(event.code)?.[1]
+      // Нужен ровно один из ⌘ и ⌃, без других модификаторов.
+      if (!digit || event.shiftKey || event.altKey || event.metaKey === event.ctrlKey) {
         return
       }
       // Сочетание, которое записывают в настройках, — не команда.
@@ -78,11 +83,18 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
       ) {
         return
       }
-      const chatId = handlersRef.current.projects.orderedChatIds[Number(event.key) - 1]
-      if (chatId) {
+      const { projects } = handlersRef.current
+      const index = Number(digit) - 1
+      const chatId = event.metaKey ? projects.orderedChatIds[index] : undefined
+      const spaceId = event.ctrlKey ? projects.spaces[index]?.id : undefined
+      if (chatId || spaceId) {
         event.preventDefault()
         event.stopPropagation()
-        handlersRef.current.projects.selectChat(chatId)
+      }
+      if (chatId) {
+        projects.selectChat(chatId)
+      } else if (spaceId) {
+        projects.selectSpace(spaceId)
       }
     }
 
