@@ -31,7 +31,7 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
   )
 
   // Чаты на экране в окне, которое в фокусе, считаются просмотренными.
-  const { visibleChatIds, orderedChatIds } = projects
+  const { visibleChatIds } = projects
   useEffect(() => {
     if (visibleChatIds.length === 0) {
       return
@@ -59,13 +59,15 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
   }, [workerChatIds, tracker])
 
-  // Удалённые чаты больше не отслеживаются.
+  // Удалённые чаты больше не отслеживаются. Чаты других пространств остаются: их состояние
+  // должно дождаться возвращения в пространство.
   const trackedChatIdsRef = useRef<string[]>([])
   useEffect(() => {
-    const existing = new Set(orderedChatIds)
+    const chatIds = projectList.flatMap(({ chats }) => chats.map(({ id }) => id))
+    const existing = new Set(chatIds)
     trackedChatIdsRef.current.filter((id) => !existing.has(id)).forEach((id) => tracker.forget(id))
-    trackedChatIdsRef.current = orderedChatIds
-  }, [orderedChatIds, tracker])
+    trackedChatIdsRef.current = chatIds
+  }, [projectList, tracker])
 
   return <ChatActivityContext.Provider value={tracker}>{children}</ChatActivityContext.Provider>
 }
