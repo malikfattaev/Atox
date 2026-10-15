@@ -27,11 +27,7 @@
   --chat-rename-inset: 2px;
   --chat-pane-header-height: 32px;
   --shortcut-reset-size: 22px;
-  --space-button-size: 26px;
-  --space-button-gap: 4px;
-  /* Буква в значке стоит на одной линии с иконками строк сайдбара. */
-  --space-button-inset: 5px;
-  --space-add-icon-size: 15px;
+  --space-chevron-size: 14px;
   --shortcut-reset-icon-size: 13px;
   --chat-pane-close-size: 22px;
   --chat-pane-close-icon-size: 14px;
@@ -205,20 +201,27 @@ ul {
   overflow-y: auto;
 }
 
-.sidebar__heading {
-  margin: 0 0 4px;
-  padding: 0 var(--row-padding);
-  font-size: var(--font-size);
-  font-weight: 400;
+.sidebar__spaces {
+  padding: 0 var(--sidebar-padding) 4px;
+}
+
+/* Строка текущего пространства открывает меню выбора; цветная — как папка проекта. */
+.space-picker .row__label {
+  flex: 1;
+}
+
+.space-picker__icon {
   color: var(--color-text-muted);
 }
 
-/* Название пространства переименовывают прямо в заголовке. */
-.sidebar__heading--editing {
-  display: flex;
-  align-items: center;
-  height: 1lh;
-  padding-left: calc(var(--row-padding) + 5px);
+.space-picker[data-colored='true'] .space-picker__icon {
+  color: var(--space-color);
+}
+
+.space-picker__chevron {
+  width: var(--space-chevron-size);
+  height: var(--space-chevron-size);
+  color: var(--color-text-muted);
 }
 
 .sidebar__empty {
@@ -464,43 +467,6 @@ ul {
 }
 
 /* Профиль внизу сайдбара */
-
-/* Значки пространств над профилем, как в Arc: цветная буква, у открытого — подложка. */
-.space-switcher {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-button-gap);
-  padding: 8px calc(var(--sidebar-padding) + var(--row-padding) - var(--space-button-inset));
-}
-
-.space-button {
-  display: grid;
-  place-items: center;
-  width: var(--space-button-size);
-  height: var(--space-button-size);
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  color: var(--space-color, var(--color-text-muted));
-  border-radius: calc(var(--radius) - 1px);
-}
-
-.space-button:hover {
-  background: var(--color-hover);
-}
-
-.space-button[data-active='true'] {
-  color: var(--space-color, var(--color-text));
-  background: color-mix(in srgb, var(--space-color, var(--color-text)) 18%, transparent);
-}
-
-.space-button--add {
-  color: var(--color-text-muted);
-}
-
-.space-button--add .icon {
-  width: var(--space-add-icon-size);
-  height: var(--space-add-icon-size);
-}
 
 .profile-bar {
   display: flex;

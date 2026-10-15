@@ -15,6 +15,8 @@ export type ContextMenuItem<Action extends string> =
       swatch?: string
       /** Пункт отмечен галочкой, например текущий выбор. */
       checked?: boolean
+      /** Сочетание клавиш, которое показывается справа от пункта (само меню его не перехватывает). */
+      accelerator?: string
     }
   | {
       type: 'submenu'
@@ -23,6 +25,12 @@ export type ContextMenuItem<Action extends string> =
       items: ContextMenuItem<Action>[]
     }
   | { type: 'separator' }
+
+/** Точка в окне в CSS-пикселях. */
+export interface MenuPosition {
+  x: number
+  y: number
+}
 
 /** Текущая ветка git по пути папки проекта; `null` — папка не репозиторий git. */
 export type GitBranches = Record<string, string | null>
@@ -132,7 +140,14 @@ export interface AtoxApi {
   commands: {
     subscribe(listener: (command: AppCommand) => void): () => void
   }
-  showContextMenu<Action extends string>(items: ContextMenuItem<Action>[]): Promise<Action | null>
+  /**
+   * Системное меню; `position` — точка в окне, где открыть его (например, под кнопкой),
+   * без неё меню открывается у курсора.
+   */
+  showContextMenu<Action extends string>(
+    items: ContextMenuItem<Action>[],
+    position?: MenuPosition
+  ): Promise<Action | null>
 }
 
 export const IpcChannel = {
