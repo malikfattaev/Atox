@@ -49,6 +49,10 @@ const CONTROL_CHARACTERS = /[\x00-\x08\x0b-\x1f\x7f]/g
 interface Session {
   pty: IPty
   output: string
+  /** Растёт с каждым новым выводом: по нему видно, изменился ли экран. */
+  outputVersion: number
+  /** Последний разобранный экран: пока вывод и размер те же, разбирать заново незачем. */
+  screen?: { outputVersion: number; size: TerminalSize; lines: string[] }
   size: TerminalSize
   /** Когда пользователь последний раз что-то набрал в терминале. */
   lastInputAt: number
@@ -104,11 +108,19 @@ export class TerminalManager {
       cwd,
       env: this.createEnvironment(chatId)
     })
-    const session: Session = { pty, output: '', size, lastInputAt: 0, shellName: basename(shell) }
+    const session: Session = {
+      pty,
+      output: '',
+      outputVersion: 0,
+      size,
+      lastInputAt: 0,
+      shellName: basename(shell)
+    }
     this.sessions.set(chatId, session)
 
     pty.onData((data) => {
       session.output = (session.output + data).slice(-OUTPUT_BUFFER_LIMIT)
+      session.outputVersion++
       this.events.onData(chatId, data)
     })
     // Оболочка сама прочитает команду, как только будет готова: ввод буферизуется терминалом.
@@ -148,9 +160,15 @@ export class TerminalManager {
     if (!session) {
       return null
     }
+    const { outputVersion, size, screen } = session
+    if (screen?.outputVersion === outputVersion && screen.size === size) {
+      return screen.lines
+    }
     // Эмулятор нужен редко — он загружается при первом запросе, а не при запуске приложения.
     const { renderScreen } = await import('./terminalScreen')
-    return renderScreen(session.output, session.size.cols, session.size.rows)
+    const lines = await renderScreen(session.output, size.cols, size.rows)
+    session.screen = { outputVersion, size, lines }
+    return lines
   }
 
   /**
