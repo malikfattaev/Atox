@@ -31,6 +31,9 @@
   --shortcut-reset-icon-size: 13px;
   --chat-pane-close-size: 22px;
   --chat-pane-close-icon-size: 14px;
+  --worker-row-height: 28px;
+  --worker-toggle-height: 24px;
+  --agent-icon-size: 14px;
   /* Насколько плотно залита цветная папка проекта. */
   --project-icon-fill: 40%;
 
@@ -56,6 +59,7 @@
   --color-search-active: #ff9f0a;
   --color-avatar: rgba(0, 0, 0, 0.12);
   --color-status-idle: rgba(0, 0, 0, 0.2);
+  --color-group: rgba(0, 0, 0, 0.03);
 
   color-scheme: light dark;
   font-family: var(--font-sans);
@@ -81,6 +85,7 @@
     --color-search-active: #a8620a;
     --color-avatar: rgba(255, 255, 255, 0.16);
     --color-status-idle: rgba(255, 255, 255, 0.22);
+    --color-group: rgba(255, 255, 255, 0.035);
   }
 }
 
@@ -418,6 +423,86 @@ ul {
  * Чаты проекта раскрываются и сворачиваются по высоте: строка сетки плавно меняется
  * между 0fr и 1fr, поэтому анимация не зависит от числа чатов.
  */
+/*
+ * Чат, чей агент запустил помощников, — карточка: сам чат, строка «N agents» и под ней
+ * компактные строки помощников. Так видно, кто кого запустил, а список не разрастается.
+ */
+.chat-group[data-has-workers='true'] {
+  margin-bottom: var(--row-spacing);
+  padding-bottom: var(--row-spacing);
+  border-radius: var(--radius);
+  background: var(--color-group);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.chat-group[data-has-workers='true'] > .row {
+  margin-bottom: 0;
+}
+
+/* Подпись и строки помощников начинаются там же, где название чата. */
+.chat-workers__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--chat-branch-gap);
+  width: 100%;
+  height: var(--worker-toggle-height);
+  padding: 0 var(--row-padding) 0 calc(var(--row-padding) + var(--icon-size) + var(--row-gap));
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  border-radius: var(--radius);
+}
+
+.chat-workers__toggle:hover {
+  color: var(--color-text);
+}
+
+.chat-workers__toggle .icon {
+  width: var(--agent-icon-size);
+  height: var(--agent-icon-size);
+  margin-left: auto;
+  transition: rotate var(--collapse-duration) var(--collapse-easing);
+}
+
+.chat-workers__toggle[aria-expanded='false'] .icon {
+  rotate: -90deg;
+}
+
+.chat-workers {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--collapse-duration) var(--collapse-easing);
+}
+
+.chat-workers[data-expanded='false'] {
+  grid-template-rows: 0fr;
+}
+
+.chat-workers > ul {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.row--worker {
+  min-height: var(--worker-row-height);
+  margin: 0 var(--row-spacing) var(--row-spacing);
+}
+
+.row--worker .chat-row {
+  padding-block: 0;
+  padding-left: calc(var(--row-padding) + var(--icon-size) + var(--row-gap) - var(--row-spacing));
+}
+
+.row--worker .chat-title {
+  align-items: center;
+}
+
+.agent-icon {
+  width: var(--agent-icon-size);
+  height: var(--agent-icon-size);
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
 .project-chats {
   display: grid;
   grid-template-rows: 1fr;

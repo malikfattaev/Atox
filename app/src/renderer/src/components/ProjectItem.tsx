@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
+import { topLevelChats, workerChats } from '../../../shared/chats'
 import type { Project } from '../../../shared/models'
 import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
@@ -172,11 +173,17 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
         <div className="project-chats__content">
           {project.chats.length > 0 && (
             <SortableList
-              items={project.chats}
+              items={topLevelChats(project.chats)}
               onMove={(id, toIndex) => void moveChat(id, toIndex)}
             >
               {(chat) => (
-                <ChatItem key={chat.id} chat={chat} projectId={project.id} branch={branch} />
+                <ChatItem
+                  key={chat.id}
+                  chat={chat}
+                  workers={workerChats(project.chats, chat.id)}
+                  projectId={project.id}
+                  branch={branch}
+                />
               )}
             </SortableList>
           )}

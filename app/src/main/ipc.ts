@@ -18,9 +18,10 @@ import {
   type TerminalExitEvent,
   type TerminalSize
 } from '../shared/api'
+import type { Project } from '../shared/models'
 import { isProjectColor } from '../shared/projectColors'
 import type { Settings } from '../shared/settings'
-import { isAgentId, resolveAgentCommand, TERMINAL_AGENT_ID, type AgentId } from '../shared/agents'
+import { isAgentId, TERMINAL_AGENT_ID, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
 import { confirm, describeRunningPrograms } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
@@ -28,6 +29,7 @@ import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
 import { createColorSwatch } from './menuSwatch'
+import { agentLaunchCommand } from './orchestration/launch'
 import { savePastedImage } from './pastedImages'
 import { getUserProfile } from './system'
 import { normalizeTerminalTitle } from './terminalTitle'
@@ -234,7 +236,9 @@ export function registerIpcHandlers({
     if (!location) {
       throw new Error(`Chat ${chatId} not found`)
     }
-    const command = resolveAgentCommand(location.chat.agent, settings.get().agentCommands)
+    const command = agentLaunchCommand(location.chat.agent, settings.get().agentCommands, {
+      worker: Boolean(location.chat.parentChatId)
+    })
     return terminals.attach(chatId, location.project.path, size, command)
   })
 
@@ -334,6 +338,14 @@ function buildMenuTemplate(
 
 export function broadcastUpdateReady(version: string): void {
   broadcast(IpcChannel.UpdatesReady, version)
+}
+
+export function broadcastProjectsChanged(projects: Project[]): void {
+  broadcast(IpcChannel.ProjectsChanged, projects)
+}
+
+export function broadcastWorkerStarted(chatId: string): void {
+  broadcast(IpcChannel.ChatsWorkerStarted, chatId)
 }
 
 export function broadcastGitBranches(branches: GitBranches): void {

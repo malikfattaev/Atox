@@ -48,6 +48,13 @@ const onTerminalExit = createChatEventHub<TerminalExitEvent, void>(
   () => undefined
 )
 
+/** Подписка на событие main-процесса; возвращает отписку. */
+function subscribe<Payload>(channel: string, listener: Listener<Payload>): () => void {
+  const handler = (_event: Electron.IpcRendererEvent, payload: Payload) => listener(payload)
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
+
 const api: AtoxApi = {
   projects: {
     list: () => ipcRenderer.invoke(IpcChannel.ProjectsList),
@@ -82,7 +89,9 @@ const api: AtoxApi = {
     rename: (chatId, title) => ipcRenderer.invoke(IpcChannel.ChatsRename, chatId, title),
     move: (chatId, toIndex) => ipcRenderer.invoke(IpcChannel.ChatsMove, chatId, toIndex),
     applyTerminalTitle: (chatId, title) =>
-      ipcRenderer.invoke(IpcChannel.ChatsApplyTerminalTitle, chatId, title)
+      ipcRenderer.invoke(IpcChannel.ChatsApplyTerminalTitle, chatId, title),
+    onChanged: (listener) => subscribe(IpcChannel.ProjectsChanged, listener),
+    onWorkerStarted: (listener) => subscribe(IpcChannel.ChatsWorkerStarted, listener)
   },
   terminal: {
     attach: (chatId, size) => ipcRenderer.invoke(IpcChannel.TerminalAttach, chatId, size),
