@@ -12,6 +12,7 @@ import {
 import {
   IpcChannel,
   type ContextMenuItem,
+  type MenuPosition,
   type GitBranches,
   type TerminalDataEvent,
   type TerminalExitEvent,
@@ -282,12 +283,15 @@ export function registerIpcHandlers({
 
 function showContextMenu(
   event: IpcMainInvokeEvent,
-  items: ContextMenuItem<string>[]
+  items: ContextMenuItem<string>[],
+  position?: MenuPosition
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const menu = Menu.buildFromTemplate(buildMenuTemplate(items, resolve))
     menu.popup({
       window: BrowserWindow.fromWebContents(event.sender) ?? undefined,
+      // Меню принимает только целые координаты.
+      ...(position && { x: Math.round(position.x), y: Math.round(position.y) }),
       // На macOS закрытие меню приходит раньше клика по пункту, поэтому «ничего не выбрано»
       // фиксируем в следующем тике: если клик был, промис к этому моменту уже разрешён.
       callback: () => setTimeout(() => resolve(null))
@@ -319,6 +323,9 @@ function buildMenuTemplate(
               : undefined,
           type: item.checked === undefined ? 'normal' : 'checkbox',
           checked: item.checked,
+          accelerator: item.accelerator,
+          // Сочетание только подписано у пункта: срабатывать оно должно у главного меню и окна.
+          registerAccelerator: false,
           click: () => onSelect(item.action)
         }
     }
