@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Docs — Atox</title>
+    <meta
+      name="description"
+      content="How to install Atox, work with projects and chats, run agent teams, use spaces, split view and keyboard shortcuts."
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="docs-page">
+    <!-- header -->
+    <div class="docs">
+      <nav class="docs__nav" aria-label="Docs">
+        <a href="#install">Install</a>
+        <a href="#first-launch">First launch</a>
+        <a href="#projects-and-chats">Projects and chats</a>
+        <a href="#agents">Agents</a>
+        <a href="#agent-teams">Agent teams</a>
+        <a href="#spaces">Spaces</a>
+        <a href="#side-by-side">Side by side</a>
+        <a href="#status">Chat status</a>
+        <a href="#shortcuts">Keyboard shortcuts</a>
+        <a href="#settings">Settings</a>
+        <a href="#updates">Updates</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <main class="docs__content prose">
+        <h1>Getting started</h1>
+
+        <h2 id="install">Install</h2>
+        <div class="download-card">
+          <p class="download-card__label">Download for macOS <span data-release-version></span></p>
+          <div class="download-card__buttons">
+            <a class="button button--secondary" href="/download/arm64">Apple Silicon <small>.dmg</small></a>
+            <a class="button button--secondary" href="/download/x64">Intel Mac <small>.dmg</small></a>
+          </div>
+          <p>
+            Not sure which one? Open Apple menu → About This Mac: if the chip says
+            <strong>Apple M…</strong>, take Apple Silicon.
+          </p>
+        </div>
+        <p>Open the <code>.dmg</code> and drag Atox to your Applications folder.</p>
+
+        <h2 id="first-launch">First launch</h2>
+        <p>
+          Atox isn't notarized by Apple yet, so the first time you open it macOS says it can't
+          verify the developer. This happens only once:
+        </p>
+        <ol>
+          <li>Open Atox and close the warning.</li>
+          <li>Go to <strong>System Settings → Privacy &amp; Security</strong>.</li>
+          <li>Scroll down and click <strong>Open Anyway</strong> next to Atox.</li>
+        </ol>
+        <p>
+          Atox runs the agents you already have, so install at least one of them first —
+          <a href="https://docs.claude.com/en/docs/claude-code/overview" rel="noopener">Claude Code</a>
+          or <a href="https://github.com/openai/codex" rel="noopener">Codex</a>.
+        </p>
+
+        <h2 id="projects-and-chats">Projects and chats</h2>
+        <p>
+          A <strong>project</strong> is a folder on your Mac. Click <strong>New project</strong>
+          (⌘O) and pick a folder — Atox opens a first chat in it right away.
+        </p>
+        <p>
+          A <strong>chat</strong> is a terminal in that folder with an agent running in it.
+          Create one with <strong>New chat</strong> (⌘N) and choose the agent. Chats are named
+          after what the agent is doing; double-click a chat to give it your own name.
+        </p>
+        <ul>
+          <li>Drag projects and chats to reorder them.</li>
+          <li>
+            Right-click a project to open it in Finder, copy its path, change its color, move it
+            to another space or remove it from the list. The folder itself stays on disk.
+          </li>
+          <li>The current git branch is shown under each chat.</li>
+          <li>
+            Drop files or paste a screenshot into a chat — the agent gets their paths, just like
+            in Terminal.
+          </li>
+        </ul>
+
+        <h2 id="agents">Agents</h2>
+        <p>
+          Atox detects which agents are installed and offers them when you create a chat. The one
+          you pick becomes the default for ⌘N. You can always start a plain
+          <strong>Terminal</strong> chat as well.
+        </p>
+        <p>
+          To start an agent with your own flags, set its launch command in
+          <strong>Settings → Agents</strong>, for example
+          <code>claude --model opus</code>.
+        </p>
+
+        <h2 id="agent-teams">Agent teams</h2>
+        <p>
+          Agents in Atox can delegate. Ask Claude to “have Codex review this” and it starts Codex
+          in a new chat with the task. When Codex is done, its report arrives in Claude's chat as
+          a new message, and Claude carries on.
+        </p>
+        <p>
+          Workers show up under the chat that started them as a collapsible “N agents” group. You
+          can open any worker to watch it or step in.
+        </p>
+        <p>
+          Agents do this with the <code>atox</code> command, which is available in every Atox
+          terminal. Claude Code and Codex learn it automatically; you can also use it yourself:
+        </p>
+        <div class="table">
+          <table>
+            <tbody>
+              <tr><td><code>atox agents</code></td><td>List installed agents</td></tr>
+              <tr><td><code>atox start &lt;agent&gt; "&lt;task&gt;"</code></td><td>Start a worker with a task</td></tr>
+              <tr><td><code>atox workers</code></td><td>List your workers and their state</td></tr>
+              <tr><td><code>atox send &lt;chat-id&gt; "&lt;message&gt;"</code></td><td>Message a worker</td></tr>
+              <tr><td><code>atox send parent "&lt;question&gt;"</code></td><td>Worker: ask the agent that started it</td></tr>
+              <tr><td><code>atox report "&lt;summary&gt;"</code></td><td>Worker: send the result back</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A few rules keep teams cheap and predictable:</p>
+        <ul>
+          <li>Up to 4 workers per chat can run at the same time.</li>
+          <li>Workers can't start workers of their own.</li>
+          <li>Each worker reports once per task, so it can't flood your chat.</li>
+          <li>
+            Workers start without trust or permission prompts: Atox trusts the project folder for
+            them and allows the <code>atox</code> command only.
+          </li>
+          <li>
+            Messages wait until the agent can take them and never mix into what you're typing.
+          </li>
+        </ul>
+
+        <h2 id="spaces">Spaces</h2>
+        <p>
+          Spaces group projects — for example work, side projects and clients. Switch spaces from
+          the menu under <strong>New project</strong> or with ⌃1–⌃9. Each space remembers which
+          project was open. From the same menu you can create, rename, recolor and delete
+          spaces; projects of a deleted space move to another one.
+        </p>
+
+        <h2 id="side-by-side">Side by side</h2>
+        <p>
+          ⌘-click a chat, or right-click it and choose <strong>Open to the Side</strong>, to see
+          two chats of the same project at once. Drag the divider to resize. The layout is saved
+          with the project.
+        </p>
+
+        <h2 id="status">Chat status</h2>
+        <ul>
+          <li><span class="dot dot--working"></span> Pulsing — the agent is working.</li>
+          <li><span class="dot dot--done"></span> Blue — it finished while you were elsewhere.</li>
+          <li><span class="dot"></span> Gray — nothing new.</li>
+        </ul>
+        <p>
+          When a task takes longer than ten seconds and you're in another chat or app, Atox
+          also sends a notification. Click it to jump to the chat.
+        </p>
+
+        <h2 id="shortcuts">Keyboard shortcuts</h2>
+        <div class="table">
+          <table>
+            <tbody>
+              <tr><td>New chat</td><td><kbd>⌘N</kbd></td></tr>
+              <tr><td>Open project</td><td><kbd>⌘O</kbd></td></tr>
+              <tr><td>Close chat</td><td><kbd>⌘W</kbd></td></tr>
+              <tr><td>Previous / next chat</td><td><kbd>⇧⌘[</kbd> <kbd>⇧⌘]</kbd></td></tr>
+              <tr><td>Go to chat by number</td><td><kbd>⌘1</kbd> – <kbd>⌘9</kbd></td></tr>
+              <tr><td>Go to space by number</td><td><kbd>⌃1</kbd> – <kbd>⌃9</kbd></td></tr>
+              <tr><td>Open chat to the side</td><td><kbd>⌘</kbd> Click</td></tr>
+              <tr><td>Find in terminal</td><td><kbd>⌘F</kbd></td></tr>
+              <tr><td>New line without sending</td><td><kbd>⇧↩</kbd></td></tr>
+              <tr><td>Font size</td><td><kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd></td></tr>
+              <tr><td>Show or hide sidebar</td><td><kbd>⌘B</kbd></td></tr>
+              <tr><td>Settings</td><td><kbd>⌘,</kbd></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Any shortcut with a key combination can be changed in <strong>Settings</strong>.</p>
+
+        <h2 id="settings">Settings</h2>
+        <ul>
+          <li><strong>Agents</strong> — launch command for each agent.</li>
+          <li><strong>Terminal</strong> — font size.</li>
+          <li><strong>Keyboard shortcuts</strong> — record your own combinations.</li>
+        </ul>
+
+        <h2 id="updates">Updates</h2>
+        <p>
+          Atox checks for new versions on its own. When one is ready, an
+          <strong>Update</strong> button appears at the bottom of the sidebar — click it and Atox
+          restarts on the new version. Running agents are stopped by the restart, so finish what
+          they're doing first.
+        </p>
+
+        <h2 id="faq">FAQ</h2>
+        <h3>macOS says Atox can't be opened</h3>
+        <p>See <a href="#first-launch">First launch</a> — it's a one-time step.</p>
+
+        <h3>My agent isn't in the list</h3>
+        <p>
+          Atox looks for the agent's command in your shell. Make sure <code>claude</code> or
+          <code>codex</code> works in Terminal, then restart Atox. If it lives somewhere unusual,
+          set the full command in <strong>Settings → Agents</strong>.
+        </p>
+
+        <h3>Does Atox see my code or send it anywhere?</h3>
+        <p>
+          No. Atox only runs a terminal; your agent talks to its own service exactly as it does
+          in Terminal. Atox itself has no accounts and no analytics.
+        </p>
+
+        <h3>Where is my data?</h3>
+        <p>
+          In <code>~/Library/Application Support/Atox</code>. Removing a project from Atox never
+          touches the folder on disk.
+        </p>
+      </main>
+    </div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
