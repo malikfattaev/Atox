@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react'
-import { ChevronsUpDown, Layers } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import type { ContextMenuItem, MenuPosition } from '../../../shared/api'
 import type { Space } from '../../../shared/models'
 import { findProjectColor } from '../../../shared/projectColors'
@@ -20,7 +20,7 @@ const NUMBERED_SPACES = 9
 const MENU_OFFSET = 4
 
 /**
- * Текущее пространство под кнопками сайдбара. Клик открывает меню со всеми пространствами
+ * Текущее пространство — заголовок над списком проектов, как разделы в Finder. Клик открывает меню со всеми пространствами
  * и действиями над текущим; новое пространство сразу предлагают назвать прямо в строке.
  */
 export function SpacePicker() {
@@ -95,15 +95,9 @@ export function SpacePicker() {
     : undefined
 
   return (
-    <div
-      className="row space-picker"
-      data-colored={Boolean(color)}
-      style={colorStyle}
-      onContextMenu={openAtCursor}
-    >
+    <div className="space-picker" style={colorStyle} onContextMenu={openAtCursor}>
       {renaming ? (
-        <div className="row__main">
-          <Layers className="icon space-picker__icon" />
+        <div className="space-picker__rename">
           <InlineRename
             // Новое пространство переименовывают уже открытым — поле создаётся заново под него.
             key={space.id}
@@ -119,14 +113,14 @@ export function SpacePicker() {
       ) : (
         <button
           type="button"
-          className="row__main"
+          className="space-picker__button"
           aria-haspopup="menu"
           aria-label={`Space: ${space.name}`}
           onClick={openBelow}
         >
-          <Layers className="icon space-picker__icon" />
-          <span className="row__label">{space.name}</span>
-          <ChevronsUpDown className="icon space-picker__chevron" />
+          {color && <span className="space-picker__dot" aria-hidden />}
+          <span className="space-picker__name">{space.name}</span>
+          <ChevronDown className="space-picker__chevron" aria-hidden />
         </button>
       )}
     </div>
