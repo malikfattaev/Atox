@@ -266,20 +266,6 @@ kbd {
   color: var(--color-accent);
 }
 
-.cta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px 20px;
-  margin-top: 56px;
-}
-
-.cta--left {
-  justify-content: flex-start;
-  margin-top: 24px;
-}
-
 /* Возможности */
 
 .features {
