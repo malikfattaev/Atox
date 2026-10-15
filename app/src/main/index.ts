@@ -9,7 +9,6 @@ import {
   broadcastTerminalData,
   broadcastTerminalExit,
   broadcastUpdateReady,
-  broadcastWorkerStarted,
   registerIpcHandlers
 } from './ipc'
 import { AppMenu } from './menu'
@@ -78,8 +77,7 @@ async function bootstrap(): Promise<void> {
     socketPath: join(tmpdir(), `${basename(userData)}.sock`),
     tasksDirectory: join(userData, 'tasks'),
     cliPath,
-    onProjectsChanged: () => broadcastProjectsChanged(store.list()),
-    onWorkerStarted: broadcastWorkerStarted
+    onProjectsChanged: () => broadcastProjectsChanged(store.list())
   })
   // Без сервера приложение работает как раньше, только команда `atox` сообщит, что Atox недоступен.
   await orchestration

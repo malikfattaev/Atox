@@ -20,7 +20,14 @@ export function useAgentPicker(): (projectId: string) => Promise<void> {
         available.flatMap((id) => {
           const option = findAgent(id)
           return option
-            ? [{ action: id, label: option.name, symbol: option.symbol, checked: id === defaultAgent }]
+            ? [
+                {
+                  action: id,
+                  label: option.name,
+                  symbol: option.symbol,
+                  checked: id === defaultAgent
+                }
+              ]
             : []
         })
       )

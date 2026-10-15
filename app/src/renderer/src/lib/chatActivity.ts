@@ -30,11 +30,20 @@ interface ChatState {
 export class ChatActivityTracker {
   private readonly chats = new Map<string, ChatState>()
   private readonly listeners = new Set<() => void>()
+  /**
+   * Чаты помощников: у них не бывает «закончил, не прочитано» и уведомлений — об их работе
+   * сообщает их агент, когда получит отчёт.
+   */
+  private backgroundChatIds = new Set<string>()
 
   constructor(private readonly environment: ChatActivityEnvironment) {}
 
   status(chatId: string): ChatActivityStatus {
     return this.chats.get(chatId)?.status ?? 'idle'
+  }
+
+  setBackgroundChats(chatIds: Iterable<string>): void {
+    this.backgroundChatIds = new Set(chatIds)
   }
 
   subscribe(listener: () => void): () => void {
@@ -64,7 +73,7 @@ export class ChatActivityTracker {
 
   /** Программа просит внимания: звонок терминала или уведомление через OSC 9. */
   reportAttention(chatId: string, message: string): void {
-    if (this.environment.isChatInView(chatId)) {
+    if (this.backgroundChatIds.has(chatId) || this.environment.isChatInView(chatId)) {
       return
     }
     const state = this.state(chatId)
@@ -86,7 +95,7 @@ export class ChatActivityTracker {
   }
 
   private finishWork(chatId: string, state: ChatState): void {
-    if (this.environment.isChatInView(chatId)) {
+    if (this.backgroundChatIds.has(chatId) || this.environment.isChatInView(chatId)) {
       this.setStatus(state, 'idle')
       return
     }

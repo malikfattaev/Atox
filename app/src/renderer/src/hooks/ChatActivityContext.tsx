@@ -2,11 +2,13 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode
 } from 'react'
+import { isWorkerChat } from '../../../shared/chats'
 import { ChatActivityTracker, type ChatActivityStatus } from '../lib/chatActivity'
 import { useProjectsContext } from './ProjectsContext'
 import type { ProjectsState } from './useProjects'
@@ -39,6 +41,23 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', markSeen)
     return () => window.removeEventListener('focus', markSeen)
   }, [visibleChatIds, tracker])
+
+  // Помощников окно не показывает, пока их не откроют, — их работа видна по выводу терминала.
+  // Подписка на вывод без xterm почти ничего не стоит.
+  const { projects: projectList } = projects
+  const workerChatIds = useMemo(
+    () =>
+      projectList.flatMap(({ chats }) => chats.filter(isWorkerChat).map(({ id }) => id)).join(' '),
+    [projectList]
+  )
+  useEffect(() => {
+    const chatIds = workerChatIds ? workerChatIds.split(' ') : []
+    tracker.setBackgroundChats(chatIds)
+    const unsubscribes = chatIds.map((chatId) =>
+      window.atox.terminal.onData(chatId, () => tracker.reportOutput(chatId))
+    )
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
+  }, [workerChatIds, tracker])
 
   // Удалённые чаты больше не отслеживаются.
   const trackedChatIdsRef = useRef<string[]>([])
@@ -73,10 +92,20 @@ export function useChatActivityTracker(): ChatActivityTracker {
   return tracker
 }
 
-export function useChatActivity(chatId: string): ChatActivityStatus {
+/**
+ * Состояние чата для индикатора. `workerChatIds` — его помощники: пока работает хоть один,
+ * индикатор чата показывает работу. У самих помощников индикатора нет.
+ */
+export function useChatActivity(
+  chatId: string,
+  workerChatIds: readonly string[] = []
+): ChatActivityStatus {
   const tracker = useChatActivityTracker()
   return useSyncExternalStore(
     (listener) => tracker.subscribe(listener),
-    () => tracker.status(chatId)
+    () =>
+      workerChatIds.some((id) => tracker.status(id) === 'working')
+        ? 'working'
+        : tracker.status(chatId)
   )
 }

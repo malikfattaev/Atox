@@ -496,10 +496,17 @@ ul {
   align-items: center;
 }
 
+/* Значок агента помощника стоит в колонке индикаторов, справа — как кружок у чатов. */
+.worker-agent {
+  display: flex;
+  justify-content: flex-end;
+  width: calc(var(--icon-size) + var(--row-gap) - var(--status-gap));
+  flex-shrink: 0;
+}
+
 .agent-icon {
   width: var(--agent-icon-size);
   height: var(--agent-icon-size);
-  flex-shrink: 0;
   color: var(--color-text-muted);
 }
 

@@ -18,11 +18,18 @@ import type { ChatLocation, ProjectStore } from '../store'
 import { quoteShell } from '../shellQuote'
 import type { TerminalManager } from '../terminals'
 import { trustFolderForAgent } from './agentTrust'
+import { MessageDelivery } from './delivery'
 import { agentLaunchCommand } from './launch'
 import { formatMessage, formatReport, formatWorkerTask } from './prompts'
 
 /** Размер терминала помощника до того, как его откроют в окне и подгонят под панель. */
 const WORKER_TERMINAL_SIZE = { cols: 120, rows: 32 }
+
+/**
+ * Сколько помощников одного агента могут работать одновременно. Каждый тратит лимит
+ * подписки — агент не должен случайно запустить их десятки.
+ */
+const MAX_ACTIVE_WORKERS = 4
 
 /** Запрос — одна строка JSON; больше этого — не команда, а ошибка или мусор. */
 const MAX_REQUEST_BYTES = 1024 * 1024
@@ -43,8 +50,6 @@ interface OrchestrationServices {
   cliPath: string
   /** Список чатов изменился без участия окна — например, агент запустил помощника. */
   onProjectsChanged(): void
-  /** Запущен помощник: окно подключает его терминал, чтобы следить за его работой. */
-  onWorkerStarted(chatId: string): void
 }
 
 /** Ошибка, понятная агенту: её текст уходит в ответ команды как есть. */
@@ -64,12 +69,18 @@ type Handlers = {
  */
 export class OrchestrationServer {
   private readonly token = randomBytes(32).toString('hex')
+  /** Помощники, которые отчитались и с тех пор не получали новых сообщений от агента. */
   private readonly reportedChatIds = new Set<string>()
+  private readonly delivery: MessageDelivery
   private server: Server | null = null
 
-  constructor(private readonly services: OrchestrationServices) {}
+  constructor(private readonly services: OrchestrationServices) {
+    this.delivery = new MessageDelivery(services.terminals)
+  }
 
   async start(): Promise<void> {
+    // Задания, которые не успел прочитать агент прошлого запуска, больше не нужны.
+    await rm(this.services.tasksDirectory, { recursive: true, force: true })
     await mkdir(this.services.tasksDirectory, { recursive: true })
     // Сокет прошлого запуска остаётся файлом и не даёт занять адрес.
     await rm(this.services.socketPath, { force: true })
@@ -83,6 +94,7 @@ export class OrchestrationServer {
   }
 
   stop(): void {
+    this.delivery.dispose()
     this.server?.close()
     this.server = null
   }
@@ -160,6 +172,16 @@ export class OrchestrationServer {
       if (!task?.trim()) {
         throw new CommandError('The task is empty.')
       }
+      const active = this.workersOf(caller).filter(
+        (chat) =>
+          this.services.terminals.getRunningProgram(chat.id) !== null &&
+          !this.reportedChatIds.has(chat.id)
+      )
+      if (active.length >= MAX_ACTIVE_WORKERS) {
+        throw new CommandError(
+          `You already have ${active.length} workers in progress. Wait for their reports before starting more.`
+        )
+      }
       const installed = (await this.services.agents.list()).filter((id) => id !== TERMINAL_AGENT_ID)
       if (!isAgentId(agent) || !installed.includes(agent)) {
         const available = installed.join(', ') || 'none'
@@ -180,7 +202,6 @@ export class OrchestrationServer {
       const command = `${launch} "$(cat ${quoteShell(taskFile)}; rm -f ${quoteShell(taskFile)})"`
       this.services.terminals.attach(chat.id, project.path, WORKER_TERMINAL_SIZE, command)
       this.services.onProjectsChanged()
-      this.services.onWorkerStarted(chat.id)
       return { chatId: chat.id, title: chat.title }
     },
 
@@ -190,6 +211,10 @@ export class OrchestrationServer {
       }
       const target = this.resolveRecipient(caller.chat, to)
       this.deliver(target, formatMessage(caller.chat, message))
+      // Новое сообщение от агента — новая работа: помощник снова может отчитаться.
+      if (target.parentChatId === caller.chat.id) {
+        this.reportedChatIds.delete(target.id)
+      }
       return { chatId: target.id }
     },
 
@@ -202,21 +227,28 @@ export class OrchestrationServer {
       if (!summary?.trim()) {
         throw new CommandError('The report is empty.')
       }
+      if (this.reportedChatIds.has(caller.chat.id)) {
+        throw new CommandError(
+          'You already reported this task. Report again only after a new message from the agent.'
+        )
+      }
       this.deliver(parent.chat, formatReport(caller.chat, summary))
       this.reportedChatIds.add(caller.chat.id)
       return { chatId: parent.chat.id }
     },
 
     workers: (caller) =>
-      caller.project.chats
-        .filter((chat) => chat.parentChatId === caller.chat.id)
-        .map((chat) => ({
-          chatId: chat.id,
-          title: chat.title,
-          agent: chat.agent ?? TERMINAL_AGENT_ID,
-          running: this.services.terminals.isRunning(chat.id),
-          reported: this.reportedChatIds.has(chat.id)
-        }))
+      this.workersOf(caller).map((chat) => ({
+        chatId: chat.id,
+        title: chat.title,
+        agent: chat.agent ?? TERMINAL_AGENT_ID,
+        running: this.services.terminals.isRunning(chat.id),
+        reported: this.reportedChatIds.has(chat.id)
+      }))
+  }
+
+  private workersOf({ project, chat }: ChatLocation): Chat[] {
+    return project.chats.filter((other) => other.parentChatId === chat.id)
   }
 
   /** Писать можно только своему агенту-родителю или своим помощникам. */
@@ -234,14 +266,15 @@ export class OrchestrationServer {
     return target
   }
 
-  /** Отправляет текст агенту чата; в пустую оболочку не пишет — там он выполнился бы как команда. */
+  /**
+   * Ставит текст в очередь агенту чата: он придёт, как только агент сможет его принять.
+   * В пустую оболочку не пишет — там текст выполнился бы как команда.
+   */
   private deliver(chat: Chat, text: string): void {
-    const { terminals } = this.services
-    if (terminals.getRunningProgram(chat.id) === null || !terminals.paste(chat.id, text)) {
-      throw new CommandError(
-        `No agent is running in "${chat.title}", so the message was not delivered.`
-      )
+    if (this.services.terminals.getRunningProgram(chat.id) === null) {
+      throw new CommandError(`No agent is running in "${chat.title}", so the message was not sent.`)
     }
+    this.delivery.enqueue(chat.id, text)
   }
 }
 

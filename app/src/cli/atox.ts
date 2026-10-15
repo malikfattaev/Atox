@@ -68,11 +68,11 @@ async function main(args: string[]): Promise<string> {
         throw new UsageError(`Specify the recipient: a worker chat id or "${PARENT_ADDRESS}".`)
       }
       await call('send', { to, message: await readText(messageWords, 'message') })
-      return 'Message delivered.'
+      return 'Message sent. The agent gets it as soon as it can take input.'
     }
     case 'report': {
       await call('report', { summary: await readText(rest, 'summary') })
-      return 'Report delivered to the parent agent. Your task is complete.'
+      return 'Report sent to the parent agent. Your task is complete; stop here.'
     }
     case undefined:
     case 'help':

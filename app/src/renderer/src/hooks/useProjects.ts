@@ -155,16 +155,6 @@ export function useProjects(): ProjectsState {
     return atox.chats.onChanged(applyProjects)
   }, [applyProjects])
 
-  // Терминал помощника подключается сразу, хоть он и не на экране: так видно, работает ли он,
-  // и приходят его уведомления — как у чатов, которые уже открывали.
-  useEffect(
-    () =>
-      atox.chats.onWorkerStarted((chatId) =>
-        setOpenedChatIds((ids) => (ids.includes(chatId) ? ids : [...ids, chatId]))
-      ),
-    []
-  )
-
   /**
    * Меняет раскладку проекта и показывает его, открыв его пространство. Чаты, открытые рядом,
    * сохраняются у проекта, поэтому после перезапуска они снова откроются вместе.

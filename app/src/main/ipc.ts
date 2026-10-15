@@ -344,10 +344,6 @@ export function broadcastProjectsChanged(projects: Project[]): void {
   broadcast(IpcChannel.ProjectsChanged, projects)
 }
 
-export function broadcastWorkerStarted(chatId: string): void {
-  broadcast(IpcChannel.ChatsWorkerStarted, chatId)
-}
-
 export function broadcastGitBranches(branches: GitBranches): void {
   broadcast(IpcChannel.GitBranchesChanged, branches)
 }
