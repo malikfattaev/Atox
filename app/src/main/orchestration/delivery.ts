@@ -6,6 +6,12 @@ const CHECK_INTERVAL_MS = 1000
 /** Пользователь набирал текст недавно — вставка смешалась бы с его черновиком. */
 const TYPING_IDLE_MS = 3000
 
+/**
+ * Сколько ждать, пока пользователь отправит недописанный черновик. Дольше сообщение не ждёт:
+ * агент получает его с новой строки после черновика.
+ */
+const DRAFT_IDLE_MS = 15_000
+
 /** Сообщение, которое так и не удалось отдать, перестаёт ждать — агент, видимо, занят надолго. */
 const MAX_WAIT_MS = 30 * 60 * 1000
 
@@ -26,8 +32,8 @@ interface PendingMessage {
 
 /**
  * Очередь сообщений агентам в терминалах. Сообщение вставляется, только когда агента можно
- * безопасно прервать: пользователь не печатает в этом чате и на экране нет диалога
- * с вариантами. Пока агент работает, вставка безопасна — агенты ставят её в очередь сами.
+ * безопасно прервать: пользователь не печатает в этом чате, не оставил в нём свежий черновик
+ * и на экране нет диалога с вариантами. Пока агент работает, вставка безопасна — агенты ставят её в очередь сами.
  */
 export class MessageDelivery {
   private readonly queue: PendingMessage[] = []
@@ -68,7 +74,9 @@ export class MessageDelivery {
           this.queue.splice(this.queue.indexOf(message), 1)
         }
         if (state === 'ready') {
-          this.terminals.paste(message.chatId, message.text)
+          // Черновик пользователя уйдёт вместе с сообщением — пусть хотя бы не сливается с ним.
+          const separator = this.terminals.hasDraft(message.chatId) ? '\n' : ''
+          this.terminals.paste(message.chatId, separator + message.text)
         } else if (state === 'drop') {
           console.warn('Dropped an undelivered agent message for chat', message.chatId)
         }
@@ -91,7 +99,8 @@ export class MessageDelivery {
     if (Date.now() - message.queuedAt > MAX_WAIT_MS) {
       return 'drop'
     }
-    if (this.terminals.inputIdleTime(chatId) < TYPING_IDLE_MS) {
+    const idle = this.terminals.inputIdleTime(chatId)
+    if (idle < TYPING_IDLE_MS || (this.terminals.hasDraft(chatId) && idle < DRAFT_IDLE_MS)) {
       return 'wait'
     }
     const screen = await this.terminals.readScreen(chatId)
