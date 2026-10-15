@@ -198,8 +198,10 @@ export class OrchestrationServer {
         worker: true
       })
       // Задание передаётся агенту аргументом: так оно приходит первым сообщением, без ожидания,
-      // пока агент запустится. Файл удаляется сразу после чтения.
-      const command = `${launch} "$(cat ${quoteShell(taskFile)}; rm -f ${quoteShell(taskFile)})"`
+      // пока агент запустится. «--» закрывает флаги: иначе флаг со списком значений (например,
+      // --allowedTools у Claude) принял бы задание за ещё одно значение. Файл удаляется сразу
+      // после чтения.
+      const command = `${launch} -- "$(cat ${quoteShell(taskFile)}; rm -f ${quoteShell(taskFile)})"`
       this.services.terminals.attach(chat.id, project.path, WORKER_TERMINAL_SIZE, command)
       this.services.onProjectsChanged()
       return { chatId: chat.id, title: chat.title }
