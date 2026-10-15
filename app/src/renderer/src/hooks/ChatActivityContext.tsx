@@ -54,7 +54,7 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
     const chatIds = workerChatIds ? workerChatIds.split(' ') : []
     tracker.setBackgroundChats(chatIds)
     const unsubscribes = chatIds.map((chatId) =>
-      window.atox.terminal.onData(chatId, () => tracker.reportOutput(chatId))
+      window.atox.terminal.onData(chatId, (data) => tracker.reportOutput(chatId, data))
     )
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
   }, [workerChatIds, tracker])

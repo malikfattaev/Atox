@@ -41,6 +41,9 @@ const ATTENTION_MESSAGE = 'Needs your attention'
  */
 const SHIFT_ENTER_SEQUENCE = '\x1b\r'
 
+/** Отчёты о фокусе, которые xterm шлёт программе, если она их запросила: это не ввод. */
+const FOCUS_REPORTS = new Set(['\x1b[I', '\x1b[O'])
+
 interface TerminalSearch {
   addon: SearchAddon
   decorations: ISearchDecorationOptions
@@ -126,7 +129,7 @@ export function TerminalView({
     const unsubscribeData = atox.terminal.onData(chatId, (data) => {
       if (attached) {
         terminal.write(data)
-        activity.reportOutput(chatId)
+        activity.reportOutput(chatId, data)
       }
     })
     const unsubscribeExit = atox.terminal.onExit(chatId, () => {
@@ -137,6 +140,8 @@ export function TerminalView({
 
     const attach = async () => {
       try {
+        // Агент запускается или подгоняет экран под размер окна — это не работа.
+        activity.reportRedraw(chatId)
         const snapshot = await atox.terminal.attach(chatId, {
           cols: terminal.cols,
           rows: terminal.rows
@@ -168,7 +173,10 @@ export function TerminalView({
         void attach()
         return
       }
-      activity.reportInput(chatId)
+      // Смена фокуса — не ввод: после неё программа не начинает работу.
+      if (!FOCUS_REPORTS.has(data)) {
+        activity.reportInput(chatId)
+      }
       atox.terminal.write(chatId, data)
     })
 
@@ -231,7 +239,10 @@ export function TerminalView({
     let ptyResizeTimer: ReturnType<typeof setTimeout> | undefined
     const resizeSubscription = terminal.onResize((size) => {
       clearTimeout(ptyResizeTimer)
-      ptyResizeTimer = setTimeout(() => atox.terminal.resize(chatId, size), PTY_RESIZE_DELAY_MS)
+      ptyResizeTimer = setTimeout(() => {
+        activity.reportRedraw(chatId)
+        atox.terminal.resize(chatId, size)
+      }, PTY_RESIZE_DELAY_MS)
     })
 
     let titleTimer: ReturnType<typeof setTimeout> | undefined
