@@ -3,6 +3,7 @@ import { userInfo } from 'node:os'
 import { basename } from 'node:path'
 import { spawn, type IPty } from 'node-pty'
 import type { TerminalSize } from '../shared/api'
+import { isTerminalReply } from '../shared/terminalInput'
 
 /** Стандартная оболочка macOS — на случай, если система не сообщила оболочку пользователя. */
 const DEFAULT_SHELL = '/bin/zsh'
@@ -45,9 +46,6 @@ const PASTE_SUBMIT_DELAY_MS = 500
 
 /** Управляющие символы, кроме перевода строки и табуляции: в тексте они могли бы закрыть вставку. */
 const CONTROL_CHARACTERS = /[\x00-\x08\x0b-\x1f\x7f]/g
-
-/** Отчёты о получении и потере фокуса, которые терминал отправляет программе. */
-const FOCUS_REPORTS = new Set(['\x1b[I', '\x1b[O'])
 
 /** Управляющие последовательности ввода: стрелки, функциональные клавиши, фокус, Alt+клавиша. */
 const ESCAPE_SEQUENCES = /\x1b(?:\[[0-?]*[ -/]*[@-~]|O.|.)?/g
@@ -152,8 +150,8 @@ export class TerminalManager {
   write(chatId: string, data: string): void {
     const session = this.sessions.get(chatId)
     if (session) {
-      // Отчёт о фокусе шлёт сам терминал при переключении чатов — пользователь не печатал.
-      if (!FOCUS_REPORTS.has(data)) {
+      // Ответы терминала на запросы программы — не набор пользователя.
+      if (!isTerminalReply(data)) {
         session.lastInputAt = Date.now()
         session.hasDraft = draftAfterInput(session.hasDraft, data)
       }

@@ -5,6 +5,7 @@ import { SearchAddon, type ISearchDecorationOptions } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { isTerminalReply } from '../../../shared/terminalInput'
 import { useChatActivityTracker } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { formatPathsForShell } from '../lib/shellPaths'
@@ -40,9 +41,6 @@ const ATTENTION_MESSAGE = 'Needs your attention'
  * понимают агенты в терминале. Сам xterm отличить его от обычного Enter не даёт.
  */
 const SHIFT_ENTER_SEQUENCE = '\x1b\r'
-
-/** Отчёты о фокусе, которые xterm шлёт программе, если она их запросила: это не ввод. */
-const FOCUS_REPORTS = new Set(['\x1b[I', '\x1b[O'])
 
 interface TerminalSearch {
   addon: SearchAddon
@@ -167,8 +165,9 @@ export function TerminalView({
     })
 
     const inputSubscription = terminal.onData((data) => {
-      // Терминал перезапускается по нажатию клавиши, а не от смены фокуса.
-      if (exited && FOCUS_REPORTS.has(data)) {
+      // Терминал перезапускается по нажатию клавиши, а не от ответов самого терминала.
+      const reply = isTerminalReply(data)
+      if (exited && reply) {
         return
       }
       if (exited) {
@@ -177,8 +176,8 @@ export function TerminalView({
         void attach()
         return
       }
-      // Смена фокуса — не ввод: после неё программа не начинает работу.
-      if (!FOCUS_REPORTS.has(data)) {
+      // Ответы терминала на запросы программы (фокус, версия, курсор) — не ввод пользователя.
+      if (!reply) {
         activity.reportInput(chatId)
       }
       atox.terminal.write(chatId, data)
