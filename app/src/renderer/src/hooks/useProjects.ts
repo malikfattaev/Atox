@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentId } from '../../../shared/agents'
-import { moveChatGroup } from '../../../shared/chats'
+import { moveChatGroup, topLevelChats } from '../../../shared/chats'
 import { moveItemWithinGroup } from '../../../shared/list'
 import type { Project, Space } from '../../../shared/models'
 import type { ProjectColor } from '../../../shared/projectColors'
@@ -45,7 +45,10 @@ export interface ProjectsState {
   visibleChatIds: string[]
   /** Чаты, которые открывались в этой сессии: их терминалы держим смонтированными. */
   openedChatIds: string[]
-  /** Чаты открытого пространства в порядке сайдбара — по ним работает переключение с клавиатуры. */
+  /**
+   * Чаты открытого пространства в порядке сайдбара — по ним работает переключение
+   * с клавиатуры. Помощники не входят: они открываются из карточки своего агента.
+   */
   orderedChatIds: string[]
   /** Проект текущего чата, а если чат не выбран — первый проект открытого пространства. */
   currentProjectId: string | null
@@ -108,7 +111,7 @@ export function useProjects(): ProjectsState {
   const { visibleChatIds, activeChatId } = layout
 
   const orderedChatIds = useMemo(
-    () => spaceProjects.flatMap((project) => project.chats.map(({ id }) => id)),
+    () => spaceProjects.flatMap((project) => topLevelChats(project.chats).map(({ id }) => id)),
     [spaceProjects]
   )
 
