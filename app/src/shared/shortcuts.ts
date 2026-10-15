@@ -22,6 +22,7 @@ export const SHORTCUTS = {
   zoomOut: { label: 'Decrease font size', accelerator: 'CmdOrCtrl+-' },
   actualSize: { label: 'Default font size', accelerator: 'CmdOrCtrl+0' },
   toggleSidebar: { label: 'Show or hide sidebar', accelerator: 'CmdOrCtrl+B' },
+  spaceByNumber: { label: 'Go to space by number', keys: '⌃1 – ⌃9' },
   openSettings: { label: 'Settings', accelerator: 'CmdOrCtrl+,' }
 } as const satisfies Record<string, Shortcut>
 
@@ -50,7 +51,7 @@ export const SHORTCUT_GROUPS: ReadonlyArray<{ title: string; shortcuts: readonly
   },
   {
     title: 'Window',
-    shortcuts: ['toggleSidebar', 'openSettings']
+    shortcuts: ['spaceByNumber', 'toggleSidebar', 'openSettings']
   }
 ]
 
@@ -72,6 +73,10 @@ const RESERVED_SHORTCUTS: ReadonlyArray<{ accelerator: string; label: string }> 
   ...Array.from({ length: 9 }, (_, index) => ({
     accelerator: `CmdOrCtrl+${index + 1}`,
     label: SHORTCUTS.chatByNumber.label
+  })),
+  ...Array.from({ length: 9 }, (_, index) => ({
+    accelerator: `Ctrl+${index + 1}`,
+    label: SHORTCUTS.spaceByNumber.label
   }))
 ]
 

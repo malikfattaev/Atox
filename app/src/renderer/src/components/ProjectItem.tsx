@@ -1,19 +1,18 @@
 import { useEffect, useId, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import type { Project } from '../../../shared/models'
-import { findProjectColor, isProjectColor, PROJECT_COLORS } from '../../../shared/projectColors'
+import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentPicker } from '../hooks/useAgentPicker'
-import { colorSchemeQuery } from '../lib/terminalTheme'
+import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
 
 const { atox } = window
 
-/** Пункт меню цвета: `color:red`, `color:none` и т. д. */
-const COLOR_ACTION_PREFIX = 'color:'
-const NO_COLOR = 'none'
+/** Пункт «Move to Space»: `space:<id>`. */
+const SPACE_ACTION_PREFIX = 'space:'
 
 interface ProjectItemProps {
   project: Project
@@ -27,6 +26,8 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
     createChat,
     renameProject,
     setProjectColor,
+    spaces,
+    moveProjectToSpace,
     revealProject,
     removeProject,
     moveChat
@@ -60,35 +61,40 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
     void pickAgentAndCreateChat(project.id)
   }
 
+  const otherSpaces = spaces.filter(({ id }) => id !== project.spaceId)
+
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
     const action = await atox.showContextMenu([
       { action: 'create-chat', label: 'New chat', symbol: 'square.and.pencil' },
       { type: 'separator' },
       { action: 'rename', label: 'Rename', symbol: 'pencil' },
-      {
-        type: 'submenu',
-        label: 'Color',
-        symbol: 'paintpalette',
-        items: [
-          { action: `${COLOR_ACTION_PREFIX}${NO_COLOR}`, label: 'None', checked: !project.color },
-          { type: 'separator' },
-          ...PROJECT_COLORS.map(({ id, name, light, dark }) => ({
-            action: `${COLOR_ACTION_PREFIX}${id}` as const,
-            label: name,
-            swatch: colorSchemeQuery.matches ? dark : light,
-            checked: project.color === id
-          }))
-        ]
-      },
+      colorSubmenu(project.color),
+      ...(otherSpaces.length > 0
+        ? [
+            {
+              type: 'submenu' as const,
+              label: 'Move to Space',
+              symbol: 'rectangle.stack',
+              items: otherSpaces.map((space) => ({
+                action: `${SPACE_ACTION_PREFIX}${space.id}`,
+                label: space.name
+              }))
+            }
+          ]
+        : []),
       { action: 'reveal', label: 'Open in Finder', symbol: 'folder' },
       { action: 'copy-path', label: 'Copy path', symbol: 'doc.on.doc' },
       { type: 'separator' },
       { action: 'remove', label: 'Remove from list', symbol: 'folder.badge.minus' }
     ])
-    if (action?.startsWith(COLOR_ACTION_PREFIX)) {
-      const color = action.slice(COLOR_ACTION_PREFIX.length)
-      void setProjectColor(project.id, isProjectColor(color) ? color : null)
+    const color = parseColorAction(action)
+    if (color !== undefined) {
+      void setProjectColor(project.id, color)
+      return
+    }
+    if (action?.startsWith(SPACE_ACTION_PREFIX)) {
+      void moveProjectToSpace(project.id, action.slice(SPACE_ACTION_PREFIX.length))
       return
     }
     switch (action) {

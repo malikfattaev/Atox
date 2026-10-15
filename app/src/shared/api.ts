@@ -1,6 +1,6 @@
 import type { AgentId } from './agents'
 import type { AppCommand } from './commands'
-import type { Project, UserProfile } from './models'
+import type { Project, SpacesState, UserProfile } from './models'
 import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
 
@@ -37,10 +37,12 @@ export interface AtoxApi {
   projects: {
     list(): Promise<Project[]>
     /**
-     * Открывает системный диалог выбора папки. Если папка уже добавлена, возвращает её проект.
-     * `null` — пользователь закрыл диалог.
+     * Открывает системный диалог выбора папки и добавляет её в пространство. Если папка уже
+     * добавлена, возвращает её проект. `null` — пользователь закрыл диалог.
      */
-    add(): Promise<{ projects: Project[]; projectId: string } | null>
+    add(spaceId: string): Promise<{ projects: Project[]; projectId: string } | null>
+    /** Переносит проект в другое пространство. */
+    moveToSpace(projectId: string, spaceId: string): Promise<Project[]>
     remove(projectId: string): Promise<Project[]>
     rename(projectId: string, name: string): Promise<Project[]>
     /** Цвет папки проекта; `null` — без цвета. */
@@ -53,6 +55,19 @@ export interface AtoxApi {
     move(projectId: string, toIndex: number): Promise<Project[]>
     /** Открывает папку проекта в Finder. */
     reveal(projectId: string): Promise<void>
+  }
+  spaces: {
+    list(): Promise<SpacesState>
+    /** Создаёт пространство и открывает его. */
+    create(): Promise<SpacesState>
+    rename(spaceId: string, name: string): Promise<SpacesState>
+    setColor(spaceId: string, color: ProjectColor | null): Promise<SpacesState>
+    setActive(spaceId: string): Promise<SpacesState>
+    /**
+     * Удаляет пространство, переносив его проекты в соседнее (после подтверждения, если они есть).
+     * `null` — пользователь передумал.
+     */
+    remove(spaceId: string): Promise<{ spaces: SpacesState; projects: Project[] } | null>
   }
   agents: {
     /** Агенты, которые установлены на компьютере; пустой терминал доступен всегда. */
@@ -126,6 +141,13 @@ export const IpcChannel = {
   ProjectsRemove: 'projects:remove',
   ProjectsRename: 'projects:rename',
   ProjectsSetColor: 'projects:set-color',
+  ProjectsMoveToSpace: 'projects:move-to-space',
+  SpacesList: 'spaces:list',
+  SpacesCreate: 'spaces:create',
+  SpacesRename: 'spaces:rename',
+  SpacesSetColor: 'spaces:set-color',
+  SpacesSetActive: 'spaces:set-active',
+  SpacesRemove: 'spaces:remove',
   ProjectsSetSplit: 'projects:set-split',
   ProjectsSetSplitPosition: 'projects:set-split-position',
   ProjectsMove: 'projects:move',

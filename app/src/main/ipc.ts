@@ -58,7 +58,7 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.ProjectsList, () => store.list())
 
-  ipcMain.handle(IpcChannel.ProjectsAdd, async (event) => {
+  ipcMain.handle(IpcChannel.ProjectsAdd, async (event, spaceId: string) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {
       title: 'Open Project',
@@ -73,7 +73,7 @@ export function registerIpcHandlers({
     if (result.canceled || !path) {
       return null
     }
-    const project = store.addProject(path)
+    const project = store.addProject(path, spaceId)
     trackProjectBranches()
     return { projects: store.list(), projectId: project.id }
   })
@@ -94,6 +94,55 @@ export function registerIpcHandlers({
       trackProjectBranches()
     }
     return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ProjectsMoveToSpace, (_event, projectId: string, spaceId: string) => {
+    store.moveProjectToSpace(projectId, spaceId)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.SpacesList, () => store.listSpaces())
+
+  ipcMain.handle(IpcChannel.SpacesCreate, () => {
+    store.createSpace()
+    return store.listSpaces()
+  })
+
+  ipcMain.handle(IpcChannel.SpacesRename, (_event, spaceId: string, name: string) => {
+    store.renameSpace(spaceId, name)
+    return store.listSpaces()
+  })
+
+  ipcMain.handle(IpcChannel.SpacesSetColor, (_event, spaceId: string, color: unknown) => {
+    store.setSpaceColor(spaceId, isProjectColor(color) ? color : null)
+    return store.listSpaces()
+  })
+
+  ipcMain.handle(IpcChannel.SpacesSetActive, (_event, spaceId: string) => {
+    store.setActiveSpace(spaceId)
+    return store.listSpaces()
+  })
+
+  ipcMain.handle(IpcChannel.SpacesRemove, async (event, spaceId: string) => {
+    const space = store.findSpace(spaceId)
+    const heir = store.findSpaceHeir(spaceId)
+    if (!space || !heir) {
+      return null
+    }
+    const projectCount = store.list().filter((project) => project.spaceId === spaceId).length
+    // Проекты не пропадают, а переезжают — но о переезде лучше спросить заранее.
+    const confirmed =
+      projectCount === 0 ||
+      (await confirm(BrowserWindow.fromWebContents(event.sender), {
+        message: `Delete “${space.name}”?`,
+        detail: `Its ${projectCount === 1 ? 'project moves' : `${projectCount} projects move`} to “${heir.name}” with all chats.`,
+        confirmLabel: 'Delete'
+      }))
+    if (!confirmed) {
+      return null
+    }
+    store.removeSpace(spaceId)
+    return { spaces: store.listSpaces(), projects: store.list() }
   })
 
   ipcMain.handle(IpcChannel.ProjectsRename, (_event, projectId: string, name: string) => {
