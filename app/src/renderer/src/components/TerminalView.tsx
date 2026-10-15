@@ -167,6 +167,10 @@ export function TerminalView({
     })
 
     const inputSubscription = terminal.onData((data) => {
+      // Терминал перезапускается по нажатию клавиши, а не от смены фокуса.
+      if (exited && FOCUS_REPORTS.has(data)) {
+        return
+      }
       if (exited) {
         exited = false
         terminal.reset()
