@@ -248,7 +248,6 @@ export function TerminalView({
     let titleTimer: ReturnType<typeof setTimeout> | undefined
     const titleSubscription = terminal.onTitleChange((title) => {
       clearTimeout(titleTimer)
-      clearTimeout(ptyResizeTimer)
       const trimmed = title.trim()
       if (trimmed) {
         titleTimer = setTimeout(() => onTitleChangeRef.current(trimmed), TITLE_SETTLE_DELAY_MS)
@@ -270,6 +269,7 @@ export function TerminalView({
     return () => {
       disposed = true
       clearTimeout(titleTimer)
+      clearTimeout(ptyResizeTimer)
       colorSchemeQuery.removeEventListener('change', applyAppearance)
       container.removeEventListener('paste', handlePaste, true)
       container.removeEventListener('dragover', handleDragOver)
