@@ -7,9 +7,13 @@ const PORT = Number(process.env.PORT) || 3000
 /** Репозиторий, из релизов которого скачивается Atox. */
 const GITHUB_REPO = process.env.GITHUB_REPO || 'malikfattaev/Atox'
 const RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases/latest`
-const LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+/**
+ * Манифест обновлений последнего релиза — тот же, по которому обновляется само приложение.
+ * Скачивание файлов релиза, в отличие от API GitHub, не ограничено лимитом запросов.
+ */
+const LATEST_MANIFEST = `${RELEASES_PAGE}/download/latest-mac.json`
 
-/** Сколько держать сведения о релизе: GitHub ограничивает число запросов без токена. */
+/** Сколько держать сведения о релизе, прежде чем спросить GitHub снова. */
 const RELEASE_CACHE_MS = 5 * 60 * 1000
 /** Сколько ждать ответа GitHub, прежде чем отдать то, что уже известно. */
 const GITHUB_TIMEOUT_MS = 5000
@@ -27,12 +31,20 @@ const PAGES = {
   '/': { file: 'index.html', nav: 'home' },
   '/features': { file: 'features.html', nav: 'features' },
   '/about': { file: 'about.html', nav: 'about' },
-  '/docs': { file: 'docs.html', nav: 'docs' }
+  '/download': { file: 'download.html', nav: 'download' }
+}
+
+/** Старые адреса, которые переехали: ссылки на них не должны ломаться. */
+const MOVED_PAGES = {
+  '/docs': '/download'
 }
 const NOT_FOUND_PAGE = { file: '404.html', nav: null }
 
 /** Место в странице, куда вставляется общая шапка. */
 const HEADER_SLOT = '<!-- header -->'
+
+/** Ссылки страницы на свои стили и скрипты: к ним добавляется версия файла. */
+const ASSET_REFERENCE = /(href|src)="(\/[^"?#]+\.(?:css|js))"/g
 
 const CONTENT_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -78,31 +90,34 @@ async function latestRelease() {
   return pendingRelease
 }
 
+/**
+ * Версия и ссылки на .dmg последнего релиза. GitHub отвечает на «последний релиз» переадресацией
+ * на конкретный тег — из неё берётся адрес файлов релиза. В манифесте перечислены .zip для
+ * обновлений; .dmg той же сборки называется так же, отличается только расширение.
+ */
 async function fetchRelease() {
-  const response = await fetch(LATEST_RELEASE_API, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'atox-web',
-      ...(process.env.GITHUB_TOKEN && { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` })
-    },
+  const pointer = await fetch(LATEST_MANIFEST, {
+    redirect: 'manual',
     signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS)
   })
+  const manifestUrl = pointer.headers.get('location')
+  if (!manifestUrl) {
+    throw new Error(`GitHub did not point to the latest release (${pointer.status})`)
+  }
+  const response = await fetch(manifestUrl, { signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS) })
   if (!response.ok) {
     throw new Error(`GitHub responded with ${response.status}`)
   }
-  const release = await response.json()
+  const manifest = await response.json()
+  const releaseFiles = new URL('.', manifestUrl)
   const downloads = {}
   for (const arch of ARCHITECTURES) {
-    const asset = release.assets?.find(({ name }) => name.endsWith(`-${arch}.dmg`))
-    if (asset) {
-      downloads[arch] = asset.browser_download_url
+    const name = manifest.files?.[arch]?.name
+    if (typeof name === 'string' && name.endsWith('.zip')) {
+      downloads[arch] = new URL(name.replace(/\.zip$/, '.dmg'), releaseFiles).href
     }
   }
-  return {
-    version: String(release.tag_name ?? '').replace(/^v/, ''),
-    publishedAt: release.published_at,
-    downloads
-  }
+  return { version: String(manifest.version ?? ''), downloads }
 }
 
 /** Страница с общей шапкой; пункт меню текущей страницы отмечен для подсветки. */
@@ -114,7 +129,30 @@ async function renderPage({ file, nav }) {
   const marked = nav
     ? header.replace(`data-nav="${nav}"`, `data-nav="${nav}" aria-current="page"`)
     : header
-  return page.replace(HEADER_SLOT, marked)
+  return versionAssets(page.replace(HEADER_SLOT, marked))
+}
+
+/**
+ * Добавляет к ссылкам на стили и скрипты версию файла: изменённый файл получает новый адрес,
+ * и браузер не может показать устаревший из своего кэша.
+ */
+async function versionAssets(html) {
+  const paths = [...new Set([...html.matchAll(ASSET_REFERENCE)].map(([, , path]) => path))]
+  const versions = new Map(
+    await Promise.all(
+      paths.map(async (path) => [path, await assetVersion(join(PUBLIC_DIR, path)).catch(() => null)])
+    )
+  )
+  return html.replace(ASSET_REFERENCE, (match, attribute, path) => {
+    const version = versions.get(path)
+    return version ? `${attribute}="${path}?v=${version}"` : match
+  })
+}
+
+/** Версия файла по размеру и времени изменения — меняется вместе с содержимым. */
+async function assetVersion(filePath) {
+  const info = await stat(filePath)
+  return `${info.size.toString(36)}-${Math.floor(info.mtimeMs).toString(36)}`
 }
 
 function send(response, status, headers, body) {
@@ -138,7 +176,7 @@ async function handleReleaseInfo(response) {
     response,
     release ? 200 : 503,
     { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' },
-    JSON.stringify(release ? { version: release.version, publishedAt: release.publishedAt } : {})
+    JSON.stringify(release ? { version: release.version } : {})
   )
 }
 
@@ -146,18 +184,18 @@ async function handlePage(response, page, status = 200) {
   send(response, status, { 'Content-Type': HTML, 'Cache-Control': 'no-cache' }, await renderPage(page))
 }
 
-async function handleStatic(request, response, pathname) {
+async function handleStatic(request, response, pathname, versioned) {
   const filePath = normalize(join(PUBLIC_DIR, decodeURIComponent(pathname)))
   // Путь вида /../ не должен выводить за пределы папки сайта.
   const inside = filePath.startsWith(PUBLIC_DIR + sep)
   const type = CONTENT_TYPES[extname(filePath)]
   if (inside && type) {
     try {
-      const info = await stat(filePath)
-      const etag = `"${info.size.toString(36)}-${info.mtimeMs.toString(36)}"`
-      // Браузер каждый раз сверяется с сервером: после выкладки стили и скрипты сразу новые,
-      // а неизменившийся файл не скачивается заново.
-      const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ETag: etag }
+      const etag = `"${await assetVersion(filePath)}"`
+      // Адрес с версией меняется вместе с файлом — его можно хранить сколько угодно. Без версии
+      // браузер каждый раз сверяется с сервером и не скачивает неизменившийся файл заново.
+      const cache = versioned ? 'public, max-age=31536000, immutable' : 'no-cache'
+      const headers = { 'Content-Type': type, 'Cache-Control': cache, ETag: etag }
       if (request.headers['if-none-match'] === etag) {
         return send(response, 304, headers)
       }
@@ -170,7 +208,7 @@ async function handleStatic(request, response, pathname) {
 }
 
 const server = createServer(async (request, response) => {
-  const { pathname } = new URL(request.url ?? '/', 'http://localhost')
+  const { pathname, searchParams } = new URL(request.url ?? '/', 'http://localhost')
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return send(response, 405, { Allow: 'GET, HEAD' })
   }
@@ -183,8 +221,8 @@ const server = createServer(async (request, response) => {
     if (section === 'download' && ARCHITECTURES.has(arch)) {
       return await handleDownload(response, arch)
     }
-    if (pathname === '/download') {
-      return redirect(response, '/docs#install')
+    if (MOVED_PAGES[pathname]) {
+      return redirect(response, MOVED_PAGES[pathname], 301)
     }
     if (pathname === '/api/release') {
       return await handleReleaseInfo(response)
@@ -196,7 +234,7 @@ const server = createServer(async (request, response) => {
     if (page) {
       return await handlePage(response, page)
     }
-    await handleStatic(request, response, pathname)
+    await handleStatic(request, response, pathname, searchParams.has('v'))
   } catch (error) {
     console.error('Request failed', pathname, error)
     if (!response.headersSent) {
