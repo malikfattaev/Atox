@@ -13,6 +13,11 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          // Команда `atox` для агентов: её запускает бинарник приложения в режиме Node.
+          atox: resolve(__dirname, 'src/cli/atox.ts')
+        },
         // Встроенный модуль Electron — файловые функции без поддержки asar.
         external: ['original-fs']
       }

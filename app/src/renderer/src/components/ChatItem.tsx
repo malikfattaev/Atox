@@ -1,5 +1,13 @@
-import { useState, type MouseEvent } from 'react'
-import { GitBranch } from 'lucide-react'
+import { useId, useState, type MouseEvent } from 'react'
+import {
+  ChevronDown,
+  CodeXml,
+  GitBranch,
+  Sparkle,
+  SquareTerminal,
+  type LucideIcon
+} from 'lucide-react'
+import { findAgent, type AgentId } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
@@ -11,12 +19,109 @@ const { atox } = window
 
 interface ChatItemProps {
   chat: Chat
+  /** Помощники, которых запустил агент этого чата; показываются под ним. */
+  workers: Chat[]
   projectId: string
   /** Ветка git, в которой работает чат; `null` — папка проекта не репозиторий. */
   branch: string | null
 }
 
-export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
+/** Значки агентов в строках помощников — те же, что у пунктов меню нового чата. */
+const AGENT_ICONS: Record<AgentId, LucideIcon> = {
+  claude: Sparkle,
+  codex: CodeXml,
+  terminal: SquareTerminal
+}
+
+/**
+ * Чат в списке проекта. Если его агент запустил помощников, чат становится карточкой:
+ * под ним сворачиваемая строка «N agents» и компактные строки помощников.
+ * Перетаскивается вся карточка целиком.
+ */
+export function ChatItem({ chat, workers, projectId, branch }: ChatItemProps) {
+  const [renaming, setRenaming] = useState(false)
+  const [workersExpanded, setWorkersExpanded] = useState(true)
+  const workersId = useId()
+  const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
+  const hasWorkers = workers.length > 0
+
+  return (
+    <li className="chat-group" data-has-workers={hasWorkers} {...itemProps}>
+      <ChatRow
+        chat={chat}
+        projectId={projectId}
+        branch={branch}
+        renaming={renaming}
+        onRenamingChange={setRenaming}
+        dragHandleProps={handleProps}
+      />
+      {hasWorkers && (
+        <>
+          <button
+            type="button"
+            className="chat-workers__toggle"
+            aria-expanded={workersExpanded}
+            aria-controls={workersId}
+            onClick={() => setWorkersExpanded((value) => !value)}
+          >
+            {workers.length === 1 ? '1 agent' : `${workers.length} agents`}
+            <ChevronDown className="icon" aria-hidden />
+          </button>
+          {/* Свёрнутые помощники остаются в DOM, чтобы список плавно раскрывался. */}
+          <div
+            id={workersId}
+            className="chat-workers"
+            data-expanded={workersExpanded}
+            inert={!workersExpanded}
+          >
+            <ul>
+              {workers.map((worker) => (
+                <WorkerItem key={worker.id} chat={worker} projectId={projectId} />
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+    </li>
+  )
+}
+
+function WorkerItem({ chat, projectId }: { chat: Chat; projectId: string }) {
+  const [renaming, setRenaming] = useState(false)
+  return (
+    <li>
+      <ChatRow
+        chat={chat}
+        projectId={projectId}
+        compact
+        renaming={renaming}
+        onRenamingChange={setRenaming}
+      />
+    </li>
+  )
+}
+
+interface ChatRowProps {
+  chat: Chat
+  projectId: string
+  branch?: string | null
+  /** Строка помощника: в одну строку и со значком его агента вместо ветки. */
+  compact?: boolean
+  renaming: boolean
+  onRenamingChange(renaming: boolean): void
+  /** Обработчики перетаскивания: строку чата верхнего уровня можно тянуть. */
+  dragHandleProps?: ReturnType<typeof useSortableItem>['handleProps']
+}
+
+function ChatRow({
+  chat,
+  projectId,
+  branch = null,
+  compact = false,
+  renaming,
+  onRenamingChange,
+  dragHandleProps
+}: ChatRowProps) {
   const {
     activeChatId,
     visibleChatIds,
@@ -29,9 +134,7 @@ export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
   const visible = visibleChatIds.includes(chat.id)
   // Рядом открываются чаты того проекта, что сейчас на экране: раскладка у каждого проекта своя.
   const canOpenBeside = Boolean(activeChatId) && projectId === currentProjectId && !visible
-  const [renaming, setRenaming] = useState(false)
   const activity = useChatActivity(chat.id)
-  const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
@@ -53,7 +156,7 @@ export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
     if (action === 'open-beside') {
       openChatBeside(chat.id)
     } else if (action === 'rename') {
-      setRenaming(true)
+      onRenamingChange(true)
     } else if (action === 'remove') {
       void removeChat(chat.id)
     }
@@ -64,19 +167,21 @@ export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
       value={chat.title}
       label="Chat name"
       onSubmit={(value) => {
-        setRenaming(false)
+        onRenamingChange(false)
         void renameChat(chat.id, value)
       }}
-      onCancel={() => setRenaming(false)}
+      onCancel={() => onRenamingChange(false)}
     />
   ) : (
     <span className="row__label">{chat.title}</span>
   )
 
+  const AgentIcon = compact ? AGENT_ICONS[chat.agent ?? 'terminal'] : null
   const content = (
     <>
       <span className="chat-title">
         <ChatStatus status={activity} />
+        {AgentIcon && <AgentIcon className="agent-icon" aria-hidden />}
         {title}
       </span>
       {branch && (
@@ -89,13 +194,13 @@ export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
   )
 
   return (
-    <li
-      className="row row--chat"
+    <div
+      className={compact ? 'row row--chat row--worker' : 'row row--chat'}
       data-active={chat.id === activeChatId}
       data-visible={visible}
+      title={compact ? findAgent(chat.agent)?.name : undefined}
       onContextMenu={openContextMenu}
-      {...itemProps}
-      {...handleProps}
+      {...dragHandleProps}
     >
       {renaming ? (
         <div className="row__main chat-row">{content}</div>
@@ -105,11 +210,11 @@ export function ChatItem({ chat, projectId, branch }: ChatItemProps) {
           className="row__main chat-row"
           // ⌘-клик открывает чат рядом с текущим, как в редакторах кода.
           onClick={(event) => (event.metaKey ? openChatBeside(chat.id) : selectChat(chat.id))}
-          onDoubleClick={() => setRenaming(true)}
+          onDoubleClick={() => onRenamingChange(true)}
         >
           {content}
         </button>
       )}
-    </li>
+    </div>
   )
 }

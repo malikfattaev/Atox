@@ -33,6 +33,19 @@ const SESSION_ENV_KEYS = [
  */
 const OUTPUT_BUFFER_LIMIT = 512 * 1024
 
+/** Вставка текста в терминал, как из буфера обмена: программа получает его одним блоком. */
+const BRACKETED_PASTE_START = '\x1b[200~'
+const BRACKETED_PASTE_END = '\x1b[201~'
+
+/**
+ * Пауза между вставкой и Enter: если Enter придёт в той же записи, агенты (Claude Code, Codex)
+ * могут оставить вставленный текст в поле ввода, не отправив его.
+ */
+const PASTE_SUBMIT_DELAY_MS = 500
+
+/** Управляющие символы, кроме перевода строки и табуляции: в тексте они могли бы закрыть вставку. */
+const CONTROL_CHARACTERS = /[\x00-\x08\x0b-\x1f\x7f]/g
+
 interface Session {
   pty: IPty
   output: string
@@ -52,6 +65,8 @@ interface TerminalEvents {
 
 interface TerminalOptions {
   appName: string
+  /** Дополнительные переменные окружения терминала чата. */
+  environment?(chatId: string): Record<string, string>
 }
 
 /** Процессы оболочки для чатов: один псевдотерминал на чат. */
@@ -84,7 +99,7 @@ export class TerminalManager {
       cols: size.cols,
       rows: size.rows,
       cwd,
-      env: this.createEnvironment()
+      env: this.createEnvironment(chatId)
     })
     const session: Session = { pty, output: '', shellName: basename(shell) }
     this.sessions.set(chatId, session)
@@ -111,6 +126,34 @@ export class TerminalManager {
 
   write(chatId: string, data: string): void {
     this.sessions.get(chatId)?.pty.write(data)
+  }
+
+  /**
+   * Отправляет текст программе в терминале как вставку и нажимает Enter — так агент получает
+   * сообщение целиком, даже многострочное. Возвращает `false`, если терминал не запущен.
+   */
+  paste(chatId: string, text: string): boolean {
+    const session = this.sessions.get(chatId)
+    if (!session) {
+      return false
+    }
+    // Строки в терминал вставляются через CR, как это делает xterm при вставке.
+    const content = text
+      .replace(/\r\n?/g, '\n')
+      .replace(CONTROL_CHARACTERS, '')
+      .replace(/\n/g, '\r')
+    session.pty.write(`${BRACKETED_PASTE_START}${content}${BRACKETED_PASTE_END}`)
+    setTimeout(() => {
+      // За паузу терминал могли закрыть или перезапустить.
+      if (this.sessions.get(chatId) === session) {
+        session.pty.write('\r')
+      }
+    }, PASTE_SUBMIT_DELAY_MS)
+    return true
+  }
+
+  isRunning(chatId: string): boolean {
+    return this.sessions.has(chatId)
   }
 
   resize(chatId: string, size: TerminalSize): void {
@@ -149,7 +192,7 @@ export class TerminalManager {
     }
   }
 
-  private createEnvironment(): Record<string, string> {
+  private createEnvironment(chatId: string): Record<string, string> {
     const env: Record<string, string> = {}
     for (const key of SESSION_ENV_KEYS) {
       const value = process.env[key]
@@ -162,7 +205,8 @@ export class TerminalManager {
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       TERM_PROGRAM: this.options.appName,
-      LANG: env['LANG'] ?? FALLBACK_LANG
+      LANG: env['LANG'] ?? FALLBACK_LANG,
+      ...this.options.environment?.(chatId)
     }
   }
 }

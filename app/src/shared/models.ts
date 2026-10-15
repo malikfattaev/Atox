@@ -8,6 +8,8 @@ export interface Chat {
   agent?: AgentId
   /** Название задал пользователь — заголовок терминала его больше не перезаписывает. */
   hasCustomTitle?: boolean
+  /** Чат агента, который запустил этот чат как помощника; нет — чат пользователя. */
+  parentChatId?: string
   createdAt: number
 }
 

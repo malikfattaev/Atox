@@ -90,10 +90,14 @@ export interface AtoxApi {
     remove(chatId: string): Promise<Project[]>
     /** Переименование пользователем: после него заголовок терминала название не меняет. */
     rename(chatId: string, title: string): Promise<Project[]>
-    /** Переносит чат на позицию `toIndex` внутри его проекта. */
+    /** Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта. */
     move(chatId: string, toIndex: number): Promise<Project[]>
     /** Заголовок, который выставила программа в терминале; игнорируется, если название задано вручную. */
     applyTerminalTitle(chatId: string, title: string): Promise<Project[]>
+    /** Список чатов изменился без участия окна — например, агент запустил помощника. */
+    onChanged(listener: (projects: Project[]) => void): () => void
+    /** Агент запустил помощника в новом чате. */
+    onWorkerStarted(listener: (chatId: string) => void): () => void
   }
   terminal: {
     /** Запускает терминал чата, если он ещё не запущен, и возвращает уже накопленный вывод. */
@@ -173,6 +177,8 @@ export const IpcChannel = {
   ChatsRename: 'chats:rename',
   ChatsMove: 'chats:move',
   ChatsApplyTerminalTitle: 'chats:apply-terminal-title',
+  ProjectsChanged: 'projects:changed',
+  ChatsWorkerStarted: 'chats:worker-started',
   TerminalAttach: 'terminal:attach',
   TerminalWrite: 'terminal:write',
   TerminalResize: 'terminal:resize',

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentId } from '../../../shared/agents'
-import { moveItem, moveItemWithinGroup } from '../../../shared/list'
+import { moveChatGroup } from '../../../shared/chats'
+import { moveItemWithinGroup } from '../../../shared/list'
 import type { Project, Space } from '../../../shared/models'
 import type { ProjectColor } from '../../../shared/projectColors'
 import {
@@ -151,7 +152,18 @@ export function useProjects(): ProjectsState {
 
   useEffect(() => {
     void atox.projects.list().then(applyProjects)
+    return atox.chats.onChanged(applyProjects)
   }, [applyProjects])
+
+  // Терминал помощника подключается сразу, хоть он и не на экране: так видно, работает ли он,
+  // и приходят его уведомления — как у чатов, которые уже открывали.
+  useEffect(
+    () =>
+      atox.chats.onWorkerStarted((chatId) =>
+        setOpenedChatIds((ids) => (ids.includes(chatId) ? ids : [...ids, chatId]))
+      ),
+    []
+  )
 
   /**
    * Меняет раскладку проекта и показывает его, открыв его пространство. Чаты, открытые рядом,
@@ -331,8 +343,7 @@ export function useProjects(): ProjectsState {
     async (chatId: string, toIndex: number) => {
       setProjects((current) =>
         current.map((project) => {
-          const fromIndex = project.chats.findIndex(({ id }) => id === chatId)
-          const chats = moveItem(project.chats, fromIndex, toIndex)
+          const chats = moveChatGroup(project.chats, chatId, toIndex)
           return chats ? { ...project, chats } : project
         })
       )

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import type { AgentId } from '../shared/agents'
-import { moveItem, moveItemWithinGroup } from '../shared/list'
+import { insertWorkerChat, moveChatGroup, removeChatFromList } from '../shared/chats'
+import { moveItemWithinGroup } from '../shared/list'
 import type { Chat, Project, Space, SpacesState } from '../shared/models'
 import type { ProjectColor } from '../shared/projectColors'
 import { clampSplitPosition, DEFAULT_SPLIT_POSITION } from '../shared/split'
@@ -26,7 +27,7 @@ const DEFAULT_SPACE_NAME = 'Main'
 /** Начало названия нового пространства; пользователь сразу может его переименовать. */
 const NEW_SPACE_NAME = 'Space'
 
-interface ChatLocation {
+export interface ChatLocation {
   project: Project
   chat: Chat
 }
@@ -253,24 +254,39 @@ export class ProjectStore {
 
   createChat(projectId: string, agent: AgentId): Chat {
     const project = this.getProject(projectId)
-
-    const chat: Chat = {
-      id: randomUUID(),
-      title: `Chat ${project.chats.length + 1}`,
-      agent,
-      createdAt: Date.now()
-    }
+    const chat = newChat(project, agent)
     // Новые чаты сверху, как в Codex и Cursor.
     project.chats.unshift(chat)
     this.persist()
     return chat
   }
 
+  /**
+   * Создаёт чат помощника, которого запустил агент чата `parentChatId`: в той же папке,
+   * сразу под ним и его прежними помощниками. `title` — название, которое дал агент.
+   */
+  createWorkerChat(parentChatId: string, agent: AgentId, title?: string): ChatLocation {
+    const location = this.findChat(parentChatId)
+    if (!location) {
+      throw new Error(`Chat ${parentChatId} not found`)
+    }
+    const { project } = location
+    const trimmed = title?.trim()
+    const chat: Chat = {
+      ...newChat(project, agent),
+      ...(trimmed && { title: trimmed, hasCustomTitle: true }),
+      parentChatId
+    }
+    project.chats = insertWorkerChat(project.chats, chat)
+    this.persist()
+    return { project, chat }
+  }
+
   removeChat(chatId: string): void {
     const location = this.findChat(chatId)
     if (location) {
       const { project } = location
-      project.chats = project.chats.filter(({ id }) => id !== chatId)
+      project.chats = removeChatFromList(project.chats, chatId)
       // Без удалённого чата открывать рядом больше нечего.
       if (project.split?.chatIds.includes(chatId)) {
         delete project.split
@@ -279,14 +295,16 @@ export class ProjectStore {
     }
   }
 
-  /** Переносит чат на позицию `toIndex` внутри его проекта: терминал чата привязан к папке проекта. */
+  /**
+   * Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта (терминал чата
+   * привязан к папке проекта); помощники переезжают вместе с ним.
+   */
   moveChat(chatId: string, toIndex: number): void {
-    const location = this.findChat(chatId)
-    if (!location) {
+    const project = this.findChat(chatId)?.project
+    if (!project) {
       return
     }
-    const { project, chat } = location
-    const chats = moveItem(project.chats, project.chats.indexOf(chat), toIndex)
+    const chats = moveChatGroup(project.chats, chatId, toIndex)
     if (chats) {
       project.chats = chats
       this.persist()
@@ -359,6 +377,15 @@ export class ProjectStore {
       projects: this.projects
     }
     this.file.write(data)
+  }
+}
+
+function newChat(project: Project, agent: AgentId): Chat {
+  return {
+    id: randomUUID(),
+    title: `Chat ${project.chats.length + 1}`,
+    agent,
+    createdAt: Date.now()
   }
 }
 

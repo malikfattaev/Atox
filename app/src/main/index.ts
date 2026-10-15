@@ -1,15 +1,20 @@
-import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { AgentDetector } from './agents'
 import { GitBranchTracker } from './gitBranches'
 import {
   broadcastGitBranches,
+  broadcastProjectsChanged,
   broadcastTerminalData,
   broadcastTerminalExit,
   broadcastUpdateReady,
+  broadcastWorkerStarted,
   registerIpcHandlers
 } from './ipc'
 import { AppMenu } from './menu'
+import { installCli, installCodexRules, installSkills } from './orchestration/install'
+import { OrchestrationServer } from './orchestration/server'
 import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
 import { ProjectStore } from './store'
@@ -19,6 +24,9 @@ import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
+
+/** Собранная команда `atox` для агентов — рядом с main-процессом. */
+const CLI_SCRIPT = join('out', 'main', 'atox.js')
 
 /** Сборка для разработки хранит данные отдельно и не трогает проекты установленного приложения. */
 const DEV_USER_DATA_SUFFIX = '-dev'
@@ -33,8 +41,19 @@ async function bootstrap(): Promise<void> {
   const userData = app.getPath('userData')
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
   const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
+  const binDirectory = join(userData, 'bin')
+  const cliPath = await installCli(
+    binDirectory,
+    process.execPath,
+    join(app.getAppPath(), CLI_SCRIPT)
+  )
+  // Команду `atox` агенты находят по PATH; оболочка входа дописывает к нему свои каталоги.
+  const terminalPath = [binDirectory, process.env['PATH']].filter(Boolean).join(':')
   const terminals = new TerminalManager(
-    { appName: app.getName() },
+    {
+      appName: app.getName(),
+      environment: (chatId) => ({ ...orchestration.environment(chatId), PATH: terminalPath })
+    },
     {
       onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
       onExit: (chatId) => broadcastTerminalExit({ chatId })
@@ -49,6 +68,26 @@ async function bootstrap(): Promise<void> {
       })
     : null
   const agents = new AgentDetector(() => settings.get().agentCommands)
+  const orchestration = new OrchestrationServer({
+    store,
+    settings,
+    terminals,
+    agents,
+    // Путь к сокету ограничен ~100 символами, поэтому он во временном каталоге пользователя,
+    // а не в длинном пути данных приложения. Имя различает сборку для разработки.
+    socketPath: join(tmpdir(), `${basename(userData)}.sock`),
+    tasksDirectory: join(userData, 'tasks'),
+    cliPath,
+    onProjectsChanged: () => broadcastProjectsChanged(store.list()),
+    onWorkerStarted: broadcastWorkerStarted
+  })
+  // Без сервера приложение работает как раньше, только команда `atox` сообщит, что Atox недоступен.
+  await orchestration
+    .start()
+    .catch((error) => console.error('Failed to start orchestration', error))
+  app.on('will-quit', () => orchestration.stop())
+  void installSkills().catch((error) => console.error('Failed to install agent skills', error))
+  void installCodexRules().catch((error) => console.error('Failed to install Codex rules', error))
   const menu = new AppMenu(settings)
   registerIpcHandlers({ store, settings, terminals, branches, updater, agents, menu })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
