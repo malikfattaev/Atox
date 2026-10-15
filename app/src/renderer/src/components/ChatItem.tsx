@@ -1,16 +1,10 @@
 import { useId, useMemo, useState, type MouseEvent } from 'react'
-import {
-  ChevronDown,
-  CodeXml,
-  GitBranch,
-  Sparkle,
-  SquareTerminal,
-  type LucideIcon
-} from 'lucide-react'
-import { findAgent, type AgentId } from '../../../shared/agents'
+import { ChevronDown, GitBranch } from 'lucide-react'
+import { findAgent } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { AgentIcon } from './AgentIcon'
 import { ChatStatus } from './ChatStatus'
 import { InlineRename } from './InlineRename'
 import { useSortableItem } from './SortableList'
@@ -24,13 +18,6 @@ interface ChatItemProps {
   projectId: string
   /** Ветка git, в которой работает чат; `null` — папка проекта не репозиторий. */
   branch: string | null
-}
-
-/** Значки агентов в строках помощников — те же, что у пунктов меню нового чата. */
-const AGENT_ICONS: Record<AgentId, LucideIcon> = {
-  claude: Sparkle,
-  codex: CodeXml,
-  terminal: SquareTerminal
 }
 
 /**
@@ -180,13 +167,12 @@ function ChatRow({
     <span className="row__label">{chat.title}</span>
   )
 
-  const AgentIcon = AGENT_ICONS[chat.agent ?? 'terminal']
   const content = (
     <>
       <span className="chat-title">
         {compact ? (
           <span className="worker-agent">
-            <AgentIcon className="agent-icon" aria-hidden />
+            <AgentIcon agent={chat.agent} className="agent-icon" aria-hidden />
           </span>
         ) : (
           <ChatActivityStatus chatId={chat.id} workerChatIds={workerChatIds} />
