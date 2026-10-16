@@ -32,6 +32,8 @@ export interface WorkerInfo {
   running: boolean
   /** Помощник уже прислал отчёт. */
   reported: boolean
+  /** Когда помощника запустили, мс с начала эпохи. */
+  startedAt: number
 }
 
 /** Команды и их параметры/результаты. */
@@ -44,6 +46,8 @@ export interface OrchestrationMethods {
   send: { params: { to: string; message: string }; result: { chatId: string } }
   report: { params: { summary: string }; result: { chatId: string } }
   workers: { params: Record<string, never>; result: WorkerInfo[] }
+  /** Останавливает помощников и убирает их чаты из списка. */
+  remove: { params: { chatIds: string[] }; result: { removed: string[] } }
 }
 
 export type OrchestrationMethod = keyof OrchestrationMethods

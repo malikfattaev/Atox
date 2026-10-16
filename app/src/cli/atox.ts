@@ -23,6 +23,7 @@ Delegate work to another agent in a new Atox chat in the same folder.
                                            Pass "-" as the task to read it from stdin.
   atox workers                             List your workers
   atox send <chat-id|${PARENT_ADDRESS}> <message>     Message one of your workers, or your parent agent
+  atox remove <chat-id> [<chat-id>...]     Stop workers and remove their chats
   atox report <summary>                    Worker: report the result to the parent agent
 
 Works only in terminals inside Atox.`
@@ -55,9 +56,9 @@ async function main(args: string[]): Promise<string> {
       const workers = await call('workers', {})
       return workers.length > 0
         ? workers
-            .map(({ chatId, title, agent, running, reported }) => {
+            .map(({ chatId, title, agent, running, reported, startedAt }) => {
               const state = reported ? 'reported' : running ? 'working' : 'stopped'
-              return `${chatId}\t${agent}\t${state}\t${title}`
+              return `${chatId}\t${agent}\t${state}\tstarted ${formatAge(startedAt)}\t${title}`
             })
             .join('\n')
         : 'You have no workers.'
@@ -69,6 +70,15 @@ async function main(args: string[]): Promise<string> {
       }
       await call('send', { to, message: await readText(messageWords, 'message') })
       return 'Message sent. The agent gets it as soon as it can take input.'
+    }
+    case 'remove': {
+      if (rest.length === 0) {
+        throw new UsageError('Specify the chat ids of the workers to remove (see atox workers).')
+      }
+      const { removed } = await call('remove', { chatIds: rest })
+      return removed.length === 1
+        ? `Removed worker ${removed[0]}.`
+        : `Removed ${removed.length} workers: ${removed.join(', ')}.`
     }
     case 'report': {
       await call('report', { summary: await readText(rest, 'summary') })
@@ -82,6 +92,19 @@ async function main(args: string[]): Promise<string> {
     default:
       throw new UsageError(`Unknown command: ${command}\n\n${USAGE}`)
   }
+}
+
+/** Сколько времени прошло с момента: «just now», «5m ago», «2h ago», «3d ago». */
+function formatAge(timestamp: number): string {
+  const minutes = Math.floor((Date.now() - timestamp) / 60_000)
+  if (minutes < 1) {
+    return 'just now'
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`
+  }
+  const hours = Math.floor(minutes / 60)
+  return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`
 }
 
 /** Значения флагов `--name value` и остальные аргументы по порядку. */
