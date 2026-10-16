@@ -40,8 +40,9 @@ Inside Atox every chat is a terminal with a CLI agent. The \`atox\` command star
 \`\`\`sh
 atox agents                                  # installed agents; start only these
 atox start codex --title "Fix checkout" "<task>"
-atox workers                                 # your workers: id, agent, working/reported/stopped
+atox workers                                 # your workers, oldest first: id, agent, state, age, title
 atox send <worker-chat-id> "<message>"       # follow-up or answer to a worker's question
+atox remove <worker-chat-id> [...]           # stop workers and remove their chats
 atox send parent "<question>"                # worker: ask the agent that started you
 atox report "<summary>"                      # worker: final result, exactly once
 \`\`\`
@@ -53,6 +54,12 @@ atox report "<summary>"                      # worker: final result, exactly onc
 - Workers share the folder with you and each other, so give them separate files or areas.
 - After starting, keep working or end your turn. Do not poll or wait in a loop: the report arrives as a new message. Use \`atox workers\` only when the user asks for status.
 - Workers cannot start workers of their own.
+
+## Removing workers
+
+- Remove a worker you started by mistake, or one the user no longer needs, with \`atox remove <worker-chat-id>\`. It stops the agent and deletes its chat; this cannot be undone.
+- Remove a worker that is still working only when the user asks or the task was started by mistake: its unfinished work is lost.
+- Take the ids from \`atox workers\`. You can remove only your own workers.
 
 ## As a worker
 

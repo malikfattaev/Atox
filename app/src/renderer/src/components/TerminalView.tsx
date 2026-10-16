@@ -27,6 +27,7 @@ const SCROLLBACK_LINES = 10_000
 const PTY_RESIZE_DELAY_MS = 100
 
 const EXIT_MESSAGE = '\r\n\x1b[2mProcess exited. Press any key to restart.\x1b[0m'
+const RETRY_MESSAGE = '\r\n\x1b[2mPress any key to try again.\x1b[0m'
 
 /** OSC 9 — уведомление от программы в терминале (так их отправляют, например, агенты). */
 const NOTIFICATION_OSC = 9
@@ -149,7 +150,9 @@ export function TerminalView({
           attached = true
         }
       } catch (error) {
-        terminal.write(`\x1b[31m${error instanceof Error ? error.message : String(error)}\x1b[0m`)
+        // Например, папку проекта переместили. Любая клавиша — новая попытка, как после выхода.
+        terminal.write(`\x1b[31m${describeAttachError(error)}\x1b[0m${RETRY_MESSAGE}`)
+        exited = true
       }
     }
 
@@ -331,6 +334,12 @@ export function TerminalView({
       )}
     </div>
   )
+}
+
+/** Текст ошибки без служебной обёртки Electron вокруг ошибок из main-процесса. */
+function describeAttachError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.replace(/^Error invoking remote method '[^']*': (?:Error: )?/, '')
 }
 
 function findImage(data: DataTransfer): File | null {

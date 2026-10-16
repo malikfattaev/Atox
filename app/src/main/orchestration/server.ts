@@ -239,13 +239,41 @@ export class OrchestrationServer {
       return { chatId: parent.chat.id }
     },
 
+    remove: (caller, { chatIds }) => {
+      const ids = Array.isArray(chatIds) ? [...new Set(chatIds.map(String))] : []
+      if (ids.length === 0) {
+        throw new CommandError('Specify the chat ids of the workers to remove.')
+      }
+      // Сначала проверяются все чаты: команда либо удаляет всех названных помощников, либо никого.
+      const workers = ids.map((id) => {
+        const worker = this.services.store.findChat(id)?.chat
+        if (!worker) {
+          throw new CommandError(`Chat ${id} not found.`)
+        }
+        if (worker.parentChatId !== caller.chat.id) {
+          throw new CommandError(
+            `Chat ${id} is not your worker. You can only remove your own workers.`
+          )
+        }
+        return worker
+      })
+      for (const worker of workers) {
+        this.services.terminals.kill(worker.id)
+        this.services.store.removeChat(worker.id)
+        this.reportedChatIds.delete(worker.id)
+      }
+      this.services.onProjectsChanged()
+      return { removed: workers.map(({ id }) => id) }
+    },
+
     workers: (caller) =>
       this.workersOf(caller).map((chat) => ({
         chatId: chat.id,
         title: chat.title,
         agent: chat.agent ?? TERMINAL_AGENT_ID,
         running: this.services.terminals.isRunning(chat.id),
-        reported: this.reportedChatIds.has(chat.id)
+        reported: this.reportedChatIds.has(chat.id),
+        startedAt: chat.createdAt
       }))
   }
 
