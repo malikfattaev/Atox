@@ -2,6 +2,7 @@ import { useId, useMemo, useState, type MouseEvent } from 'react'
 import { ChevronDown, GitBranch } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
+import { isCommandClick } from '../../../shared/shortcuts'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { AgentIcon } from './AgentIcon'
@@ -203,8 +204,10 @@ function ChatRow({
         <button
           type="button"
           className="row__main chat-row"
-          // ⌘-клик открывает чат рядом с текущим, как в редакторах кода.
-          onClick={(event) => (event.metaKey ? openChatBeside(chat.id) : selectChat(chat.id))}
+          // ⌘-клик (на Linux — Ctrl-клик) открывает чат рядом с текущим, как в редакторах кода.
+          onClick={(event) =>
+            isCommandClick(event) ? openChatBeside(chat.id) : selectChat(chat.id)
+          }
           onDoubleClick={() => onRenamingChange(true)}
         >
           {content}

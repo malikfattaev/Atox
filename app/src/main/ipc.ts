@@ -7,7 +7,8 @@ import {
   nativeImage,
   shell,
   type IpcMainInvokeEvent,
-  type MenuItemConstructorOptions
+  type MenuItemConstructorOptions,
+  type NativeImage
 } from 'electron'
 import {
   IpcChannel,
@@ -19,6 +20,7 @@ import {
   type TerminalSize
 } from '../shared/api'
 import type { Project } from '../shared/models'
+import { IS_MAC } from '../shared/platform'
 import { isProjectColor } from '../shared/projectColors'
 import type { Settings } from '../shared/settings'
 import { isAgentId, TERMINAL_AGENT_ID, type AgentId } from '../shared/agents'
@@ -303,6 +305,11 @@ function showContextMenu(
   })
 }
 
+/** Значок пункта меню из SF Symbols; на Linux пункты меню без значков. */
+function menuSymbol(symbol: string | undefined): NativeImage | undefined {
+  return symbol && IS_MAC ? nativeImage.createMenuSymbol(symbol) : undefined
+}
+
 function buildMenuTemplate(
   items: ContextMenuItem<string>[],
   onSelect: (action: string) => void
@@ -314,17 +321,13 @@ function buildMenuTemplate(
       case 'submenu':
         return {
           label: item.label,
-          icon: item.symbol ? nativeImage.createMenuSymbol(item.symbol) : undefined,
+          icon: menuSymbol(item.symbol),
           submenu: buildMenuTemplate(item.items, onSelect)
         }
       default:
         return {
           label: item.label,
-          icon: item.swatch
-            ? createColorSwatch(item.swatch)
-            : item.symbol
-              ? nativeImage.createMenuSymbol(item.symbol)
-              : undefined,
+          icon: item.swatch ? createColorSwatch(item.swatch) : menuSymbol(item.symbol),
           type: item.checked === undefined ? 'normal' : 'checkbox',
           checked: item.checked,
           accelerator: item.accelerator,

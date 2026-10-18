@@ -1,10 +1,11 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
+import { IS_MAC } from '../../../shared/platform'
 import {
+  acceleratorFromEvent,
   canonicalAccelerator,
   findShortcutConflict,
   formatShortcut,
   isValidAccelerator,
-  keyFromCode,
   resolveAccelerator,
   SHORTCUTS,
   type ShortcutId,
@@ -17,7 +18,7 @@ const { atox } = window
 export const SHORTCUT_RECORDER_ATTRIBUTE = 'data-shortcut-recorder'
 
 const RECORDING_PROMPT = 'Type shortcut'
-const MISSING_MODIFIER_HINT = 'Add ⌘ or ⌃'
+const MISSING_MODIFIER_HINT = IS_MAC ? 'Add ⌘ or ⌃' : 'Add Ctrl'
 
 interface ShortcutRecorderProps {
   id: ShortcutId
@@ -60,26 +61,15 @@ export function ShortcutRecorder({
     // Нажатия при записи не должны ни закрыть настройки, ни переключить фокус.
     event.preventDefault()
     event.stopPropagation()
-    const key = keyFromCode(event.nativeEvent.code)
     const noModifiers = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
     if (event.key === 'Escape' && noModifiers) {
       onRecordingChange(false)
       return
     }
-    if (!key) {
+    const accelerator = acceleratorFromEvent(event.nativeEvent)
+    if (!accelerator) {
       return
     }
-    const accelerator = canonicalAccelerator(
-      [
-        event.ctrlKey && 'Ctrl',
-        event.altKey && 'Alt',
-        event.shiftKey && 'Shift',
-        event.metaKey && 'CmdOrCtrl',
-        key
-      ]
-        .filter(Boolean)
-        .join('+')
-    )
     if (!isValidAccelerator(accelerator)) {
       setHint(MISSING_MODIFIER_HINT)
       return

@@ -5,6 +5,12 @@ import { SearchAddon, type ISearchDecorationOptions } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { IS_MAC } from '../../../shared/platform'
+import {
+  acceleratorFromEvent,
+  LINUX_COPY_ACCELERATOR,
+  menuAccelerators
+} from '../../../shared/shortcuts'
 import { isTerminalReply } from '../../../shared/terminalInput'
 import { useChatActivityTracker } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
@@ -68,7 +74,10 @@ export function TerminalView({
   onCloseFind,
   onTitleChange
 }: TerminalViewProps) {
-  const { terminalFontSize } = useSettings()
+  const { terminalFontSize, shortcuts } = useSettings()
+  // Сочетания меню читаются обработчиком клавиш терминала, который создаётся один раз.
+  const menuAcceleratorsRef = useRef(menuAccelerators(shortcuts))
+  menuAcceleratorsRef.current = menuAccelerators(shortcuts)
   const activity = useChatActivityTracker()
   // xterm монтируется во внутренний элемент без отступов: FitAddon считает строки
   // по размеру родителя и не учитывает его padding.
@@ -157,6 +166,22 @@ export function TerminalView({
     }
 
     terminal.attachCustomKeyEventHandler((event) => {
+      if (!IS_MAC) {
+        const accelerator = acceleratorFromEvent(event)
+        // Выделение xterm — не выделение страницы, и стандартное копирование его не видит.
+        if (accelerator === LINUX_COPY_ACCELERATOR) {
+          if (event.type === 'keydown' && terminal.hasSelection()) {
+            void navigator.clipboard.writeText(terminal.getSelection())
+          }
+          return false
+        }
+        // Команды приложения на Linux — с Ctrl, как и управляющие клавиши терминала: xterm
+        // отправил бы их программе (Ctrl+Shift+N — как Ctrl+N), а они должны дойти до меню.
+        // Ctrl+Shift+V вставляет сам Chromium — как вставку из буфера обмена.
+        if (accelerator && menuAcceleratorsRef.current.has(accelerator)) {
+          return false
+        }
+      }
       if (!isShiftEnter(event)) {
         return true
       }

@@ -1,7 +1,18 @@
-// Главная кнопка ведёт на сборку под процессор посетителя, вторая ссылка — на другую сборку.
+// Главная кнопка ведёт на сборку под систему и процессор посетителя, вторая ссылка — на другую.
 const BUILDS = {
-  arm64: { href: '/download/arm64', label: 'Apple Silicon' },
-  x64: { href: '/download/x64', label: 'Intel Mac' }
+  arm64: { href: '/download/arm64', label: 'Apple Silicon', title: 'Download Atox for Mac' },
+  x64: { href: '/download/x64', label: 'Intel Mac', title: 'Download Atox for Mac' },
+  linux: { href: '/download/linux', label: 'AppImage', title: 'Download Atox for Linux' },
+  pacman: { href: '/download/pacman', label: 'Arch package', title: 'Download Atox for Arch' }
+}
+
+/** Пара сборок для посетителя: главная и запасная. */
+function detectBuilds() {
+  if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
+    return ['linux', 'pacman']
+  }
+  const arch = detectMacArchitecture()
+  return [arch, arch === 'arm64' ? 'x64' : 'arm64']
 }
 
 /**
@@ -25,9 +36,11 @@ function setUpDownloadButtons() {
   if (primary.length === 0) {
     return
   }
-  const arch = detectMacArchitecture()
-  const other = arch === 'arm64' ? 'x64' : 'arm64'
-  primary.forEach((link) => (link.href = BUILDS[arch].href))
+  const [main, other] = detectBuilds()
+  primary.forEach((link) => {
+    link.href = BUILDS[main].href
+    link.textContent = BUILDS[main].title
+  })
   alternate.forEach((link) => {
     link.href = BUILDS[other].href
     link.textContent = BUILDS[other].label
@@ -48,7 +61,7 @@ function showReleaseVersion() {
         return
       }
       if (meta) {
-        meta.textContent = `Version ${release.version} · Free · macOS · Apple Silicon and Intel`
+        meta.textContent = `Version ${release.version} · Free · macOS and Linux`
       }
       if (version) {
         version.textContent = `· v${release.version}`

@@ -5,16 +5,17 @@ import { spawn, type IPty } from 'node-pty'
 import type { TerminalSize } from '../shared/api'
 import { isTerminalReply } from '../shared/terminalInput'
 
-/** Стандартная оболочка macOS — на случай, если система не сообщила оболочку пользователя. */
-const DEFAULT_SHELL = '/bin/zsh'
+/** Стандартная оболочка системы — на случай, если система не сообщила оболочку пользователя. */
+const DEFAULT_SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'
 
 /** GUI-приложения на macOS запускаются без LANG, а без UTF-8-локали ломается вывод не-ASCII символов. */
 const FALLBACK_LANG = 'en_US.UTF-8'
 
 /**
- * Как и Terminal.app, оболочка получает только базовое окружение сеанса macOS, а всё остальное
+ * Как и Terminal.app, оболочка получает только базовое окружение сеанса, а всё остальное
  * (PATH из Homebrew, алиасы, переменные инструментов) настраивает профиль пользователя при входе.
- * Так в терминал не протекают переменные процесса, из которого запущен сам Atox.
+ * Так в терминал не протекают переменные процесса, из которого запущен сам Atox, — на Linux
+ * это, например, LD_LIBRARY_PATH и APPDIR из образа AppImage.
  */
 const SESSION_ENV_KEYS = [
   'HOME',
@@ -25,7 +26,17 @@ const SESSION_ENV_KEYS = [
   'TMPDIR',
   'LANG',
   'SSH_AUTH_SOCK',
-  '__CF_USER_TEXT_ENCODING'
+  '__CF_USER_TEXT_ENCODING',
+  // Сеанс Linux: без них из терминала не открыть окно, браузер или уведомление.
+  'DISPLAY',
+  'WAYLAND_DISPLAY',
+  'XAUTHORITY',
+  'XDG_RUNTIME_DIR',
+  'XDG_SESSION_TYPE',
+  'XDG_CURRENT_DESKTOP',
+  'XDG_SESSION_DESKTOP',
+  'DBUS_SESSION_BUS_ADDRESS',
+  'HYPRLAND_INSTANCE_SIGNATURE'
 ] as const
 
 /**
@@ -235,8 +246,9 @@ export class TerminalManager {
     if (!session) {
       return null
     }
-    // Оболочку входа macOS показывает с дефисом в начале имени (-zsh).
-    const program = session.pty.process.replace(/^-/, '')
+    // Оболочку входа macOS показывает с дефисом в начале имени (-zsh), а на Linux имя
+    // берётся из командной строки процесса и может быть полным путём (/bin/bash).
+    const program = basename(session.pty.process.replace(/^-/, ''))
     return program && program !== session.shellName ? program : null
   }
 

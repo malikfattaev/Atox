@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react'
 import type { AppCommand } from '../../../shared/commands'
+import { IS_MAC } from '../../../shared/platform'
 import { SHORTCUT_RECORDER_ATTRIBUTE } from '../components/ShortcutRecorder'
 import type { ProjectsState } from './useProjects'
 
 /**
- * ⌘1…⌘9 выбирают чат по номеру в сайдбаре, ⌃1…⌃9 — пространство. Цифра берётся по положению
- * клавиши, поэтому сочетания одинаково работают на любой раскладке.
+ * ⌘1…⌘9 (на Linux — Alt+1…Alt+9) выбирают чат по номеру в сайдбаре, ⌃1…⌃9 — пространство.
+ * Цифра берётся по положению клавиши, поэтому сочетания одинаково работают на любой раскладке.
  */
 const NUMBER_KEY_CODE = /^Digit([1-9])$/
 
@@ -72,8 +73,10 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
     // Перехват на этапе погружения: иначе нажатие съест сфокусированный терминал.
     const selectByNumber = (event: KeyboardEvent) => {
       const digit = NUMBER_KEY_CODE.exec(event.code)?.[1]
-      // Нужен ровно один из ⌘ и ⌃, без других модификаторов.
-      if (!digit || event.shiftKey || event.altKey || event.metaKey === event.ctrlKey) {
+      const chatModifier = IS_MAC ? event.metaKey : event.altKey
+      const otherModifier = IS_MAC ? event.altKey : event.metaKey
+      // Нужен ровно один из модификаторов чата и пространства, без других.
+      if (!digit || event.shiftKey || otherModifier || chatModifier === event.ctrlKey) {
         return
       }
       // Сочетание, которое записывают в настройках, — не команда.
@@ -85,7 +88,7 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
       }
       const { projects } = handlersRef.current
       const index = Number(digit) - 1
-      const chatId = event.metaKey ? projects.orderedChatIds[index] : undefined
+      const chatId = chatModifier ? projects.orderedChatIds[index] : undefined
       const spaceId = event.ctrlKey ? projects.spaces[index]?.id : undefined
       if (chatId || spaceId) {
         event.preventDefault()

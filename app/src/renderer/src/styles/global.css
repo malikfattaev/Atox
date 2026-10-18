@@ -41,12 +41,14 @@
   /* Насколько плотно залита цветная папка проекта. */
   --project-icon-fill: 40%;
 
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
   --font-size: 14px;
   --font-size-small: 12px;
 
   --color-surface: #ffffff;
+  /* Фон окна там, где нет системного vibrancy (Linux); его же ставит main до отрисовки. */
+  --color-window: #f2f2f4;
   --color-text: #1d1d1f;
   --color-text-muted: #86868b;
   --color-border: rgba(0, 0, 0, 0.08);
@@ -75,6 +77,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --color-surface: #1c1c1e;
+    --color-window: #28282a;
     --color-text: #f5f5f7;
     --color-text-muted: #8e8e93;
     --color-border: rgba(255, 255, 255, 0.08);
@@ -111,6 +114,18 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
+}
+
+/*
+ * На Linux vibrancy нет — окно залито цветом сайдбара. Кнопок светофора тоже нет, поэтому
+ * над сайдбаром остаётся только небольшой отступ.
+ */
+:root[data-platform='linux'] {
+  --titlebar-height: 12px;
+}
+
+:root[data-platform='linux'] body {
+  background: var(--color-window);
 }
 
 button {
