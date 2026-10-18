@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type CSSProperties, type MouseEvent } from 
 import { Folder, FolderOpen, Plus } from 'lucide-react'
 import { topLevelChats, workerChats } from '../../../shared/chats'
 import type { Project } from '../../../shared/models'
+import { IS_MAC } from '../../../shared/platform'
 import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentPicker } from '../hooks/useAgentPicker'
@@ -11,6 +12,9 @@ import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
 
 const { atox } = window
+
+/** Папка открывается в файловом менеджере системы: на macOS это Finder. */
+const REVEAL_LABEL = IS_MAC ? 'Open in Finder' : 'Open in File Manager'
 
 /** Пункт «Move to Space»: `space:<id>`. */
 const SPACE_ACTION_PREFIX = 'space:'
@@ -84,7 +88,7 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
             }
           ]
         : []),
-      { action: 'reveal', label: 'Open in Finder', symbol: 'folder' },
+      { action: 'reveal', label: REVEAL_LABEL, symbol: 'folder' },
       { action: 'copy-path', label: 'Copy path', symbol: 'doc.on.doc' },
       { type: 'separator' },
       { action: 'remove', label: 'Remove from list', symbol: 'folder.badge.minus' }

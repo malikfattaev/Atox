@@ -8,18 +8,36 @@ const PORT = Number(process.env.PORT) || 3000
 const GITHUB_REPO = process.env.GITHUB_REPO || 'malikfattaev/Atox'
 const RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases/latest`
 /**
- * Манифест обновлений последнего релиза — тот же, по которому обновляется само приложение.
+ * Манифесты обновлений последнего релиза — те же, по которым обновляется само приложение.
  * Скачивание файлов релиза, в отличие от API GitHub, не ограничено лимитом запросов.
  */
-const LATEST_MANIFEST = `${RELEASES_PAGE}/download/latest-mac.json`
+const MANIFESTS = {
+  mac: `${RELEASES_PAGE}/download/latest-mac.json`,
+  linux: `${RELEASES_PAGE}/download/latest-linux.json`
+}
 
 /** Сколько держать сведения о релизе, прежде чем спросить GitHub снова. */
 const RELEASE_CACHE_MS = 5 * 60 * 1000
 /** Сколько ждать ответа GitHub, прежде чем отдать то, что уже известно. */
 const GITHUB_TIMEOUT_MS = 5000
 
-/** Сборки Atox: суффикс в имени файла релиза — `Atox-<версия>-<arch>.dmg`. */
-const ARCHITECTURES = new Set(['arm64', 'x64'])
+/**
+ * Сборки Atox: адрес `/download/<сборка>` → файл релиза. В манифесте платформы под каждую
+ * архитектуру указан файл обновления; файл для скачивания — той же сборки и назван так же,
+ * отличается только окончание имени: `Atox-0.1.42-arm64.zip` → `Atox-0.1.42-arm64.dmg`.
+ */
+const BUILDS = {
+  arm64: { platform: 'mac', arch: 'arm64', update: /\.zip$/, download: () => '.dmg' },
+  x64: { platform: 'mac', arch: 'x64', update: /\.zip$/, download: () => '.dmg' },
+  linux: { platform: 'linux', arch: 'x64', update: /\.AppImage$/, download: () => '.AppImage' },
+  // В имени AppImage архитектура записана по-своему (x86_64), в имени пакета pacman — как x64.
+  pacman: {
+    platform: 'linux',
+    arch: 'x64',
+    update: /-[^-]+\.AppImage$/,
+    download: (arch) => `-${arch}.pacman`
+  }
+}
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
 const PUBLIC_DIR = join(ROOT, 'public')
@@ -69,7 +87,7 @@ let cachedRelease = null
 let cachedAt = 0
 let pendingRelease = null
 
-/** Последний релиз: версия и ссылки на .dmg по архитектурам. При сбое — то, что было. */
+/** Последний релиз: версия и ссылки на файлы по сборкам. При сбое — то, что было. */
 async function latestRelease() {
   if (cachedRelease && Date.now() - cachedAt < RELEASE_CACHE_MS) {
     return cachedRelease
@@ -91,12 +109,32 @@ async function latestRelease() {
 }
 
 /**
- * Версия и ссылки на .dmg последнего релиза. GitHub отвечает на «последний релиз» переадресацией
- * на конкретный тег — из неё берётся адрес файлов релиза. В манифесте перечислены .zip для
- * обновлений; .dmg той же сборки называется так же, отличается только расширение.
+ * Версия и ссылки на файлы последнего релиза. Сборка для Linux появилась не в первом релизе,
+ * поэтому её манифеста может не быть — тогда ссылок на Linux просто нет.
  */
 async function fetchRelease() {
-  const pointer = await fetch(LATEST_MANIFEST, {
+  const [mac, linux] = await Promise.all([
+    fetchManifest(MANIFESTS.mac),
+    fetchManifest(MANIFESTS.linux).catch(() => null)
+  ])
+  const manifests = { mac, linux }
+  const downloads = {}
+  for (const [build, { platform, arch, update, download }] of Object.entries(BUILDS)) {
+    const release = manifests[platform]
+    const name = release?.manifest.files?.[arch]?.name
+    if (typeof name === 'string' && update.test(name)) {
+      downloads[build] = new URL(name.replace(update, download(arch)), release.files).href
+    }
+  }
+  return { version: String(mac.manifest.version ?? ''), downloads }
+}
+
+/**
+ * Манифест последнего релиза и адрес его файлов. GitHub отвечает на «последний релиз»
+ * переадресацией на конкретный тег — из неё берётся адрес файлов релиза.
+ */
+async function fetchManifest(url) {
+  const pointer = await fetch(url, {
     redirect: 'manual',
     signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS)
   })
@@ -108,16 +146,7 @@ async function fetchRelease() {
   if (!response.ok) {
     throw new Error(`GitHub responded with ${response.status}`)
   }
-  const manifest = await response.json()
-  const releaseFiles = new URL('.', manifestUrl)
-  const downloads = {}
-  for (const arch of ARCHITECTURES) {
-    const name = manifest.files?.[arch]?.name
-    if (typeof name === 'string' && name.endsWith('.zip')) {
-      downloads[arch] = new URL(name.replace(/\.zip$/, '.dmg'), releaseFiles).href
-    }
-  }
-  return { version: String(manifest.version ?? ''), downloads }
+  return { manifest: await response.json(), files: new URL('.', manifestUrl) }
 }
 
 /** Страница с общей шапкой; пункт меню текущей страницы отмечен для подсветки. */
@@ -164,10 +193,10 @@ function redirect(response, location, status = 302) {
   send(response, status, { Location: location, 'Cache-Control': 'no-store' })
 }
 
-async function handleDownload(response, arch) {
+async function handleDownload(response, build) {
   const release = await latestRelease()
   // Без сведений о релизе человек всё равно попадает туда, где можно скачать.
-  redirect(response, release?.downloads[arch] ?? RELEASES_PAGE)
+  redirect(response, release?.downloads[build] ?? RELEASES_PAGE)
 }
 
 async function handleReleaseInfo(response) {
@@ -217,9 +246,9 @@ const server = createServer(async (request, response) => {
     if (pathname.length > 1 && pathname.endsWith('/')) {
       return redirect(response, pathname.replace(/\/+$/, ''), 301)
     }
-    const [, section, arch] = pathname.split('/')
-    if (section === 'download' && ARCHITECTURES.has(arch)) {
-      return await handleDownload(response, arch)
+    const [, section, build] = pathname.split('/')
+    if (section === 'download' && Object.hasOwn(BUILDS, build)) {
+      return await handleDownload(response, build)
     }
     if (MOVED_PAGES[pathname]) {
       return redirect(response, MOVED_PAGES[pathname], 301)

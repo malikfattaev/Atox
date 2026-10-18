@@ -3,6 +3,7 @@
   "productName": "Atox",
   "version": "0.1.0",
   "description": "Lightweight desktop app for working with CLI agents: projects are folders, chats are terminals",
+  "desktopName": "atox.desktop",
   "repository": {
     "type": "git",
     "url": "https://github.com/malikfattaev/Atox"
@@ -15,7 +16,7 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p src/main && tsc -p src/cli && tsc -p src/preload && tsc -p src/renderer",
     "postinstall": "install-electron --no && chmod +x node_modules/node-pty/prebuilds/*/spawn-helper",
-    "package": "electron-vite build && electron-builder --mac",
+    "package": "electron-vite build && electron-builder",
     "release:manifest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release-manifest.ts"
   },
   "dependencies": {
@@ -53,8 +54,7 @@
       "output": "dist"
     },
     "files": [
-      "out/**/*",
-      "!node_modules/node-pty/build/**"
+      "out/**/*"
     ],
     "asarUnpack": [
       "node_modules/node-pty/**"
@@ -71,7 +71,41 @@
         "zip"
       ],
       "identity": "-",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "files": [
+        "out/**/*",
+        "!node_modules/node-pty/build/**",
+        "!node_modules/node-pty/prebuilds/win32-*/**"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "pacman"
+      ],
+      "category": "Development",
+      "executableName": "atox",
+      "syncDesktopName": true,
+      "maintainer": "Malik Fattaev",
+      "synopsis": "Projects, chats and real terminals for CLI coding agents",
+      "files": [
+        "out/**/*",
+        "!node_modules/node-pty/prebuilds/**",
+        "!node_modules/node-pty/build/Release/obj.target/**",
+        "!node_modules/node-pty/build/Release/.deps/**",
+        "!node_modules/node-pty/build/**/*.{mk,Makefile,gypi}",
+        "!node_modules/node-pty/build/{Makefile,config.gypi,node_gyp_bins}"
+      ]
+    },
+    "pacman": {
+      "depends": [
+        "gtk3",
+        "nss",
+        "alsa-lib",
+        "libxss",
+        "libnotify",
+        "xdg-utils"
+      ]
     },
     "artifactName": "${productName}-${version}-${arch}.${ext}"
   },

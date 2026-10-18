@@ -1,24 +1,19 @@
-import { execFile, spawn } from 'node:child_process'
 import { createHash, createPublicKey, verify } from 'node:crypto'
-// Файловые функции без поддержки asar: обычные fs в Electron считают app.asar папкой
-// и не могут удалить бандл приложения целиком — от него остаётся оболочка с одним app.asar.
-import { constants, createWriteStream, promises as fs } from 'original-fs'
-import { dirname, join, resolve } from 'node:path'
+import { createWriteStream, promises as fs } from 'original-fs'
+import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { promisify } from 'node:util'
 import { app, net } from 'electron'
 import {
   compareVersions,
   isSafeReleaseFileName,
-  UPDATE_MANIFEST_NAME,
+  UPDATE_PLATFORMS,
   updateSignaturePayload,
   type UpdateFile,
   type UpdateManifest
 } from '../shared/update'
+import { isInstallableFile, type UpdateInstaller } from './updateInstallers'
 import { UPDATE_PUBLIC_KEY } from './updatePublicKey'
-
-const execFileAsync = promisify(execFile)
 
 /** Первая проверка — вскоре после запуска, чтобы не мешать открытию окна. */
 const FIRST_CHECK_DELAY_MS = 10_000
@@ -26,39 +21,22 @@ const CHECK_INTERVAL_MS = 15 * 60 * 1000
 /** При возвращении в окно проверяем снова, но не чаще этого интервала. */
 const FOCUS_CHECK_INTERVAL_MS = 2 * 60 * 1000
 
-/** Скачанные обновления лежат во временном каталоге системы. */
-const UPDATES_DIR = 'updates'
-
-/**
- * Заменяет приложение новой версией после выхода: ждёт завершения процесса, ещё раз проверяет
- * подпись новой версии, переименовывает старую, ставит новую и возвращает старую,
- * если что-то пошло не так. Повреждённая новая версия не ставится вовсе.
- * Аргументы: pid приложения, путь к его бандлу, путь к новому бандлу, 1 — запустить после замены.
- */
-const INSTALL_SCRIPT = `
-pid="$1"; target="$2"; update="$3"; relaunch="$4"; backup="$target.previous"
-while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
-codesign --verify --deep --strict "$update" || exit 1
-rm -rf "$backup"
-mv "$target" "$backup" || exit 1
-if mv "$update" "$target"; then rm -rf "$backup"; else mv "$backup" "$target"; fi
-[ "$relaunch" = 1 ] && open "$target"
-`
-
 interface ReadyUpdate {
   version: string
-  bundlePath: string
+  /** То, что встанет на место приложения: бандл на macOS, файл AppImage на Linux. */
+  path: string
 }
 
 interface AppUpdaterOptions {
   /** Адрес, по которому лежат файлы последнего релиза. */
   feedUrl: string
+  installer: UpdateInstaller
   onReady(version: string): void
 }
 
 /**
  * Обновления из релизов GitHub без Squirrel.Mac: он принимает только сборки, подписанные
- * сертификатом Apple. Релиз подписан собственным ключом Ed25519 — архив проверяется по нему
+ * сертификатом Apple. Релиз подписан собственным ключом Ed25519 — файл проверяется по нему
  * и по хешу, а после выхода из приложения новая версия встаёт на место старой.
  */
 export class AppUpdater {
@@ -114,20 +92,16 @@ export class AppUpdater {
       return
     }
     this.installerStarted = true
-    const args = [
-      String(process.pid),
-      currentBundlePath(),
-      this.readyUpdate.bundlePath,
-      this.relaunchAfterInstall ? '1' : '0'
-    ]
-    spawn('/bin/sh', ['-c', INSTALL_SCRIPT, 'atox-update', ...args], {
-      detached: true,
-      stdio: 'ignore'
-    }).unref()
+    try {
+      this.options.installer.install(this.readyUpdate.path, this.relaunchAfterInstall)
+    } catch (error) {
+      console.error('Failed to install the update', error)
+    }
   }
 
   private async check(): Promise<void> {
-    if (this.checking || !(await canReplaceBundle())) {
+    const { installer } = this.options
+    if (this.checking || !(await installer.canInstall())) {
       return
     }
     this.checking = true
@@ -138,19 +112,20 @@ export class AppUpdater {
       if (!isNewer || !file || manifest.version === this.readyUpdate?.version) {
         return
       }
-      const bundlePath = await this.download(manifest, file)
-      this.readyUpdate = { version: manifest.version, bundlePath }
+      const path = await this.download(manifest, file)
+      this.readyUpdate = { version: manifest.version, path }
       this.options.onReady(manifest.version)
       // Прежние скачивания удаляются, только когда готовым стало новое: до этого на одно
       // из них могло указывать обновление, ожидающее установки.
-      await removeOtherDownloads(updatesRoot(), manifest.version)
+      await removeOtherDownloads(installer.downloadsRoot(), manifest.version)
     } finally {
       this.checking = false
     }
   }
 
   private async fetchManifest(): Promise<UpdateManifest> {
-    const response = await net.fetch(`${this.options.feedUrl}/${UPDATE_MANIFEST_NAME}`, {
+    const manifestName = UPDATE_PLATFORMS[this.options.installer.platform].manifest
+    const response = await net.fetch(`${this.options.feedUrl}/${manifestName}`, {
       cache: 'no-store'
     })
     if (!response.ok) {
@@ -165,12 +140,16 @@ export class AppUpdater {
     return manifest
   }
 
-  /** Скачивает архив, сверяет его с подписанным описанием и распаковывает; возвращает путь к бандлу. */
+  /**
+   * Скачивает файл релиза, сверяет его с подписанным описанием и готовит к установке;
+   * возвращает путь к тому, что встанет на место приложения.
+   */
   private async download(manifest: UpdateManifest, file: UpdateFile): Promise<string> {
-    if (!isSafeReleaseFileName(file.name)) {
+    const { installer } = this.options
+    if (!isSafeReleaseFileName(file.name) || !isInstallableFile(installer.platform, file.name)) {
       throw new Error(`Unexpected update file name: ${file.name}`)
     }
-    const directory = join(updatesRoot(), manifest.version)
+    const directory = join(installer.downloadsRoot(), manifest.version)
     await fs.rm(directory, { recursive: true, force: true })
     await fs.mkdir(directory, { recursive: true })
 
@@ -178,7 +157,7 @@ export class AppUpdater {
     if (!response.ok || !response.body) {
       throw new Error(`Update download failed: ${response.status}`)
     }
-    const archivePath = join(directory, file.name)
+    const filePath = join(directory, file.name)
     const hash = createHash('sha512')
     let size = 0
     const measure = new Transform({
@@ -188,29 +167,13 @@ export class AppUpdater {
         callback(null, chunk)
       }
     })
-    await pipeline(Readable.fromWeb(response.body), measure, createWriteStream(archivePath))
+    await pipeline(Readable.fromWeb(response.body), measure, createWriteStream(filePath))
     if (size !== file.size || hash.digest('base64') !== file.sha512) {
       throw new Error('Downloaded update does not match the signed manifest')
     }
 
-    const extractDir = join(directory, 'extracted')
-    await execFileAsync('ditto', ['-x', '-k', archivePath, extractDir])
-    const bundleName = (await fs.readdir(extractDir)).find((name) => name.endsWith('.app'))
-    if (!bundleName) {
-      throw new Error('Update archive does not contain an app bundle')
-    }
-    const bundlePath = join(extractDir, bundleName)
-    await execFileAsync('codesign', ['--verify', '--deep', '--strict', bundlePath])
-    // Архив проверен по подписи релиза; снимаем карантин, чтобы новая версия открылась без вопросов.
-    await execFileAsync('xattr', ['-dr', 'com.apple.quarantine', bundlePath]).catch(() => undefined)
-    await fs.rm(archivePath)
-    return bundlePath
+    return installer.prepare(filePath)
   }
-}
-
-/** Каталог, в который скачиваются обновления. */
-function updatesRoot(): string {
-  return join(app.getPath('temp'), app.getName(), UPDATES_DIR)
 }
 
 /** Прежние скачивания больше не нужны: хранится только последнее проверенное обновление. */
@@ -221,29 +184,6 @@ async function removeOtherDownloads(root: string, keepVersion: string): Promise<
       .filter((version) => version !== keepVersion)
       .map((version) => fs.rm(join(root, version), { recursive: true, force: true }))
   )
-}
-
-/** Бандл запущенного приложения: `…/Atox.app/Contents/MacOS/Atox`. */
-function currentBundlePath(): string {
-  return resolve(process.execPath, '../../..')
-}
-
-/**
- * Обновлять можно только приложение, которое лежит в папке с правом записи: не на смонтированном
- * образе диска и не в изолированной копии, куда macOS переносит запущенное прямо из загрузок.
- */
-async function canReplaceBundle(): Promise<boolean> {
-  const bundle = currentBundlePath()
-  if (!bundle.endsWith('.app')) {
-    return false
-  }
-  try {
-    await fs.access(dirname(bundle), constants.W_OK)
-    await fs.access(bundle, constants.W_OK)
-    return true
-  } catch {
-    return false
-  }
 }
 
 function parseManifest(data: unknown): UpdateManifest {

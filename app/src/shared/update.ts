@@ -1,15 +1,27 @@
-/** Имя файла с описанием последнего релиза — он лежит среди файлов релиза на GitHub. */
-export const UPDATE_MANIFEST_NAME = 'latest-mac.json'
+/**
+ * Платформы релиза. У каждой среди файлов релиза на GitHub своё описание последней версии
+ * и свой файл, которым обновляется приложение: архив бандла на macOS, AppImage на Linux.
+ */
+export const UPDATE_PLATFORMS = {
+  mac: { manifest: 'latest-mac.json', extension: 'zip' },
+  linux: { manifest: 'latest-linux.json', extension: 'AppImage' }
+} as const
 
-/** Архив со сборкой под одну архитектуру процессора. */
+export type UpdatePlatform = keyof typeof UPDATE_PLATFORMS
+
+export function isUpdatePlatform(value: string): value is UpdatePlatform {
+  return Object.hasOwn(UPDATE_PLATFORMS, value)
+}
+
+/** Файл со сборкой под одну архитектуру процессора. */
 export interface UpdateFile {
   name: string
-  /** SHA-512 архива в base64. */
+  /** SHA-512 файла в base64. */
   sha512: string
   size: number
 }
 
-/** Описание релиза: версия и архивы под каждую архитектуру, подписанные ключом Atox. */
+/** Описание релиза: версия и файлы под каждую архитектуру, подписанные ключом Atox. */
 export interface UpdateManifest {
   version: string
   files: Partial<Record<string, UpdateFile>>
@@ -18,7 +30,7 @@ export interface UpdateManifest {
 }
 
 /**
- * Данные, которые подписываются: версия и для каждого архива его имя, хеш и размер.
+ * Данные, которые подписываются: версия и для каждого файла его имя, хеш и размер.
  * Строка собирается одинаково при выпуске релиза и при проверке, независимо от порядка ключей.
  */
 export function updateSignaturePayload(manifest: Omit<UpdateManifest, 'signature'>): string {

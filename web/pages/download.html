@@ -6,7 +6,7 @@
     <title>Atox | Download</title>
     <meta
       name="description"
-      content="Download Atox for Mac and learn how to install it, work with projects and chats, run agent teams, use spaces, split view and keyboard shortcuts."
+      content="Download Atox for Mac or Linux and learn how to install it, work with projects and chats, run agent teams, use spaces, split view and keyboard shortcuts."
     />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -46,10 +46,31 @@
         </div>
         <p>Open the <code>.dmg</code> and drag Atox to your Applications folder.</p>
 
+        <div class="download-card">
+          <p class="download-card__label">Linux <span data-release-version></span></p>
+          <div class="download-card__buttons">
+            <a class="button button--secondary" href="/download/linux">AppImage <small>x64</small></a>
+            <a class="button button--secondary" href="/download/pacman">Arch Linux <small>.pacman</small></a>
+          </div>
+          <p>
+            The AppImage runs on any distribution and updates itself. The Arch package installs
+            with pacman and updates the same way.
+          </p>
+        </div>
+        <p>Make the AppImage executable and run it:</p>
+        <pre><code>chmod +x Atox-*.AppImage
+./Atox-*.AppImage</code></pre>
+        <p>
+          On first launch Atox adds itself to your app launcher. Keep the file where it is — for
+          example in <code>~/Applications</code> — so updates can replace it in place. On Arch
+          Linux and Omarchy you can install the package instead:
+        </p>
+        <pre><code>sudo pacman -U Atox-*.pacman</code></pre>
+
         <h2 id="first-launch">First launch</h2>
         <p>
-          Atox isn't notarized by Apple yet, so the first time you open it macOS says it can't
-          verify the developer. This happens only once:
+          On a Mac, Atox isn't notarized by Apple yet, so the first time you open it macOS says it
+          can't verify the developer. This happens only once:
         </p>
         <ol>
           <li>Open Atox and close the warning.</li>
@@ -64,7 +85,7 @@
 
         <h2 id="projects-and-chats">Projects and chats</h2>
         <p>
-          A <strong>project</strong> is a folder on your Mac. Click <strong>New project</strong>
+          A <strong>project</strong> is a folder on your computer. Click <strong>New project</strong>
           (⌘O) and pick a folder — Atox opens a first chat in it right away.
         </p>
         <p>
@@ -75,7 +96,7 @@
         <ul>
           <li>Drag projects and chats to reorder them.</li>
           <li>
-            Right-click a project to open it in Finder, copy its path, change its color, move it
+            Right-click a project to open it in Finder or your file manager, copy its path, change its color, move it
             to another space or remove it from the list. The folder itself stays on disk.
           </li>
           <li>The current git branch is shown under each chat.</li>
@@ -142,14 +163,14 @@
         <h2 id="spaces">Spaces</h2>
         <p>
           Spaces group projects — for example work, side projects and clients. Switch spaces from
-          the menu under <strong>New project</strong> or with ⌃1–⌃9. Each space remembers which
+          the menu under <strong>New project</strong> or with Ctrl+1–9. Each space remembers which
           project was open. From the same menu you can create, rename, recolor and delete
           spaces; projects of a deleted space move to another one.
         </p>
 
         <h2 id="side-by-side">Side by side</h2>
         <p>
-          ⌘-click a chat, or right-click it and choose <strong>Open to the Side</strong>, to see
+          ⌘-click a chat (Ctrl-click on Linux), or right-click it and choose <strong>Open to the Side</strong>, to see
           two chats of the same project at once. Drag the divider to resize. The layout is saved
           with the project.
         </p>
@@ -166,21 +187,30 @@
         </p>
 
         <h2 id="shortcuts">Keyboard shortcuts</h2>
+        <p>
+          On Linux, app shortcuts use <kbd>Ctrl</kbd> <kbd>Shift</kbd>, like in Linux terminals:
+          plain <kbd>Ctrl</kbd> with a letter belongs to the program in the terminal.
+        </p>
         <div class="table">
           <table>
+            <thead>
+              <tr><th></th><th>macOS</th><th>Linux</th></tr>
+            </thead>
             <tbody>
-              <tr><td>New chat</td><td><kbd>⌘N</kbd></td></tr>
-              <tr><td>Open project</td><td><kbd>⌘O</kbd></td></tr>
-              <tr><td>Close chat</td><td><kbd>⌘W</kbd></td></tr>
-              <tr><td>Previous / next chat</td><td><kbd>⇧⌘[</kbd> <kbd>⇧⌘]</kbd></td></tr>
-              <tr><td>Go to chat by number</td><td><kbd>⌘1</kbd> – <kbd>⌘9</kbd></td></tr>
-              <tr><td>Go to space by number</td><td><kbd>⌃1</kbd> – <kbd>⌃9</kbd></td></tr>
-              <tr><td>Open chat to the side</td><td><kbd>⌘</kbd> Click</td></tr>
-              <tr><td>Find in terminal</td><td><kbd>⌘F</kbd></td></tr>
-              <tr><td>New line without sending</td><td><kbd>⇧↩</kbd></td></tr>
-              <tr><td>Font size</td><td><kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd></td></tr>
-              <tr><td>Show or hide sidebar</td><td><kbd>⌘B</kbd></td></tr>
-              <tr><td>Settings</td><td><kbd>⌘,</kbd></td></tr>
+              <tr><td>New chat</td><td><kbd>⌘N</kbd></td><td><kbd>Ctrl+Shift+N</kbd></td></tr>
+              <tr><td>Open project</td><td><kbd>⌘O</kbd></td><td><kbd>Ctrl+Shift+O</kbd></td></tr>
+              <tr><td>Close chat</td><td><kbd>⌘W</kbd></td><td><kbd>Ctrl+Shift+W</kbd></td></tr>
+              <tr><td>Previous / next chat</td><td><kbd>⇧⌘[</kbd> <kbd>⇧⌘]</kbd></td><td><kbd>Ctrl+PgUp</kbd> <kbd>Ctrl+PgDn</kbd></td></tr>
+              <tr><td>Go to chat by number</td><td><kbd>⌘1</kbd> – <kbd>⌘9</kbd></td><td><kbd>Alt+1</kbd> – <kbd>Alt+9</kbd></td></tr>
+              <tr><td>Go to space by number</td><td><kbd>⌃1</kbd> – <kbd>⌃9</kbd></td><td><kbd>Ctrl+1</kbd> – <kbd>Ctrl+9</kbd></td></tr>
+              <tr><td>Open chat to the side</td><td><kbd>⌘</kbd> Click</td><td><kbd>Ctrl</kbd> Click</td></tr>
+              <tr><td>Copy / paste in terminal</td><td><kbd>⌘C</kbd> <kbd>⌘V</kbd></td><td><kbd>Ctrl+Shift+C</kbd> <kbd>Ctrl+Shift+V</kbd></td></tr>
+              <tr><td>Find in terminal</td><td><kbd>⌘F</kbd></td><td><kbd>Ctrl+Shift+F</kbd></td></tr>
+              <tr><td>New line without sending</td><td><kbd>⇧↩</kbd></td><td><kbd>Shift+Enter</kbd></td></tr>
+              <tr><td>Font size</td><td><kbd>⌘+</kbd> <kbd>⌘−</kbd> <kbd>⌘0</kbd></td><td><kbd>Ctrl++</kbd> <kbd>Ctrl+−</kbd> <kbd>Ctrl+0</kbd></td></tr>
+              <tr><td>Show or hide sidebar</td><td><kbd>⌘B</kbd></td><td><kbd>Ctrl+Shift+B</kbd></td></tr>
+              <tr><td>Settings</td><td><kbd>⌘,</kbd></td><td><kbd>Ctrl+,</kbd></td></tr>
+              <tr><td>Quit</td><td><kbd>⌘Q</kbd></td><td><kbd>Ctrl+Shift+Q</kbd></td></tr>
             </tbody>
           </table>
         </div>
@@ -200,28 +230,39 @@
           restarts on the new version. Running agents are stopped by the restart, so finish what
           they're doing first.
         </p>
+        <p>
+          The Linux AppImage updates the same way. If you installed the Arch package, download
+          the new one and install it with <code>sudo pacman -U</code>.
+        </p>
 
         <h2 id="faq">FAQ</h2>
         <h3>macOS says Atox can't be opened</h3>
         <p>See <a href="#first-launch">First launch</a> — it's a one-time step.</p>
 
+        <h3>The AppImage doesn't start</h3>
+        <p>
+          Check that the file is executable (<code>chmod +x</code>). AppImages need FUSE; on Arch
+          and Omarchy install it with <code>sudo pacman -S fuse2</code>, or use the Arch package.
+        </p>
+
         <h3>My agent isn't in the list</h3>
         <p>
           Atox looks for the agent's command in your shell. Make sure <code>claude</code> or
-          <code>codex</code> works in Terminal, then restart Atox. If it lives somewhere unusual,
+          <code>codex</code> works in your terminal, then restart Atox. If it lives somewhere unusual,
           set the full command in <strong>Settings → Agents</strong>.
         </p>
 
         <h3>Does Atox see my code or send it anywhere?</h3>
         <p>
           No. Atox only runs a terminal; your agent talks to its own service exactly as it does
-          in Terminal. Atox itself has no accounts and no analytics.
+          in your terminal. Atox itself has no accounts and no analytics.
         </p>
 
         <h3>Where is my data?</h3>
         <p>
-          In <code>~/Library/Application Support/Atox</code>. Removing a project from Atox never
-          touches the folder on disk.
+          In <code>~/Library/Application Support/Atox</code> on a Mac and in
+          <code>~/.config/Atox</code> on Linux. Removing a project from Atox never touches the
+          folder on disk.
         </p>
       </main>
     </div>

@@ -1,7 +1,8 @@
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join, sep } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { AgentDetector } from './agents'
+import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
 import {
   broadcastGitBranches,
@@ -18,6 +19,7 @@ import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
+import { createUpdateInstaller } from './updateInstallers'
 import { AppUpdater } from './updater'
 import { createMainWindow } from './window'
 
@@ -27,11 +29,27 @@ const SETTINGS_FILE_NAME = 'settings.json'
 /** Собранная команда `atox` для агентов — рядом с main-процессом. */
 const CLI_SCRIPT = join('out', 'main', 'atox.js')
 
+/** Путь к AppImage, если приложение запущено из него: его задаёт среда запуска AppImage. */
+const appImage = process.env['APPIMAGE']
+
 /** Сборка для разработки хранит данные отдельно и не трогает проекты установленного приложения. */
 const DEV_USER_DATA_SUFFIX = '-dev'
 
 if (!app.isPackaged) {
   app.setPath('userData', app.getPath('userData') + DEV_USER_DATA_SUFFIX)
+}
+
+/**
+ * PATH процесса без каталогов образа AppImage: их дописывает его AppRun, и в терминалах
+ * под именем `atox` нашёлся бы сам бинарник приложения.
+ */
+function inheritedPath(): string[] {
+  const entries = (process.env['PATH'] ?? '').split(':').filter(Boolean)
+  if (!appImage) {
+    return entries
+  }
+  const appDir = dirname(process.execPath)
+  return entries.filter((entry) => entry !== appDir && !entry.startsWith(appDir + sep))
 }
 
 async function bootstrap(): Promise<void> {
@@ -47,7 +65,7 @@ async function bootstrap(): Promise<void> {
     join(app.getAppPath(), CLI_SCRIPT)
   )
   // Команду `atox` агенты находят по PATH; оболочка входа дописывает к нему свои каталоги.
-  const terminalPath = [binDirectory, process.env['PATH']].filter(Boolean).join(':')
+  const terminalPath = [binDirectory, ...inheritedPath()].join(':')
   const terminals = new TerminalManager(
     {
       appName: app.getName(),
@@ -60,9 +78,11 @@ async function bootstrap(): Promise<void> {
   )
   const branches = new GitBranchTracker(broadcastGitBranches)
   // Обновляется только собранное приложение; адрес релизов можно подменить для проверки обновлений.
-  const updater = app.isPackaged
+  const updateInstaller = app.isPackaged ? createUpdateInstaller() : null
+  const updater = updateInstaller
     ? new AppUpdater({
         feedUrl: process.env['ATOX_UPDATE_FEED_URL'] ?? __UPDATE_FEED_URL__,
+        installer: updateInstaller,
         onReady: broadcastUpdateReady
       })
     : null
@@ -86,6 +106,11 @@ async function bootstrap(): Promise<void> {
   app.on('will-quit', () => orchestration.stop())
   void installSkills().catch((error) => console.error('Failed to install agent skills', error))
   void installCodexRules().catch((error) => console.error('Failed to install Codex rules', error))
+  if (app.isPackaged && appImage) {
+    void installDesktopEntry(appImage).catch((error) =>
+      console.error('Failed to install the desktop entry', error)
+    )
+  }
   const menu = new AppMenu(settings)
   registerIpcHandlers({ store, settings, terminals, branches, updater, agents, menu })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.

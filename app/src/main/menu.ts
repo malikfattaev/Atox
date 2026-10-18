@@ -1,9 +1,11 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron'
 import { IpcChannel } from '../shared/api'
 import type { AppCommand } from '../shared/commands'
+import { IS_MAC } from '../shared/platform'
 import { TERMINAL_FONT_SIZE } from '../shared/settings'
 import {
   findShortcutConflict,
+  LINUX_QUIT_ACCELERATOR,
   resolveAccelerator,
   type ShortcutId,
   type ShortcutOverrides
@@ -11,7 +13,7 @@ import {
 import type { SettingsStore } from './settings'
 
 /** Дополнительное сочетание увеличения шрифта для раскладок, где «+» набирается с Shift. */
-const ZOOM_IN_ALIAS = 'CmdOrCtrl+='
+const ZOOM_IN_ALIAS = IS_MAC ? 'CmdOrCtrl+=' : 'Ctrl+='
 
 function sendCommand(command: AppCommand): void {
   const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
@@ -19,8 +21,9 @@ function sendCommand(command: AppCommand): void {
 }
 
 /**
- * Меню приложения macOS: через него работают горячие клавиши, в том числе копирование и вставка.
- * Свои сочетания из настроек применяются сразу, без перезапуска.
+ * Меню приложения: через него работают горячие клавиши, в том числе копирование и вставка.
+ * На Linux строка меню скрыта, а сочетания те же, что в терминалах Linux. Свои сочетания
+ * из настроек применяются сразу, без перезапуска.
  */
 export class AppMenu {
   /** Пока в настройках записывают сочетание, оно не должно срабатывать как команда. */
@@ -63,7 +66,7 @@ export class AppMenu {
     })
     const changeFontSize = (resolve: (current: number) => number) => () =>
       settings.update({ terminalFontSize: resolve(settings.get().terminalFontSize) })
-    // На раскладках без отдельной «+» увеличение срабатывает и по ⌘=, как в браузерах, —
+    // На раскладках без отдельной «+» увеличение срабатывает и по ⌘= (Ctrl+=), как в браузерах, —
     // если это сочетание не отдано другому действию.
     const zoomInAlias =
       !this.recordingShortcut && !findShortcutConflict('zoomIn', ZOOM_IN_ALIAS, shortcuts)
@@ -73,6 +76,70 @@ export class AppMenu {
     const developmentItems: MenuItemConstructorOptions[] = app.isPackaged
       ? []
       : [{ type: 'separator' }, { role: 'reload' }, { role: 'toggleDevTools' }]
+
+    const viewMenu: MenuItemConstructorOptions = {
+      label: 'View',
+      submenu: [
+        commandItem('Toggle Sidebar', 'toggleSidebar', { type: 'toggle-sidebar' }),
+        { type: 'separator' },
+        commandItem('Previous Chat', 'previousChat', { type: 'previous-chat' }),
+        commandItem('Next Chat', 'nextChat', { type: 'next-chat' }),
+        { type: 'separator' },
+        {
+          label: 'Actual Size',
+          accelerator: accelerator('actualSize'),
+          click: changeFontSize(() => TERMINAL_FONT_SIZE.default)
+        },
+        {
+          label: 'Zoom In',
+          accelerator: accelerator('zoomIn'),
+          click: changeFontSize((size) => size + 1)
+        },
+        {
+          label: 'Zoom In',
+          accelerator: zoomInAlias,
+          click: changeFontSize((size) => size + 1),
+          visible: false,
+          acceleratorWorksWhenHidden: true
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: accelerator('zoomOut'),
+          click: changeFontSize((size) => size - 1)
+        },
+        ...developmentItems
+      ]
+    }
+    const chatItems: MenuItemConstructorOptions[] = [
+      commandItem('New Chat', 'newChat', { type: 'new-chat' }),
+      commandItem('Open Project…', 'openProject', { type: 'open-project' }),
+      { type: 'separator' },
+      commandItem('Close Chat', 'closeChat', { type: 'close-chat' })
+    ]
+
+    if (!IS_MAC) {
+      // Стандартные пункты Linux заняли бы Ctrl+C, Ctrl+V и Ctrl+W, нужные терминалу, а в полях
+      // ввода копирование и отмена и так работают без меню.
+      return [
+        {
+          label: 'File',
+          submenu: [
+            ...chatItems,
+            { type: 'separator' },
+            commandItem('Settings…', 'openSettings', { type: 'open-settings' }),
+            { type: 'separator' },
+            {
+              role: 'quit',
+              accelerator: this.recordingShortcut ? undefined : LINUX_QUIT_ACCELERATOR
+            }
+          ]
+        },
+        // Копирование и вставку в терминале (Ctrl+Shift+C, Ctrl+Shift+V) обрабатывает окно, а в
+        // полях ввода они работают сами.
+        { label: 'Edit', submenu: [commandItem('Find…', 'find', { type: 'find' })] },
+        viewMenu
+      ]
+    }
 
     return [
       {
@@ -91,15 +158,7 @@ export class AppMenu {
           { role: 'quit' }
         ]
       },
-      {
-        label: 'File',
-        submenu: [
-          commandItem('New Chat', 'newChat', { type: 'new-chat' }),
-          commandItem('Open Project…', 'openProject', { type: 'open-project' }),
-          { type: 'separator' },
-          commandItem('Close Chat', 'closeChat', { type: 'close-chat' })
-        ]
-      },
+      { label: 'File', submenu: chatItems },
       {
         label: 'Edit',
         submenu: [
@@ -114,39 +173,7 @@ export class AppMenu {
           commandItem('Find…', 'find', { type: 'find' })
         ]
       },
-      {
-        label: 'View',
-        submenu: [
-          commandItem('Toggle Sidebar', 'toggleSidebar', { type: 'toggle-sidebar' }),
-          { type: 'separator' },
-          commandItem('Previous Chat', 'previousChat', { type: 'previous-chat' }),
-          commandItem('Next Chat', 'nextChat', { type: 'next-chat' }),
-          { type: 'separator' },
-          {
-            label: 'Actual Size',
-            accelerator: accelerator('actualSize'),
-            click: changeFontSize(() => TERMINAL_FONT_SIZE.default)
-          },
-          {
-            label: 'Zoom In',
-            accelerator: accelerator('zoomIn'),
-            click: changeFontSize((size) => size + 1)
-          },
-          {
-            label: 'Zoom In',
-            accelerator: zoomInAlias,
-            click: changeFontSize((size) => size + 1),
-            visible: false,
-            acceleratorWorksWhenHidden: true
-          },
-          {
-            label: 'Zoom Out',
-            accelerator: accelerator('zoomOut'),
-            click: changeFontSize((size) => size - 1)
-          },
-          ...developmentItems
-        ]
-      },
+      viewMenu,
       { role: 'windowMenu' }
     ]
   }

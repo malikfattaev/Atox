@@ -18,12 +18,46 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+defaults:
+  run:
+    working-directory: app
+
 jobs:
-  release:
-    runs-on: macos-15
-    defaults:
-      run:
-        working-directory: app
+  # Версия — major.minor из package.json и номер сборки: 0.1.42. Общая для всех платформ.
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: version
+        run: |
+          base=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
+          echo "version=$base.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - platform: mac
+            runner: macos-15
+            builder: --mac --arm64 --x64
+            files: |
+              app/dist/*.dmg
+              app/dist/*.zip
+              app/dist/latest-mac.json
+          - platform: linux
+            runner: ubuntu-24.04
+            builder: --linux --x64
+            files: |
+              app/dist/*.AppImage
+              app/dist/*.pacman
+              app/dist/latest-linux.json
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
@@ -33,31 +67,50 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
+      # Пакет pacman собирается через bsdtar.
+      - if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
+      # На Linux node-pty собирается из исходников: готовых сборок под него в пакете нет.
       - run: npm ci
 
       - run: npm run typecheck
 
-      # Версия — major.minor из package.json и номер сборки: 0.1.42.
-      - name: Set version
-        run: |
-          base=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
-          echo "VERSION=$base.${{ github.run_number }}" >> "$GITHUB_ENV"
-
       - run: npx electron-vite build
 
-      - run: npx electron-builder --mac --arm64 --x64 --publish never -c.extraMetadata.version="$VERSION"
+      - run: npx electron-builder ${{ matrix.builder }} --publish never -c.extraMetadata.version="$VERSION"
 
       - name: Sign update manifest
-        run: npm run release:manifest -- dist "$VERSION"
+        run: npm run release:manifest -- dist "$VERSION" ${{ matrix.platform }}
         env:
           ATOX_UPDATE_SIGNING_KEY: ${{ secrets.ATOX_UPDATE_SIGNING_KEY }}
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
       - name: Publish release
+        working-directory: release
         run: |
-          gh release create "v$VERSION" \
-            dist/Atox-"$VERSION"-*.dmg dist/Atox-"$VERSION"-*.zip dist/latest-mac.json \
+          gh release create "v$VERSION" * \
+            --repo "$GITHUB_REPOSITORY" \
             --title "Atox $VERSION" \
-            --notes "$(git log -1 --format=%s)" \
+            --notes "$(git -C .. log -1 --format=%s)" \
             --target "$GITHUB_SHA"
         env:
           GH_TOKEN: ${{ github.token }}
