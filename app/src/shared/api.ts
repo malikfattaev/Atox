@@ -104,6 +104,8 @@ export interface AtoxApi {
     resize(chatId: string, size: TerminalSize): void
     onData(chatId: string, listener: (data: string) => void): () => void
     onExit(chatId: string, listener: () => void): () => void
+    /** Atox отправил программе сообщение или задание — в любом чате. */
+    onSubmit(listener: (chatId: string) => void): () => void
   }
   files: {
     /** Путь на диске к файлу, перетащенному в окно. */
@@ -181,6 +183,7 @@ export const IpcChannel = {
   TerminalResize: 'terminal:resize',
   TerminalData: 'terminal:data',
   TerminalExit: 'terminal:exit',
+  TerminalSubmit: 'terminal:submit',
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
@@ -203,5 +206,10 @@ export interface TerminalDataEvent {
 }
 
 export interface TerminalExitEvent {
+  chatId: string
+}
+
+/** Atox отправил программе в терминале чата сообщение или задание. */
+export interface TerminalSubmitEvent {
   chatId: string
 }

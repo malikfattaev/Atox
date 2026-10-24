@@ -19,6 +19,23 @@ const SETTLE_LIMIT_MS = 5000
 const TERMINAL_CONTROLS =
   /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[P_^X][\s\S]*?(?:\x1b\\|$)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]|[\x00-\x1f\x7f]/g
 
+/**
+ * После Enter пользователя или сообщения от Atox вывод программы — ответ на него, то есть работа.
+ * Ответ ждём долго: команда может молча собирать проект несколько минут.
+ */
+const RESPONSE_WAIT_MS = 10 * 60 * 1000
+
+/** После конца работы её продолжение — тот же ответ: агент мог замолчать посреди него. */
+const CONTINUATION_MS = 30_000
+
+/**
+ * Вывод, который никто не запускал, — работа, только если он идёт непрерывно хотя бы столько.
+ * Агент, который сам продолжил работу (например, когда закончилась фоновая команда), всё это
+ * время показывает анимацию ожидания. Простаивающий агент выводит короткими вспышками: сводку
+ * «пока вас не было», обновлённую строку состояния, перерисовку экрана.
+ */
+const SPONTANEOUS_WORK_MS = 3000
+
 /** Уведомлять о завершении только долгой работы — быстрые команды не должны отвлекать. */
 const NOTIFY_MIN_WORK_MS = 10_000
 
@@ -33,6 +50,10 @@ interface ChatState {
   workStartedAt: number
   lastOutputAt: number
   lastInputAt: number
+  /** До этого момента вывод — ответ на отправленное пользователем или Atox. */
+  submittedUntil: number
+  /** Начало непрерывного вывода, который никто не запускал; 0 — такого вывода нет. */
+  spontaneousSince: number
   /**
    * Программа запускается или перерисовывает экран под новый размер: её вывод — не работа,
    * пока он не затихнет или пользователь что-нибудь не наберёт.
@@ -71,6 +92,14 @@ export class ChatActivityTracker {
     return () => this.listeners.delete(listener)
   }
 
+  /**
+   * Пользователь нажал Enter или Atox отправил программе сообщение: её следующий вывод —
+   * ответ, то есть работа.
+   */
+  reportSubmit(chatId: string): void {
+    this.state(chatId).submittedUntil = Date.now() + RESPONSE_WAIT_MS
+  }
+
   reportInput(chatId: string): void {
     const state = this.state(chatId)
     state.lastInputAt = Date.now()
@@ -104,21 +133,33 @@ export class ChatActivityTracker {
     }
     state.settling = false
 
-    state.lastOutputAt = now
     if (state.status !== 'working') {
-      state.workStartedAt = now
+      const workStartedAt = this.workStart(state, now)
+      state.lastOutputAt = now
+      if (workStartedAt === null) {
+        return
+      }
+      state.workStartedAt = workStartedAt
       this.setStatus(state, 'working')
     }
+    state.lastOutputAt = now
     clearTimeout(state.quietTimer)
     state.quietTimer = setTimeout(() => this.finishWork(chatId, state), QUIET_PERIOD_MS)
   }
 
-  /** Программа просит внимания: звонок терминала или уведомление через OSC 9. */
+  /**
+   * Программа просит внимания: звонок терминала или уведомление через OSC 9. Считается только
+   * во время работы — например, агент ждёт разрешения. Простаивающий агент тоже напоминает
+   * о себе («жду ввода»), но это не новость для пользователя.
+   */
   reportAttention(chatId: string, message: string): void {
     if (this.backgroundChatIds.has(chatId) || this.environment.isChatInView(chatId)) {
       return
     }
     const state = this.state(chatId)
+    if (state.status !== 'working' && Date.now() >= state.submittedUntil) {
+      return
+    }
     clearTimeout(state.quietTimer)
     this.setStatus(state, 'unread')
     this.environment.notify(chatId, message)
@@ -137,7 +178,29 @@ export class ChatActivityTracker {
     this.chats.delete(chatId)
   }
 
+  /**
+   * С какого момента вывод — работа; `null` — пока не работа. Ответ на отправленное — сразу,
+   * вывод без повода — когда он непрерывно идёт достаточно долго.
+   */
+  private workStart(state: ChatState, now: number): number | null {
+    if (now < state.submittedUntil) {
+      state.spontaneousSince = 0
+      return now
+    }
+    if (state.spontaneousSince === 0 || now - state.lastOutputAt >= QUIET_PERIOD_MS) {
+      state.spontaneousSince = now
+    }
+    if (now - state.spontaneousSince < SPONTANEOUS_WORK_MS) {
+      return null
+    }
+    const since = state.spontaneousSince
+    state.spontaneousSince = 0
+    return since
+  }
+
   private finishWork(chatId: string, state: ChatState): void {
+    // Продолжение ответа после короткой паузы — та же работа, а дальше вывод без повода — нет.
+    state.submittedUntil = Date.now() + CONTINUATION_MS
     if (this.backgroundChatIds.has(chatId) || this.environment.isChatInView(chatId)) {
       this.setStatus(state, 'idle')
       return
@@ -161,6 +224,8 @@ export class ChatActivityTracker {
         workStartedAt: 0,
         lastOutputAt: 0,
         lastInputAt: 0,
+        submittedUntil: 0,
+        spontaneousSince: 0,
         settling: false,
         settleDeadline: 0
       }

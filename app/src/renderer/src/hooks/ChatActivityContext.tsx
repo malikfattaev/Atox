@@ -30,6 +30,12 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
       })
   )
 
+  // Сообщения и задания, которые Atox отправляет агентам: их ответ — работа.
+  useEffect(
+    () => window.atox.terminal.onSubmit((chatId) => tracker.reportSubmit(chatId)),
+    [tracker]
+  )
+
   // Чаты на экране в окне, которое в фокусе, считаются просмотренными.
   const { visibleChatIds } = projects
   useEffect(() => {

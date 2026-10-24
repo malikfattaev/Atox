@@ -9,6 +9,7 @@ import {
   broadcastProjectsChanged,
   broadcastTerminalData,
   broadcastTerminalExit,
+  broadcastTerminalSubmit,
   broadcastUpdateReady,
   registerIpcHandlers
 } from './ipc'
@@ -73,7 +74,8 @@ async function bootstrap(): Promise<void> {
     },
     {
       onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
-      onExit: (chatId) => broadcastTerminalExit({ chatId })
+      onExit: (chatId) => broadcastTerminalExit({ chatId }),
+      onSubmit: (chatId) => broadcastTerminalSubmit({ chatId })
     }
   )
   const branches = new GitBranchTracker(broadcastGitBranches)

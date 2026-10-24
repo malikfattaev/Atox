@@ -17,6 +17,7 @@ import {
   type GitBranches,
   type TerminalDataEvent,
   type TerminalExitEvent,
+  type TerminalSubmitEvent,
   type TerminalSize
 } from '../shared/api'
 import type { Project } from '../shared/models'
@@ -357,6 +358,10 @@ export function broadcastTerminalData(payload: TerminalDataEvent): void {
 
 export function broadcastTerminalExit(payload: TerminalExitEvent): void {
   broadcast(IpcChannel.TerminalExit, payload)
+}
+
+export function broadcastTerminalSubmit(payload: TerminalSubmitEvent): void {
+  broadcast(IpcChannel.TerminalSubmit, payload)
 }
 
 function broadcast(channel: string, payload: unknown): void {
