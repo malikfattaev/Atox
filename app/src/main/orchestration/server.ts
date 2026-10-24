@@ -202,7 +202,7 @@ export class OrchestrationServer {
       // --allowedTools у Claude) принял бы задание за ещё одно значение. Файл удаляется сразу
       // после чтения.
       const command = `${launch} -- "$(cat ${quoteShell(taskFile)}; rm -f ${quoteShell(taskFile)})"`
-      this.services.terminals.attach(chat.id, project.path, WORKER_TERMINAL_SIZE, command)
+      this.services.terminals.attach(chat.id, project.path, WORKER_TERMINAL_SIZE, command, true)
       this.services.onProjectsChanged()
       return { chatId: chat.id, title: chat.title }
     },

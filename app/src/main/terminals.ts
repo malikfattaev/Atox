@@ -85,6 +85,8 @@ export interface RunningProgram {
 interface TerminalEvents {
   onData(chatId: string, data: string): void
   onExit(chatId: string): void
+  /** Atox отправил программе сообщение или задание: её ответ — работа. */
+  onSubmit(chatId: string): void
 }
 
 interface TerminalOptions {
@@ -104,9 +106,16 @@ export class TerminalManager {
 
   /**
    * Запускает оболочку чата, если она ещё не запущена, и возвращает накопленный вывод.
-   * `startupCommand` выполняется в новой оболочке — так запускается агент чата.
+   * `startupCommand` выполняется в новой оболочке — так запускается агент чата; `withTask` —
+   * агенту в этой команде передано задание, и он сразу начнёт работать.
    */
-  attach(chatId: string, cwd: string, size: TerminalSize, startupCommand: string): string {
+  attach(
+    chatId: string,
+    cwd: string,
+    size: TerminalSize,
+    startupCommand: string,
+    withTask = false
+  ): string {
     const existing = this.sessions.get(chatId)
     if (existing) {
       this.resizeSession(existing, size)
@@ -144,6 +153,9 @@ export class TerminalManager {
     // Оболочка сама прочитает команду, как только будет готова: ввод буферизуется терминалом.
     if (startupCommand) {
       pty.write(`${startupCommand}\r`)
+      if (withTask) {
+        this.events.onSubmit(chatId)
+      }
     }
 
     pty.onExit(() => {
@@ -219,6 +231,7 @@ export class TerminalManager {
         session.pty.write('\r')
         // Enter отправил и вставку, и черновик, если он был.
         session.hasDraft = false
+        this.events.onSubmit(chatId)
       }
     }, PASTE_SUBMIT_DELAY_MS)
     return true

@@ -207,6 +207,10 @@ export function TerminalView({
       // Ответы терминала на запросы программы (фокус, версия, курсор) — не ввод пользователя.
       if (!reply) {
         activity.reportInput(chatId)
+        // Enter отправляет набранное: дальше программа отвечает на него.
+        if (data.includes('\r')) {
+          activity.reportSubmit(chatId)
+        }
       }
       atox.terminal.write(chatId, data)
     })

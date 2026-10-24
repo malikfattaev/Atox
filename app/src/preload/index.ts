@@ -6,7 +6,8 @@ import {
   type AtoxApi,
   type GitBranches,
   type TerminalDataEvent,
-  type TerminalExitEvent
+  type TerminalExitEvent,
+  type TerminalSubmitEvent
 } from '../shared/api'
 
 type Listener<Payload> = (payload: Payload) => void
@@ -97,7 +98,9 @@ const api: AtoxApi = {
     write: (chatId, data) => ipcRenderer.send(IpcChannel.TerminalWrite, chatId, data),
     resize: (chatId, size) => ipcRenderer.send(IpcChannel.TerminalResize, chatId, size),
     onData: onTerminalData,
-    onExit: (chatId, listener) => onTerminalExit(chatId, () => listener())
+    onExit: (chatId, listener) => onTerminalExit(chatId, () => listener()),
+    onSubmit: (listener) =>
+      subscribe<TerminalSubmitEvent>(IpcChannel.TerminalSubmit, ({ chatId }) => listener(chatId))
   },
   files: {
     getPath: (file) => webUtils.getPathForFile(file),
