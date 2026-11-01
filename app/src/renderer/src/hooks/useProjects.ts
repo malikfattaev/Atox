@@ -44,7 +44,7 @@ export interface ProjectsState {
   activeChatId: string | null
   /** Чаты на экране слева направо; два — когда чаты открыты рядом. */
   visibleChatIds: string[]
-  /** Чаты, которые открывались в этой сессии: их терминалы держим смонтированными. */
+  /** Чаты, которые открывались в этой сессии: остаются смонтированными с черновиком и прокруткой. */
   openedChatIds: string[]
   /**
    * Чаты открытого пространства в порядке сайдбара — по ним работает переключение
@@ -130,7 +130,11 @@ export function useProjects(): ProjectsState {
       projectsRef.current = next
       setProjects(next)
       const existingChatIds = new Set(next.flatMap((project) => project.chats.map(({ id }) => id)))
-      setOpenedChatIds((ids) => ids.filter((id) => existingChatIds.has(id)))
+      setOpenedChatIds((ids) =>
+        ids.every((id) => existingChatIds.has(id))
+          ? ids
+          : ids.filter((id) => existingChatIds.has(id))
+      )
 
       // Удалённый чат пропадает с экрана; если рядом открыт второй, фокус переходит к нему.
       const current = viewRef.current
@@ -183,7 +187,11 @@ export function useProjects(): ProjectsState {
         shownProjectIds: { ...current.shownProjectIds, [project.spaceId]: projectId },
         layouts: { ...current.layouts, [projectId]: after }
       })
-      setOpenedChatIds((ids) => [...new Set([...ids, ...after.visibleChatIds])])
+      setOpenedChatIds((ids) =>
+        after.visibleChatIds.every((id) => ids.includes(id))
+          ? ids
+          : [...new Set([...ids, ...after.visibleChatIds])]
+      )
       // Чат из другого пространства (например, по клику на уведомление) открывает и его.
       selectSpace(project.spaceId)
 
