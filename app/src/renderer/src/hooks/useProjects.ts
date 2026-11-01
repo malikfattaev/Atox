@@ -75,8 +75,8 @@ export interface ProjectsState {
   setSplitPosition(projectId: string, position: number): Promise<void>
   moveProject(projectId: string, toIndex: number): Promise<void>
   revealProject(projectId: string): Promise<void>
-  /** Без агента чат создаётся с агентом по умолчанию. */
-  createChat(projectId: string, agent?: AgentId): Promise<void>
+  /** Без агента чат создаётся с агентом по умолчанию. Возвращает id нового чата. */
+  createChat(projectId: string, agent?: AgentId): Promise<string>
   removeChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
   moveChat(chatId: string, toIndex: number): Promise<void>
@@ -246,6 +246,7 @@ export function useProjects(): ProjectsState {
       const { projects: next, chatId } = await atox.chats.create(projectId, agent)
       applyProjects(next)
       selectChat(chatId)
+      return chatId
     },
     [applyProjects, selectChat]
   )

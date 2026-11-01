@@ -2,16 +2,28 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { X } from 'lucide-react'
 import { DEFAULT_SPLIT_POSITION } from '../../../shared/split'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { useGitBranches } from '../hooks/useGitBranches'
 import { ChatView } from './ChatView'
+import { RepositoryView, type RepositorySection } from './RepositoryView'
 import { SettingsView } from './SettingsView'
 import { SplitResizer } from './SplitResizer'
 
+/** Страница, открытая поверх чатов. */
+export type WorkspacePage = { kind: 'settings' } | { kind: 'repository'; projectId: string }
+
 interface WorkspaceProps {
-  settingsOpen: boolean
-  onCloseSettings(): void
+  page: WorkspacePage | null
+  repositorySection: RepositorySection
+  onRepositorySectionChange(section: RepositorySection): void
+  onClosePage(): void
 }
 
-export function Workspace({ settingsOpen, onCloseSettings }: WorkspaceProps) {
+export function Workspace({
+  page,
+  repositorySection,
+  onRepositorySectionChange,
+  onClosePage
+}: WorkspaceProps) {
   const {
     projects,
     activeChatId,
@@ -22,12 +34,17 @@ export function Workspace({ settingsOpen, onCloseSettings }: WorkspaceProps) {
     closeChatPane,
     setSplitPosition
   } = useProjectsContext()
+  const branches = useGitBranches()
   const workspaceRef = useRef<HTMLElement>(null)
   // Пока тянут разделитель, положение живёт здесь; у проекта сохраняется только итоговое.
   const [draftPosition, setDraftPosition] = useState<number | null>(null)
   const currentProject = projects.find(({ id }) => id === currentProjectId)
   const splitPosition = draftPosition ?? currentProject?.split?.position ?? DEFAULT_SPLIT_POSITION
-  const isSplit = !settingsOpen && visibleChatIds.length > 1
+  // Проект страницы репозитория могли убрать из списка — тогда и страницы нет.
+  const repositoryProject =
+    page?.kind === 'repository' ? projects.find(({ id }) => id === page.projectId) : undefined
+  const pageOpen = page?.kind === 'settings' || Boolean(repositoryProject)
+  const isSplit = !pageOpen && visibleChatIds.length > 1
   const chatTitles = new Map(
     projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
   )
@@ -41,7 +58,7 @@ export function Workspace({ settingsOpen, onCloseSettings }: WorkspaceProps) {
     >
       {openedChatIds.map((chatId) => {
         const pane = visibleChatIds.indexOf(chatId)
-        const visible = !settingsOpen && pane >= 0
+        const visible = !pageOpen && pane >= 0
         const focused = visible && chatId === activeChatId
         return (
           // Открытые чаты остаются смонтированными: скрытый чат не теряет черновик и прокрутку.
@@ -79,8 +96,19 @@ export function Workspace({ settingsOpen, onCloseSettings }: WorkspaceProps) {
           onCommit={(position) => void setSplitPosition(currentProjectId, position)}
         />
       )}
-      {settingsOpen && <SettingsView onClose={onCloseSettings} />}
-      {!settingsOpen && !activeChatId && (
+      {page?.kind === 'settings' && <SettingsView onClose={onClosePage} />}
+      {repositoryProject && (
+        <RepositoryView
+          // У каждого проекта свои фильтры и данные: при смене проекта страница начинается заново.
+          key={repositoryProject.id}
+          project={repositoryProject}
+          branch={branches[repositoryProject.path] ?? null}
+          section={repositorySection}
+          onSectionChange={onRepositorySectionChange}
+          onClose={onClosePage}
+        />
+      )}
+      {!pageOpen && !activeChatId && (
         <p className="workspace__empty">Select a chat or create a new one</p>
       )}
     </main>

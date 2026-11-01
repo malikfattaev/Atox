@@ -88,6 +88,7 @@ export class AppMenu {
       label: 'View',
       submenu: [
         commandItem('Toggle Sidebar', 'toggleSidebar', { type: 'toggle-sidebar' }),
+        commandItem('Repository', 'toggleRepository', { type: 'toggle-repository' }),
         { type: 'separator' },
         commandItem('Previous Chat', 'previousChat', { type: 'previous-chat' }),
         commandItem('Next Chat', 'nextChat', { type: 'next-chat' }),

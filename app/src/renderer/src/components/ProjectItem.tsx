@@ -23,9 +23,11 @@ interface ProjectItemProps {
   project: Project
   /** Текущая ветка git в папке проекта; `null` — папка не репозиторий. */
   branch: string | null
+  /** Открывает коммиты, PR и issue проекта. */
+  onOpenRepository(projectId: string): void
 }
 
-export function ProjectItem({ project, branch }: ProjectItemProps) {
+export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemProps) {
   const {
     activeChatId,
     createChat,
@@ -72,6 +74,15 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
     event.preventDefault()
     const action = await atox.showContextMenu([
       { action: 'create-chat', label: 'New chat', symbol: 'square.and.pencil' },
+      ...(branch
+        ? [
+            {
+              action: 'repository',
+              label: 'Commits, PRs and Issues',
+              symbol: 'arrow.triangle.pull'
+            }
+          ]
+        : []),
       { type: 'separator' },
       { action: 'rename', label: 'Rename', symbol: 'pencil' },
       colorSubmenu(project.color),
@@ -105,6 +116,9 @@ export function ProjectItem({ project, branch }: ProjectItemProps) {
     switch (action) {
       case 'create-chat':
         createProjectChat()
+        break
+      case 'repository':
+        onOpenRepository(project.id)
         break
       case 'rename':
         setRenaming(true)

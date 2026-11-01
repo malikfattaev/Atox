@@ -14,6 +14,7 @@ interface AppCommandHandlers {
   projects: ProjectsState
   toggleSidebar(): void
   openSettings(): void
+  toggleRepository(): void
 }
 
 export function useAppCommands(handlers: AppCommandHandlers): void {
@@ -60,6 +61,9 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
           break
         case 'open-settings':
           handlersRef.current.openSettings()
+          break
+        case 'toggle-repository':
+          handlersRef.current.toggleRepository()
           break
       }
     }

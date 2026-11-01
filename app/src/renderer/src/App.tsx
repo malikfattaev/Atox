@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { RepositorySection } from './components/RepositoryView'
 import { Sidebar } from './components/Sidebar'
-import { Workspace } from './components/Workspace'
+import { Workspace, type WorkspacePage } from './components/Workspace'
 import { ChatActivityProvider, useChatsCovered } from './hooks/ChatActivityContext'
 import { ProjectsProvider, useProjectsContext } from './hooks/ProjectsContext'
 import { SettingsProvider } from './hooks/SettingsContext'
@@ -21,22 +22,49 @@ export function App() {
 function Layout() {
   const projects = useProjectsContext()
   const [sidebarVisible, setSidebarVisible] = useState(true)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [page, setPage] = useState<WorkspacePage | null>(null)
+  // Раздел страницы репозитория не сбрасывается, когда её закрывают и открывают снова.
+  const [repositorySection, setRepositorySection] = useState<RepositorySection>('commits')
+  const { currentProjectId } = projects
 
   const toggleSidebar = useCallback(() => setSidebarVisible((visible) => !visible), [])
-  const openSettings = useCallback(() => setSettingsOpen(true), [])
-  const closeSettings = useCallback(() => setSettingsOpen(false), [])
+  const openSettings = useCallback(() => setPage({ kind: 'settings' }), [])
+  const closePage = useCallback(() => setPage(null), [])
+  const openRepository = useCallback(
+    (projectId: string) => setPage({ kind: 'repository', projectId }),
+    []
+  )
+  // Кнопка и горячая клавиша открывают репозиторий текущего проекта, а повторно — закрывают.
+  const toggleRepository = useCallback(() => {
+    setPage((current) =>
+      current?.kind === 'repository' || !currentProjectId
+        ? null
+        : { kind: 'repository', projectId: currentProjectId }
+    )
+  }, [currentProjectId])
 
-  // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает настройки.
-  useEffect(closeSettings, [projects.activeChatId, closeSettings])
+  // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает страницу поверх чатов.
+  useEffect(closePage, [projects.activeChatId, closePage])
 
-  useAppCommands({ projects, toggleSidebar, openSettings })
-  useChatsCovered(settingsOpen)
+  useAppCommands({ projects, toggleSidebar, openSettings, toggleRepository })
+  useChatsCovered(page !== null)
 
   return (
     <div className="app" data-sidebar={sidebarVisible ? 'visible' : 'hidden'}>
-      {sidebarVisible && <Sidebar onOpenSettings={openSettings} />}
-      <Workspace settingsOpen={settingsOpen} onCloseSettings={closeSettings} />
+      {sidebarVisible && (
+        <Sidebar
+          repositoryOpen={page?.kind === 'repository'}
+          onOpenSettings={openSettings}
+          onToggleRepository={toggleRepository}
+          onOpenRepository={openRepository}
+        />
+      )}
+      <Workspace
+        page={page}
+        repositorySection={repositorySection}
+        onRepositorySectionChange={setRepositorySection}
+        onClosePage={closePage}
+      />
     </div>
   )
 }

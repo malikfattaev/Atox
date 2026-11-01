@@ -8,3 +8,4 @@ export type AppCommand =
   | { type: 'next-chat' }
   | { type: 'find' }
   | { type: 'open-settings' }
+  | { type: 'toggle-repository' }

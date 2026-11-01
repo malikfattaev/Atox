@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FolderPlus, SquarePen } from 'lucide-react'
+import { FolderPlus, GitPullRequest, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentPicker } from '../hooks/useAgentPicker'
 import { useGitBranches } from '../hooks/useGitBranches'
@@ -12,10 +12,19 @@ import { SortableList } from './SortableList'
 import { SpacePicker } from './SpacePicker'
 
 interface SidebarProps {
+  /** Открыта страница репозитория — её кнопка подсвечена. */
+  repositoryOpen: boolean
   onOpenSettings(): void
+  onToggleRepository(): void
+  onOpenRepository(projectId: string): void
 }
 
-export function Sidebar({ onOpenSettings }: SidebarProps) {
+export function Sidebar({
+  repositoryOpen,
+  onOpenSettings,
+  onToggleRepository,
+  onOpenRepository
+}: SidebarProps) {
   const { spaces, activeSpaceId, spaceProjects, currentProjectId, addProject, moveProject } =
     useProjectsContext()
   const activeSpace = spaces.find(({ id }) => id === activeSpaceId)
@@ -38,6 +47,13 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
           onClick={() => currentProjectId && void pickAgentAndCreateChat(currentProjectId)}
         />
         <SidebarButton icon={FolderPlus} label="New project" onClick={() => void addProject()} />
+        <SidebarButton
+          icon={GitPullRequest}
+          label="Repository"
+          active={repositoryOpen}
+          disabled={!currentProjectId}
+          onClick={onToggleRepository}
+        />
       </nav>
 
       <div className="sidebar__spaces">
@@ -58,6 +74,7 @@ export function Sidebar({ onOpenSettings }: SidebarProps) {
                 key={project.id}
                 project={project}
                 branch={branches[project.path] ?? null}
+                onOpenRepository={onOpenRepository}
               />
             )}
           </SortableList>

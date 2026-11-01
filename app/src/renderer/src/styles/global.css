@@ -41,6 +41,15 @@
   /* Насколько плотно залита цветная папка проекта. */
   --project-icon-fill: 40%;
   /* Ширина колонки ленты и поля ввода: строки длиннее читать тяжело. */
+  --repository-width: 800px;
+  --repository-gutter: 32px;
+  --repository-row-padding: 10px;
+  --repository-control-height: 28px;
+  --repository-search-width: 180px;
+  --repository-badge-height: 18px;
+  --repository-small-icon-size: 13px;
+  --repository-time-width: 44px;
+
   --chat-column-width: 768px;
   --chat-gutter: 24px;
   --chat-block-gap: 16px;
@@ -89,6 +98,13 @@
   --color-danger: #d70015;
   --color-danger-background: rgba(215, 0, 21, 0.06);
   --shadow-composer: 0 4px 24px rgba(0, 0, 0, 0.06);
+  /* Цвета состояний PR и issue — как в GitHub, чтобы читались без подписи. */
+  --color-git-open: #1a7f37;
+  --color-git-merged: #8250df;
+  --color-git-closed: #cf222e;
+  --color-git-pending: #9a6700;
+  --color-segment-selected: #ffffff;
+  --shadow-segment-selected: 0 1px 2px rgba(0, 0, 0, 0.12);
 
   color-scheme: light dark;
   font-family: var(--font-sans);
@@ -121,6 +137,12 @@
     --color-danger: #ff6961;
     --color-danger-background: rgba(255, 105, 97, 0.1);
     --shadow-composer: 0 4px 24px rgba(0, 0, 0, 0.3);
+    --color-git-open: #3fb950;
+    --color-git-merged: #a371f7;
+    --color-git-closed: #f85149;
+    --color-git-pending: #d29922;
+    --color-segment-selected: rgba(255, 255, 255, 0.12);
+    --shadow-segment-selected: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -240,6 +262,10 @@ ul {
 
 .sidebar-button:hover:not(:disabled) {
   background: var(--color-hover);
+}
+
+.sidebar-button[data-active='true'] {
+  background: var(--color-active);
 }
 
 .sidebar-button:disabled {
@@ -830,6 +856,425 @@ ul {
 .icon-button:disabled {
   opacity: 0.4;
   background: none;
+}
+
+/* Репозиторий: коммиты, pull request'ы и issue проекта */
+
+.repository {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(var(--titlebar-height) + 8px);
+  background: var(--color-surface);
+}
+
+.repository__header,
+.repository__toolbar,
+.repository__list,
+.repository__message {
+  width: 100%;
+  max-width: var(--repository-width);
+  margin-inline: auto;
+  padding-inline: var(--repository-gutter);
+}
+
+.repository__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.repository__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.repository__title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: var(--repository-badge-height);
+  max-width: 220px;
+  padding: 0 8px;
+  overflow: hidden;
+  border-radius: calc(var(--repository-badge-height) / 2);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--color-hover);
+}
+
+.repository__chip--link:hover {
+  color: var(--color-text);
+  background: var(--color-active);
+}
+
+.repository__chip-icon {
+  width: var(--repository-small-icon-size);
+  height: var(--repository-small-icon-size);
+  flex-shrink: 0;
+}
+
+.repository__actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.icon-button[data-loading='true'] .repository__refresh-icon {
+  animation: spin 1s linear infinite;
+}
+
+.repository__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.repository__filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Переключатель разделов, как сегментированный контрол macOS. */
+.segmented {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--color-hover);
+}
+
+.segmented__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--repository-control-height);
+  padding: 0 10px;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.segmented__item:hover {
+  color: var(--color-text);
+}
+
+.segmented__item[aria-selected='true'],
+.segmented__item[aria-checked='true'] {
+  color: var(--color-text);
+  background: var(--color-segment-selected);
+  box-shadow: var(--shadow-segment-selected);
+}
+
+.segmented--small .segmented__item {
+  height: calc(var(--repository-control-height) - 4px);
+  padding: 0 8px;
+  font-size: var(--font-size-small);
+}
+
+.segmented__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  stroke-width: 1.75;
+}
+
+.segmented__count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.repository__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.repository__search-icon {
+  position: absolute;
+  left: 8px;
+  width: var(--repository-small-icon-size);
+  height: var(--repository-small-icon-size);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.repository__search input {
+  width: var(--repository-search-width);
+  min-width: 0;
+  height: var(--repository-control-height);
+  padding: 0 8px 0 26px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  outline: none;
+  appearance: none;
+}
+
+.repository__search input:focus {
+  border-color: var(--color-accent);
+}
+
+.repository__search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.repository__body {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0 32px;
+  overflow-y: auto;
+}
+
+/* Значок строки стоит в отступе, а текст выровнен с заголовком страницы. */
+.repository__list {
+  padding-inline: calc(var(--repository-gutter) - var(--repository-row-padding));
+}
+
+.repository__message {
+  margin-block: 48px 0;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.repository__message-title {
+  margin: 0;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.repository__message-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  user-select: text;
+}
+
+.repository__message code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--color-code);
+}
+
+.repo-row {
+  position: relative;
+}
+
+.repo-row__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px var(--repository-row-padding);
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.repo-row__main:hover {
+  background: var(--color-hover);
+}
+
+.repo-row__icon {
+  display: grid;
+  color: var(--color-text-muted);
+}
+
+.repo-row__icon[data-tone='open'] {
+  color: var(--color-git-open);
+}
+
+.repo-row__icon[data-tone='merged'] {
+  color: var(--color-git-merged);
+}
+
+.repo-row__icon[data-tone='closed'] {
+  color: var(--color-git-closed);
+}
+
+.repo-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.repo-row__title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.repo-row__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-row__meta {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.repo-row__meta-part {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.repo-row__meta-part + .repo-row__meta-part::before {
+  content: '·';
+  margin: 0 6px;
+}
+
+.repo-row__mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.repo-row__aside {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.repo-row__time {
+  min-width: var(--repository-time-width);
+  text-align: right;
+}
+
+/* Действие строки появляется при наведении на месте счётчиков. */
+.repo-row__action {
+  position: absolute;
+  top: 50%;
+  right: var(--repository-row-padding);
+  height: var(--repository-control-height);
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  background: var(--color-surface);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.repo-row:hover .repo-row__action,
+.repo-row__action:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.repo-row[data-has-action='true']:hover .repo-row__aside {
+  visibility: hidden;
+}
+
+.repo-row__action:hover {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.repo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: var(--repository-badge-height);
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--repository-badge-height) / 2);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.repo-badge--accent {
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+
+.repo-badge[data-review='approved'] {
+  color: var(--color-git-open);
+}
+
+.repo-badge[data-review='changes-requested'] {
+  color: var(--color-git-closed);
+}
+
+.repo-badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.repo-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.repo-stat__icon {
+  width: var(--repository-small-icon-size);
+  height: var(--repository-small-icon-size);
+  stroke-width: 2;
+}
+
+.repo-stat[data-checks='success'] {
+  color: var(--color-git-open);
+}
+
+.repo-stat[data-checks='failure'] {
+  color: var(--color-git-closed);
+}
+
+.repo-stat[data-checks='pending'] {
+  color: var(--color-git-pending);
+}
+
+.repo-stat__added {
+  color: var(--color-git-open);
+}
+
+.repo-stat__removed {
+  color: var(--color-git-closed);
 }
 
 /* Рабочая область */
