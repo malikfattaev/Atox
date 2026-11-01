@@ -45,7 +45,8 @@ export class TranscriptStore {
   private writer(chatId: string): JsonFileWriter {
     let writer = this.writers.get(chatId)
     if (!writer) {
-      writer = new JsonFileWriter(this.path(chatId))
+      // Лента с выводом команд весит мегабайты и переписывается, пока агент пишет ответ.
+      writer = new JsonFileWriter(this.path(chatId), { compact: true })
       this.writers.set(chatId, writer)
     }
     return writer

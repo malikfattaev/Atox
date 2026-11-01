@@ -38,11 +38,18 @@ export class JsonFileWriter {
   /** Цепочка записей: каждая начинается после предыдущей, поэтому порядок не нарушается. */
   private pendingWrites: Promise<void> = Promise.resolve()
 
-  constructor(private readonly filePath: string) {}
+  /**
+   * `compact` — без отступов: для больших файлов, которые часто переписываются целиком
+   * и которые человек не читает.
+   */
+  constructor(
+    private readonly filePath: string,
+    private readonly options: { compact?: boolean } = {}
+  ) {}
 
   /** Снимок данных берётся в момент вызова, запись — после уже начатых. */
   write(data: unknown): void {
-    const contents = JSON.stringify(data, null, 2)
+    const contents = this.options.compact ? JSON.stringify(data) : JSON.stringify(data, null, 2)
     this.pendingWrites = this.pendingWrites
       .then(() => this.writeAtomically(contents))
       .catch((error) => console.error(`Failed to write ${this.filePath}`, error))
