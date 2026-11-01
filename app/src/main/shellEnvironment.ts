@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { userInfo } from 'node:os'
 import { delimiter, dirname, sep } from 'node:path'
-import { promisify } from 'node:util'
-
-const execFileAsync = promisify(execFile)
 
 /** Стандартная оболочка системы — на случай, если система не сообщила оболочку пользователя. */
 const DEFAULT_SHELL = process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'
@@ -48,6 +45,12 @@ const SHELL_OWN_KEYS = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL'])
 /** Интерактивная оболочка читает .zshrc; если он завис, агенты не должны ждать вечно. */
 const READ_TIMEOUT_MS = 10_000
 
+/** Сколько ждать конца вывода после выхода оболочки. */
+const OUTPUT_GRACE_MS = 500
+
+/** Больше этого `env` не печатает: дальше — мусор из профиля, а не окружение. */
+const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+
 /** Метка вокруг вывода `env`: .zshrc может что-нибудь напечатать до или после. */
 const OUTPUT_MARKER = '__ATOX_ENVIRONMENT__'
 
@@ -71,10 +74,9 @@ export class ShellEnvironment {
   private async read(): Promise<Record<string, string>> {
     const base = sessionEnvironment()
     try {
-      const { stdout } = await execFileAsync(
-        resolveShell(),
-        ['-l', '-i', '-c', `printf '%s' ${OUTPUT_MARKER}; env -0; printf '%s' ${OUTPUT_MARKER}`],
-        { env: base, timeout: READ_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 }
+      const stdout = await runLoginShell(
+        `printf '%s' ${OUTPUT_MARKER}; env -0; printf '%s' ${OUTPUT_MARKER}`,
+        base
       )
       const parsed = parseEnvironment(stdout)
       if (parsed) {
@@ -86,6 +88,69 @@ export class ShellEnvironment {
     }
     // Без профиля агенты найдутся хуже, но запустятся с тем, что есть у процесса.
     return base
+  }
+}
+
+/**
+ * Выполняет команду в интерактивной оболочке входа и возвращает её вывод.
+ *
+ * Интерактивные zsh и bash игнорируют SIGTERM, а фоновые процессы из профиля (ssh-agent,
+ * gpg-agent) держат вывод открытым после выхода оболочки. Поэтому по таймауту вся группа
+ * процессов получает SIGKILL, а после выхода оболочки ответ не ждёт закрытия вывода дольше
+ * короткой паузы. Код выхода не важен: окружение проверяется по меткам вокруг вывода.
+ */
+function runLoginShell(command: string, env: Record<string, string>): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(resolveShell(), ['-l', '-i', '-c', command], {
+      env,
+      // Без stdin профиль, который что-то спрашивает, не зависнет в ожидании ответа.
+      stdio: ['ignore', 'pipe', 'ignore'],
+      // Своя группа процессов: её можно остановить целиком вместе с потомками.
+      detached: true
+    })
+    let output = ''
+    let settled = false
+    const finish = (error: Error | null) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      clearTimeout(timer)
+      child.stdout.removeAllListeners('data')
+      if (error) {
+        killGroup(child.pid)
+        reject(error)
+      } else {
+        resolve(output)
+      }
+    }
+    const timer = setTimeout(
+      () => finish(new Error(`The login shell did not finish in ${READ_TIMEOUT_MS} ms`)),
+      READ_TIMEOUT_MS
+    )
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      output += chunk
+      if (output.length > MAX_OUTPUT_BYTES) {
+        finish(new Error('The login shell printed too much output'))
+      }
+    })
+    child.on('error', finish)
+    // Обычно вывод закрывается сразу за выходом оболочки. Если его держит фоновый процесс
+    // из профиля, весь вывод оболочки к этому времени уже прочитан.
+    child.stdout.on('close', () => finish(null))
+    child.on('exit', () => setTimeout(() => finish(null), OUTPUT_GRACE_MS))
+  })
+}
+
+function killGroup(pid: number | undefined): void {
+  if (pid === undefined) {
+    return
+  }
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch {
+    // Группа уже завершилась.
   }
 }
 
