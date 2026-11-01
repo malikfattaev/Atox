@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -13,18 +14,25 @@ import { useProjectsContext } from './ProjectsContext'
 import type { ProjectsState } from './useProjects'
 
 const ChatActivityContext = createContext<ChatActivityTracker | null>(null)
+/** Сообщает, что чаты закрыты другим экраном (настройками): тогда их не видно. */
+const ChatsCoveredContext = createContext<((covered: boolean) => void) | null>(null)
 
 export function ChatActivityProvider({ children }: { children: ReactNode }) {
   const projects = useProjectsContext()
   // Трекер живёт всё время работы окна и читает актуальные проекты через ref.
   const projectsRef = useRef(projects)
   projectsRef.current = projects
+  const [chatsCovered, setChatsCovered] = useState(false)
+  const chatsCoveredRef = useRef(chatsCovered)
+  chatsCoveredRef.current = chatsCovered
 
   const [tracker] = useState(
     () =>
       new ChatActivityTracker({
         isChatInView: (chatId) =>
-          projectsRef.current.visibleChatIds.includes(chatId) && document.hasFocus(),
+          !chatsCoveredRef.current &&
+          projectsRef.current.visibleChatIds.includes(chatId) &&
+          document.hasFocus(),
         notify: (chatId, message) => showChatNotification(projectsRef.current, chatId, message)
       })
   )
@@ -41,14 +49,14 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
   // Чаты на экране в окне, которое в фокусе, считаются просмотренными.
   const { visibleChatIds } = projects
   useEffect(() => {
-    if (visibleChatIds.length === 0) {
+    if (visibleChatIds.length === 0 || chatsCovered) {
       return
     }
     const markSeen = () => visibleChatIds.forEach((chatId) => tracker.markSeen(chatId))
     markSeen()
     window.addEventListener('focus', markSeen)
     return () => window.removeEventListener('focus', markSeen)
-  }, [visibleChatIds, tracker])
+  }, [visibleChatIds, chatsCovered, tracker])
 
   // Помощники работают в фоне: о результате сообщает их агент, а не уведомление.
   const { projects: projectList } = projects
@@ -68,7 +76,22 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
     trackedChatIdsRef.current = chatIds
   }, [projectList, tracker])
 
-  return <ChatActivityContext.Provider value={tracker}>{children}</ChatActivityContext.Provider>
+  return (
+    <ChatActivityContext.Provider value={tracker}>
+      <ChatsCoveredContext.Provider value={setChatsCovered}>
+        {children}
+      </ChatsCoveredContext.Provider>
+    </ChatActivityContext.Provider>
+  )
+}
+
+/** Чаты закрыты другим экраном: работа, законченная за ним, остаётся непрочитанной. */
+export function useChatsCovered(covered: boolean): void {
+  const setChatsCovered = useContext(ChatsCoveredContext)
+  if (!setChatsCovered) {
+    throw new Error('useChatsCovered must be used within ChatActivityProvider')
+  }
+  useEffect(() => setChatsCovered(covered), [covered, setChatsCovered])
 }
 
 /** Системное уведомление о чате; клик по нему открывает окно на этом чате. */
@@ -102,11 +125,10 @@ export function useChatActivity(
   workerChatIds: readonly string[] = []
 ): ChatActivityStatus {
   const tracker = useChatActivityTracker()
-  return useSyncExternalStore(
-    (listener) => tracker.subscribe(listener),
-    () =>
-      workerChatIds.some((id) => tracker.status(id) === 'working')
-        ? 'working'
-        : tracker.status(chatId)
+  const subscribe = useCallback((listener: () => void) => tracker.subscribe(listener), [tracker])
+  return useSyncExternalStore(subscribe, () =>
+    workerChatIds.some((id) => tracker.status(id) === 'working')
+      ? 'working'
+      : tracker.status(chatId)
   )
 }

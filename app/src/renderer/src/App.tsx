@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { Workspace } from './components/Workspace'
-import { ChatActivityProvider } from './hooks/ChatActivityContext'
+import { ChatActivityProvider, useChatsCovered } from './hooks/ChatActivityContext'
 import { ProjectsProvider, useProjectsContext } from './hooks/ProjectsContext'
 import { SettingsProvider } from './hooks/SettingsContext'
 import { useAppCommands } from './hooks/useAppCommands'
@@ -31,6 +31,7 @@ function Layout() {
   useEffect(closeSettings, [projects.activeChatId, closeSettings])
 
   useAppCommands({ projects, toggleSidebar, openSettings })
+  useChatsCovered(settingsOpen)
 
   return (
     <div className="app" data-sidebar={sidebarVisible ? 'visible' : 'hidden'}>
