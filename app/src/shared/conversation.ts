@@ -21,6 +21,22 @@ export interface AgentCatalog {
   defaultModel: string
 }
 
+/** Лимит подписки агента, например недельный. */
+export interface UsageLimit {
+  label: string
+  /** Сколько лимита израсходовано, в процентах. */
+  usedPercent: number
+  /** Когда лимит обновится, в миллисекундах Unix; нет — агент не сообщил. */
+  resetsAt?: number
+}
+
+/** Заполненность контекста разговора и лимиты подписки — то, что показывают `/context` и `/usage`. */
+export interface ConversationUsage {
+  /** Сколько токенов занимает разговор и сколько вмещает модель. */
+  context?: { used: number; limit: number }
+  limits: UsageLimit[]
+}
+
 /** Модель и эффорт, выбранные для чата. */
 export interface ModelSelection {
   model: string
@@ -73,16 +89,28 @@ export interface ConversationSnapshot {
   items: TimelineItem[]
   /** Агент сейчас работает над сообщением. */
   running: boolean
+  /** Контекст и лимиты по последнему ответу агента; нет — агент ещё не отвечал в этом запуске. */
+  usage?: ConversationUsage
 }
 
 export type ConversationEvent =
   /** Новый элемент ленты или новая версия существующего (с тем же `id`). */
   | { chatId: string; type: 'item'; item: TimelineItem }
   /** Продолжение текста элемента, который агент ещё пишет. */
-  | { chatId: string; type: 'delta'; itemId: string; field: StreamedField; delta: string }
+  | {
+      chatId: string
+      type: 'delta'
+      itemId: string
+      field: StreamedField
+      delta: string
+    }
   | { chatId: string; type: 'running'; running: boolean }
+  | { chatId: string; type: 'usage'; usage: ConversationUsage }
 
-export const EMPTY_CONVERSATION: ConversationSnapshot = { items: [], running: false }
+export const EMPTY_CONVERSATION: ConversationSnapshot = {
+  items: [],
+  running: false
+}
 
 /**
  * Сколько вывода команды хранить: длинная сборка или лог печатают мегабайты, а в ленте
@@ -97,9 +125,9 @@ export function applyConversationEvent(
 ): ConversationSnapshot {
   switch (event.type) {
     case 'running':
-      return snapshot.running === event.running
-        ? snapshot
-        : { ...snapshot, running: event.running }
+      return snapshot.running === event.running ? snapshot : { ...snapshot, running: event.running }
+    case 'usage':
+      return { ...snapshot, usage: event.usage }
     case 'item': {
       const index = snapshot.items.findIndex(({ id }) => id === event.item.id)
       const items =
@@ -117,7 +145,10 @@ export function applyConversationEvent(
       const updated = appendToField(item, event.field, event.delta)
       return updated === item
         ? snapshot
-        : { ...snapshot, items: snapshot.items.map((other, i) => (i === index ? updated : other)) }
+        : {
+            ...snapshot,
+            items: snapshot.items.map((other, i) => (i === index ? updated : other))
+          }
     }
   }
 }
@@ -142,6 +173,10 @@ const TITLE_LENGTH = 60
 
 /** Название чата из первого сообщения: его первая непустая строка. */
 export function titleFromMessage(text: string): string {
-  const line = text.split('\n').find((part) => part.trim())?.trim() ?? ''
+  const line =
+    text
+      .split('\n')
+      .find((part) => part.trim())
+      ?.trim() ?? ''
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH - 1).trimEnd()}…` : line
 }

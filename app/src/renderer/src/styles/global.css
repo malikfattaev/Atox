@@ -1425,6 +1425,50 @@ ul {
   fill: currentColor;
 }
 
+.composer__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-indicator:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.usage-indicator__ring {
+  width: 16px;
+  height: 16px;
+  rotate: -90deg;
+}
+
+.usage-indicator__track {
+  fill: none;
+  stroke: var(--color-border);
+}
+
+.usage-indicator__fill {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--collapse-duration) var(--collapse-easing);
+}
+
+.usage-indicator[data-warning='true'] {
+  color: var(--color-danger);
+}
+
 .model-picker {
   display: flex;
   align-items: center;

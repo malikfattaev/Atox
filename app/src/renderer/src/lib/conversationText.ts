@@ -28,7 +28,15 @@ const TOOL_SUMMARIES: Record<ToolKind, (count: number) => string> = {
 }
 
 /** Порядок в сводке: сначала то, что меняет проект, потом чтение и поиск. */
-const SUMMARY_ORDER: readonly ToolKind[] = ['command', 'edit', 'agent', 'read', 'search', 'web', 'other']
+const SUMMARY_ORDER: readonly ToolKind[] = [
+  'command',
+  'edit',
+  'agent',
+  'read',
+  'search',
+  'web',
+  'other'
+]
 
 /** Сколько видов действий перечислять в сводке; остальные — «and N more». */
 const SUMMARY_KINDS_LIMIT = 3
@@ -88,4 +96,26 @@ export function formatDuration(ms: number): string {
 
 function plural(count: number, noun: string): string {
   return count === 1 ? `a ${noun}` : `${count} ${noun}s`
+}
+
+/** «950», «16k», «1.2M» — токены коротко, как у агентов. */
+export function formatTokens(tokens: number): string {
+  if (tokens < 1000) {
+    return String(tokens)
+  }
+  if (tokens < 1_000_000) {
+    return `${Number((tokens / 1000).toFixed(tokens < 10_000 ? 1 : 0))}k`
+  }
+  return `${Number((tokens / 1_000_000).toFixed(1))}M`
+}
+
+const RESET_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit'
+})
+
+/** Когда обновится лимит: «Thu 8:59 AM» в часовом поясе пользователя. */
+export function formatResetTime(timestamp: number): string {
+  return RESET_TIME_FORMAT.format(timestamp)
 }

@@ -2,18 +2,14 @@ import { randomUUID } from 'node:crypto'
 import {
   limitOutput,
   type AgentCatalog,
+  type ConversationUsage,
   type TimelineItem,
-  type ToolStatus
+  type ToolStatus,
+  type UsageLimit
 } from '../../shared/conversation'
 import { displayPath, errorMessage } from './display'
 import { JsonRpcProcess } from './jsonRpc'
-import type {
-  AgentDriver,
-  AgentLaunch,
-  AgentSession,
-  SessionEvents,
-  SessionOptions
-} from './types'
+import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 
 /*
  * Протокол `codex app-server`: JSON-RPC по строкам stdin/stdout. Здесь описана только та его
@@ -47,6 +43,23 @@ interface Turn {
 
 type ItemStatus = 'inProgress' | 'completed' | 'failed' | 'declined'
 
+interface TokenUsage {
+  last: { totalTokens: number }
+  modelContextWindow: number | null
+}
+
+interface RateLimitWindow {
+  usedPercent: number
+  windowDurationMins: number | null
+  /** Секунды Unix. */
+  resetsAt: number | null
+}
+
+interface RateLimitSnapshot {
+  primary: RateLimitWindow | null
+  secondary: RateLimitWindow | null
+}
+
 type CodexItem =
   | { type: 'agentMessage'; id: string; text: string }
   | { type: 'reasoning'; id: string; summary: string[]; content: string[] }
@@ -58,8 +71,19 @@ type CodexItem =
       aggregatedOutput: string | null
       exitCode: number | null
     }
-  | { type: 'fileChange'; id: string; changes: { path: string }[]; status: ItemStatus }
-  | { type: 'mcpToolCall'; id: string; server: string; tool: string; status: ItemStatus }
+  | {
+      type: 'fileChange'
+      id: string
+      changes: { path: string }[]
+      status: ItemStatus
+    }
+  | {
+      type: 'mcpToolCall'
+      id: string
+      server: string
+      tool: string
+      status: ItemStatus
+    }
   | { type: 'webSearch'; id: string; query?: string }
 
 /** Остальные виды элементов (план, сжатие контекста и т. п.) в ленту не попадают. */
@@ -69,10 +93,17 @@ type AnyCodexItem = CodexItem | { type: string; id: string }
  * Режим «полный доступ», как у агента в терминале без подтверждений: Codex не спрашивает
  * разрешений и не ограничен песочницей.
  */
-const FULL_ACCESS = { approvalPolicy: 'never', sandbox: 'danger-full-access' } as const
+const FULL_ACCESS = {
+  approvalPolicy: 'never',
+  sandbox: 'danger-full-access'
+} as const
 
 /** Команды Codex приходят обёрнутыми в оболочку: `/bin/zsh -lc 'git status'`. */
 const SHELL_WRAPPER = /^\S*\b(?:ba|z)?sh\s+-l?c\s+(['"])([\s\S]*)\1$/
+
+const MINUTES_PER_HOUR = 60
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+const MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY
 
 export function createCodexDriver(client: ClientInfo): AgentDriver {
   return {
@@ -130,6 +161,8 @@ class CodexSession implements AgentSession {
   /** Тред Codex, когда он открыт: сообщения ждут его. */
   private readonly thread: Promise<string>
   private turnId: string | null = null
+  /** Последние известные контекст и лимиты: Codex присылает их разными событиями. */
+  private usage: ConversationUsage = { limits: [] }
 
   constructor(
     private readonly options: SessionOptions,
@@ -192,11 +225,18 @@ class CodexSession implements AgentSession {
   private async openThread(client: ClientInfo): Promise<string> {
     await initialize(this.rpc, client)
     const { cwd, sessionId, selection } = this.options
-    const params = { cwd, ...FULL_ACCESS, ...(selection?.model && { model: selection.model }) }
+    const params = {
+      cwd,
+      ...FULL_ACCESS,
+      ...(selection?.model && { model: selection.model })
+    }
     let response: ThreadResponse | null = null
     if (sessionId) {
       response = await this.rpc
-        .request<ThreadResponse>('thread/resume', { threadId: sessionId, ...params })
+        .request<ThreadResponse>('thread/resume', {
+          threadId: sessionId,
+          ...params
+        })
         .catch((error) => {
           this.reportError(
             `Could not continue the previous Codex conversation, so a new one was started. ${errorMessage(error)}`
@@ -206,6 +246,10 @@ class CodexSession implements AgentSession {
     }
     response ??= await this.rpc.request<ThreadResponse>('thread/start', params)
     this.events.sessionStarted(response.thread.id)
+    void this.rpc
+      .request<{ rateLimits: RateLimitSnapshot }>('account/rateLimits/read', {})
+      .then(({ rateLimits }) => this.updateLimits(rateLimits))
+      .catch(() => undefined)
     return response.thread.id
   }
 
@@ -237,12 +281,43 @@ class CodexSession implements AgentSession {
         this.events.delta(itemId, 'text', delta)
         break
       }
+      case 'thread/tokenUsage/updated': {
+        const { tokenUsage } = params as { tokenUsage: TokenUsage }
+        if (tokenUsage.modelContextWindow) {
+          this.updateUsage({
+            context: {
+              used: tokenUsage.last.totalTokens,
+              limit: tokenUsage.modelContextWindow
+            }
+          })
+        }
+        break
+      }
+      case 'account/rateLimits/updated':
+        this.updateLimits((params as { rateLimits: RateLimitSnapshot }).rateLimits)
+        break
       case 'item/commandExecution/outputDelta': {
         const { itemId, delta } = params as { itemId: string; delta: string }
         this.events.delta(itemId, 'output', delta)
         break
       }
     }
+  }
+
+  /** Обновление лимитов бывает частичным: окно, о котором Codex не сообщил, остаётся прежним. */
+  private updateLimits({ primary, secondary }: RateLimitSnapshot): void {
+    const limits = [primary, secondary].flatMap((window) => (window ? [toUsageLimit(window)] : []))
+    if (limits.length > 0) {
+      const labels = new Set(limits.map(({ label }) => label))
+      this.updateUsage({
+        limits: [...this.usage.limits.filter(({ label }) => !labels.has(label)), ...limits]
+      })
+    }
+  }
+
+  private updateUsage(patch: Partial<ConversationUsage>): void {
+    this.usage = { ...this.usage, ...patch }
+    this.events.usage(this.usage)
   }
 
   private reportError(message: string): void {
@@ -256,7 +331,11 @@ function toTimelineItem(source: AnyCodexItem, cwd: string): TimelineItem | null 
     case 'agentMessage':
       return { kind: 'assistant', id: item.id, text: item.text }
     case 'reasoning':
-      return { kind: 'reasoning', id: item.id, text: item.summary.join('\n\n') }
+      return {
+        kind: 'reasoning',
+        id: item.id,
+        text: item.summary.join('\n\n')
+      }
     case 'commandExecution':
       return {
         kind: 'tool',
@@ -265,7 +344,9 @@ function toTimelineItem(source: AnyCodexItem, cwd: string): TimelineItem | null 
         name: item.type,
         title: unwrapShellCommand(item.command),
         status: toolStatus(item.status, item.exitCode),
-        ...(item.aggregatedOutput && { output: limitOutput(item.aggregatedOutput) })
+        ...(item.aggregatedOutput && {
+          output: limitOutput(item.aggregatedOutput)
+        })
       }
     case 'fileChange':
       return {
@@ -297,6 +378,30 @@ function toTimelineItem(source: AnyCodexItem, cwd: string): TimelineItem | null 
     default:
       return null
   }
+}
+
+function toUsageLimit({ usedPercent, windowDurationMins, resetsAt }: RateLimitWindow): UsageLimit {
+  return {
+    label: windowLabel(windowDurationMins),
+    usedPercent,
+    ...(resetsAt !== null && { resetsAt: resetsAt * 1000 })
+  }
+}
+
+/** «Session (5 hours)», «Week», «3 days» — по длительности окна лимита. */
+function windowLabel(minutes: number | null): string {
+  if (minutes === null) {
+    return 'Limit'
+  }
+  if (minutes === MINUTES_PER_WEEK) {
+    return 'Week'
+  }
+  if (minutes < MINUTES_PER_DAY) {
+    const hours = Math.round(minutes / MINUTES_PER_HOUR)
+    return `Session (${hours} ${hours === 1 ? 'hour' : 'hours'})`
+  }
+  const days = Math.round(minutes / MINUTES_PER_DAY)
+  return `${days} ${days === 1 ? 'day' : 'days'}`
 }
 
 function toolStatus(status: ItemStatus, exitCode: number | null): ToolStatus {

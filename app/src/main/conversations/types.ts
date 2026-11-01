@@ -1,6 +1,7 @@
 import type { AgentId } from '../../shared/agents'
 import type {
   AgentCatalog,
+  ConversationUsage,
   ModelSelection,
   StreamedField,
   TimelineItem
@@ -31,6 +32,8 @@ export interface SessionEvents {
   delta(itemId: string, field: StreamedField, delta: string): void
   /** Агент закончил отвечать на сообщение — успешно, с ошибкой или по остановке. */
   turnFinished(): void
+  /** Агент сообщил, насколько заполнен контекст и сколько осталось лимитов подписки. */
+  usage(usage: ConversationUsage): void
   /** Агент сообщил идентификатор разговора, по которому его можно продолжить. */
   sessionStarted(sessionId: string): void
   /** Процесс агента завершился: сессией больше пользоваться нельзя. */

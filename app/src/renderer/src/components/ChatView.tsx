@@ -66,6 +66,7 @@ export function ChatView({ chatId, visible, focused }: ChatViewProps) {
           running={conversation.running}
           started={started}
           focused={focused}
+          usage={conversation.usage}
         />
       </div>
     </div>

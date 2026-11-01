@@ -12,18 +12,13 @@ import {
   limitOutput,
   type AgentCatalog,
   type AgentModel,
+  type UsageLimit,
   type TimelineItem,
   type ToolKind
 } from '../../shared/conversation'
 import { AsyncQueue } from './asyncQueue'
 import { displayPath, errorMessage } from './display'
-import type {
-  AgentDriver,
-  AgentLaunch,
-  AgentSession,
-  SessionEvents,
-  SessionOptions
-} from './types'
+import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 
@@ -85,14 +80,12 @@ function toCatalog(models: ModelInfo[]): AgentCatalog {
   return {
     agent: 'claude',
     defaultModel,
-    models: listed.map(
-      (model): AgentModel => ({
-        id: model.value,
-        name: model.displayName,
-        efforts: model.supportedEffortLevels ?? [],
-        ...(model.value.startsWith(PINNED_MODEL_PREFIX) && { secondary: true })
-      })
-    )
+    models: listed.map((model): AgentModel => ({
+      id: model.value,
+      name: model.displayName,
+      efforts: model.supportedEffortLevels ?? [],
+      ...(model.value.startsWith(PINNED_MODEL_PREFIX) && { secondary: true })
+    }))
   }
 }
 
@@ -148,9 +141,7 @@ class ClaudeSession implements AgentSession {
 
   interrupt(): void {
     this.interrupted = true
-    this.session
-      .interrupt()
-      .catch((error) => console.error('Failed to interrupt Claude', error))
+    this.session.interrupt().catch((error) => console.error('Failed to interrupt Claude', error))
   }
 
   close(): void {
@@ -164,7 +155,11 @@ class ClaudeSession implements AgentSession {
         this.handle(message)
       }
     } catch (error) {
-      this.events.item({ kind: 'error', id: randomUUID(), message: errorMessage(error) })
+      this.events.item({
+        kind: 'error',
+        id: randomUUID(),
+        message: errorMessage(error)
+      })
     } finally {
       this.events.closed()
     }
@@ -179,6 +174,7 @@ class ClaudeSession implements AgentSession {
       case 'system':
         if (message.subtype === 'init') {
           this.events.sessionStarted(message.session_id)
+          void this.reportUsage()
         }
         break
       case 'stream_event':
@@ -199,6 +195,7 @@ class ClaudeSession implements AgentSession {
         this.streamingMessageId = null
         this.streamed.clear()
         this.events.turnFinished()
+        void this.reportUsage()
         break
     }
   }
@@ -291,7 +288,9 @@ class ClaudeSession implements AgentSession {
     }
   }
 
-  private handleToolResults(content: Extract<SDKMessage, { type: 'user' }>['message']['content']): void {
+  private handleToolResults(
+    content: Extract<SDKMessage, { type: 'user' }>['message']['content']
+  ): void {
     if (typeof content === 'string') {
       return
     }
@@ -311,9 +310,73 @@ class ClaudeSession implements AgentSession {
     }
   }
 
+  /** Заполненность контекста и лимиты подписки — то же, что показывают `/context` и `/usage`. */
+  private async reportUsage(): Promise<void> {
+    const [context, account] = await Promise.all([
+      this.session.getContextUsage().catch(() => null),
+      // Лимиты подписки SDK пока отдаёт экспериментальным методом: без них индикатор покажет контекст.
+      this.session.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET().catch(() => null)
+    ])
+    if (!context && !account) {
+      return
+    }
+    this.events.usage({
+      ...(context && {
+        context: { used: context.totalTokens, limit: context.maxTokens }
+      }),
+      limits: account?.rate_limits_available ? toUsageLimits(account.rate_limits) : []
+    })
+  }
+
   private reportError(message: string): void {
     this.events.item({ kind: 'error', id: randomUUID(), message })
   }
+}
+
+type RateLimits = Awaited<
+  ReturnType<Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']>
+>['rate_limits']
+
+interface RateLimitWindow {
+  utilization: number | null
+  resets_at: string | null
+}
+
+/** Окна лимитов подписки Claude в том порядке и с теми названиями, что у `/usage`. */
+const RATE_LIMIT_WINDOWS = [
+  ['five_hour', 'Session (5 hours)'],
+  ['seven_day', 'Week (all models)'],
+  ['seven_day_opus', 'Week (Opus)'],
+  ['seven_day_sonnet', 'Week (Sonnet)']
+] as const
+
+function toUsageLimits(limits: RateLimits): UsageLimit[] {
+  if (!limits) {
+    return []
+  }
+  const windows: [string, RateLimitWindow | null | undefined][] = [
+    ...RATE_LIMIT_WINDOWS.map(([key, label]): [string, RateLimitWindow | null | undefined] => [
+      label,
+      limits[key]
+    ]),
+    ...(limits.model_scoped ?? []).map((window): [string, RateLimitWindow] => [
+      `Week (${window.display_name})`,
+      window
+    ])
+  ]
+  return windows.flatMap(([label, window]) => {
+    if (!window || window.utilization === null) {
+      return []
+    }
+    const resetsAt = window.resets_at ? Date.parse(window.resets_at) : NaN
+    return [
+      {
+        label,
+        usedPercent: window.utilization,
+        ...(Number.isFinite(resetsAt) && { resetsAt })
+      }
+    ]
+  })
 }
 
 function blockId(messageId: string, index: number): string {
@@ -329,9 +392,7 @@ function toolResultText(content: ToolResultContent): string {
   if (typeof content === 'string') {
     return content
   }
-  return (content ?? [])
-    .flatMap((part) => (part.type === 'text' ? [part.text] : []))
-    .join('\n')
+  return (content ?? []).flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
 function stringField(input: unknown, key: string): string | undefined {
@@ -372,7 +433,10 @@ function describeTool(
       return { tool: 'web', title: stringField(input, 'query') ?? name }
     case 'Task':
     case 'Agent':
-      return { tool: 'agent', title: stringField(input, 'description') ?? name }
+      return {
+        tool: 'agent',
+        title: stringField(input, 'description') ?? name
+      }
     default:
       return { tool: 'other', title: describeMcpTool(name) }
   }

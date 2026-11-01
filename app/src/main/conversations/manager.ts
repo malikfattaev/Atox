@@ -81,7 +81,12 @@ export class ConversationManager {
     }
     const conversation = await this.conversation(chatId)
     const isFirst = !conversation.snapshot.items.some(({ kind }) => kind === 'user')
-    const item: TimelineItem = { kind: 'user', id: randomUUID(), text: message, createdAt: Date.now() }
+    const item: TimelineItem = {
+      kind: 'user',
+      id: randomUUID(),
+      text: message,
+      createdAt: Date.now()
+    }
     this.emit(chatId, conversation, { type: 'item', item })
     if (isFirst && this.services.store.applyAutomaticTitle(chatId, titleFromMessage(message))) {
       this.services.onProjectsChanged()
@@ -205,7 +210,11 @@ export class ConversationManager {
       .catch((error) => {
         this.emit(chatId, conversation, {
           type: 'item',
-          item: { kind: 'error', id: randomUUID(), message: errorMessage(error) }
+          item: {
+            kind: 'error',
+            id: randomUUID(),
+            message: errorMessage(error)
+          }
         })
         this.finishTurn(chatId, conversation)
       })
@@ -219,7 +228,10 @@ export class ConversationManager {
     conversation.turn = null
     const item = conversation.snapshot.items.find(({ id }) => id === turn.itemId)
     if (item?.kind === 'user') {
-      this.emit(chatId, conversation, { type: 'item', item: { ...item, finishedAt: Date.now() } })
+      this.emit(chatId, conversation, {
+        type: 'item',
+        item: { ...item, finishedAt: Date.now() }
+      })
     }
     this.persist(chatId, conversation, { immediately: true })
     this.restartIfIdle(conversation)
@@ -258,12 +270,18 @@ export class ConversationManager {
       {
         item: (item) => this.emit(chatId, conversation, { type: 'item', item }),
         delta: (itemId, field, delta) =>
-          this.emit(chatId, conversation, { type: 'delta', itemId, field, delta }),
+          this.emit(chatId, conversation, {
+            type: 'delta',
+            itemId,
+            field,
+            delta
+          }),
         turnFinished: () => {
           if (conversation.session === session) {
             this.finishTurn(chatId, conversation)
           }
         },
+        usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
         sessionStarted: (sessionId) => this.services.store.setChatSession(chatId, sessionId),
         closed: () => {
           if (conversation.session === session) {
@@ -299,7 +317,8 @@ export class ConversationManager {
     const event = { chatId, ...payload } as ConversationEvent
     conversation.snapshot = applyConversationEvent(conversation.snapshot, event)
     this.services.onEvent(event)
-    if (event.type !== 'running') {
+    // Лента сохраняется, а состояние работы и лимиты агент сообщит заново.
+    if (event.type === 'item' || event.type === 'delta') {
       this.persist(chatId, conversation)
     }
   }

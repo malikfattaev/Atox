@@ -9,8 +9,10 @@ import {
 } from 'react'
 import { ArrowUp, Square } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
+import type { ConversationUsage } from '../../../shared/conversation'
 import type { Chat } from '../../../shared/models'
 import { ModelPicker } from './ModelPicker'
+import { UsageIndicator } from './UsageIndicator'
 
 const { atox } = window
 
@@ -22,9 +24,10 @@ interface ComposerProps {
   started: boolean
   /** Чат выбран: поле ввода получает фокус. */
   focused: boolean
+  usage: ConversationUsage | undefined
 }
 
-export function Composer({ chat, running, started, focused }: ComposerProps) {
+export function Composer({ chat, running, started, focused, usage }: ComposerProps) {
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const canSend = text.trim().length > 0
@@ -87,7 +90,9 @@ export function Composer({ chat, running, started, focused }: ComposerProps) {
   }
 
   const handleDrop = (event: DragEvent<HTMLFormElement>) => {
-    const paths = [...event.dataTransfer.files].map((file) => atox.files.getPath(file)).filter(Boolean)
+    const paths = [...event.dataTransfer.files]
+      .map((file) => atox.files.getPath(file))
+      .filter(Boolean)
     if (paths.length > 0) {
       event.preventDefault()
       insert(joinPaths(paths))
@@ -120,27 +125,30 @@ export function Composer({ chat, running, started, focused }: ComposerProps) {
       />
       <div className="composer__footer">
         <ModelPicker chat={chat} started={started} />
-        {running && !canSend ? (
-          <button
-            type="button"
-            className="composer__button"
-            aria-label="Stop"
-            title="Stop"
-            onClick={() => void atox.conversations.interrupt(chat.id)}
-          >
-            <Square className="icon composer__stop-icon" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className="composer__button"
-            aria-label="Send"
-            title="Send"
-            disabled={!canSend}
-          >
-            <ArrowUp className="icon" />
-          </button>
-        )}
+        <div className="composer__actions">
+          {usage && <UsageIndicator usage={usage} />}
+          {running && !canSend ? (
+            <button
+              type="button"
+              className="composer__button"
+              aria-label="Stop"
+              title="Stop"
+              onClick={() => void atox.conversations.interrupt(chat.id)}
+            >
+              <Square className="icon composer__stop-icon" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="composer__button"
+              aria-label="Send"
+              title="Send"
+              disabled={!canSend}
+            >
+              <ArrowUp className="icon" />
+            </button>
+          )}
+        </div>
       </div>
     </form>
   )
