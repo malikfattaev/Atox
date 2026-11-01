@@ -44,6 +44,12 @@ if (!app.isPackaged) {
   app.setPath('userData', app.getPath('userData') + DEV_USER_DATA_SUFFIX)
 }
 
+/**
+ * Второй экземпляр перехватил бы сокет команды `atox` у агентов первого и писал бы
+ * в те же файлы данных. Поэтому повторный запуск только показывает окно уже открытого.
+ */
+const isPrimaryInstance = app.requestSingleInstanceLock()
+
 async function bootstrap(): Promise<void> {
   await app.whenReady()
 
@@ -118,7 +124,7 @@ async function bootstrap(): Promise<void> {
   const menu = new AppMenu(settings)
   registerIpcHandlers({ store, settings, conversations, branches, updater, agents, menu })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
-  app.on('browser-window-focus', () => void branches.refreshAll())
+  app.on('browser-window-focus', () => void branches.refreshOnFocus())
   app.on('will-quit', () => branches.dispose())
   menu.install()
 
@@ -136,11 +142,29 @@ async function bootstrap(): Promise<void> {
   createMainWindow()
 
   // На macOS приложение живёт без окон: клик по иконке в доке открывает окно заново.
-  app.on('activate', () => {
+  app.on('activate', showMainWindow)
+  app.on('second-instance', showMainWindow)
+  // Выход отменили, когда окон уже не было (закрыли последнее, пока работал агент): без окна
+  // приложение на Linux осталось бы работать, но вернуться в него было бы нельзя.
+  quitHandling.onQuitCancelled(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow()
     }
   })
+}
+
+/** Показывает окно приложения, а если его нет — открывает новое. */
+function showMainWindow(): void {
+  const [window] = BrowserWindow.getAllWindows()
+  if (!window) {
+    createMainWindow()
+    return
+  }
+  if (window.isMinimized()) {
+    window.restore()
+  }
+  window.show()
+  window.focus()
 }
 
 app.on('window-all-closed', () => {
@@ -149,7 +173,11 @@ app.on('window-all-closed', () => {
   }
 })
 
-bootstrap().catch((error) => {
-  console.error('Failed to start the app', error)
+if (isPrimaryInstance) {
+  bootstrap().catch((error) => {
+    console.error('Failed to start the app', error)
+    app.quit()
+  })
+} else {
   app.quit()
-})
+}
