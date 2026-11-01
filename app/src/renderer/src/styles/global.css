@@ -52,6 +52,8 @@
   --activity-indent: 24px;
   --details-max-height: 320px;
   --command-menu-max-height: 320px;
+  --working-spin-duration: 3s;
+  --working-shimmer-duration: 2s;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
@@ -1359,6 +1361,51 @@ ul {
   gap: 8px;
   font-size: var(--font-size-small);
   color: var(--color-text-muted);
+}
+
+/* Агент работает: значок крутится, подпись переливается, рядом секундомер и токены. */
+.turn-status[data-working] {
+  font-size: var(--font-size);
+}
+
+.turn-status__glyph {
+  flex-shrink: 0;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  color: var(--color-text);
+  animation: spin var(--working-spin-duration) linear infinite;
+}
+
+.turn-status__verb {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: linear-gradient(
+      90deg,
+      var(--color-text-muted) 0%,
+      var(--color-text) 50%,
+      var(--color-text-muted) 100%
+    )
+    0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer var(--working-shimmer-duration) linear infinite;
+}
+
+.turn-status__meta {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }
 
 /* Поле ввода */

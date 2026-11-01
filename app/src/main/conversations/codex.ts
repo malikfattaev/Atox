@@ -44,7 +44,7 @@ interface Turn {
 type ItemStatus = 'inProgress' | 'completed' | 'failed' | 'declined'
 
 interface TokenUsage {
-  last: { totalTokens: number }
+  last: { totalTokens: number; outputTokens: number }
   modelContextWindow: number | null
 }
 
@@ -286,6 +286,7 @@ class CodexSession implements AgentSession {
       }
       case 'thread/tokenUsage/updated': {
         const { tokenUsage } = params as { tokenUsage: TokenUsage }
+        this.events.tokens(tokenUsage.last.outputTokens)
         if (tokenUsage.modelContextWindow) {
           this.updateUsage({
             context: {

@@ -50,7 +50,12 @@ export function ChatView({ chatId, visible, focused }: ChatViewProps) {
       >
         <div className="chat-view__column">
           {started ? (
-            <Timeline items={conversation.items} running={conversation.running} />
+            <Timeline
+              items={conversation.items}
+              running={conversation.running}
+              agent={chat.agent}
+              turnTokens={conversation.turnTokens ?? 0}
+            />
           ) : (
             !conversation.loading && (
               <h1 className="chat-view__greeting">

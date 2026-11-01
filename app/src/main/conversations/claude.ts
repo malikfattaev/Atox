@@ -31,6 +31,12 @@ const EFFORT_LEVELS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh',
 /** Строка списка моделей, которая означает «модель по умолчанию», а не отдельную модель. */
 const DEFAULT_MODEL_ALIAS = 'default'
 
+/**
+ * Сколько символов текста в среднем приходится на токен: так оценивается ответ, пока модель
+ * его пишет, — точное число Claude присылает только в конце каждого сообщения.
+ */
+const CHARS_PER_TOKEN = 4
+
 /** Модель, которой Claude Code подписывает ответы своих встроенных команд, а не модели. */
 const COMMAND_OUTPUT_MODEL = '<synthetic>'
 
@@ -139,6 +145,8 @@ class ClaudeSession implements AgentSession {
   private streamingMessageId: string | null = null
   /** Пользователь остановил ответ: ошибка прерванного хода — не ошибка. */
   private interrupted = false
+  /** Токены ответа на текущее сообщение: законченные сообщения модели и то, что пишется сейчас. */
+  private readonly turnTokens = { finished: 0, message: 0, estimate: 0, reported: 0 }
 
   constructor(
     private readonly options: SessionOptions,
@@ -163,6 +171,7 @@ class ClaudeSession implements AgentSession {
 
   send(text: string): void {
     this.interrupted = false
+    Object.assign(this.turnTokens, { finished: 0, message: 0, estimate: 0, reported: 0 })
     this.input.push({
       type: 'user',
       message: { role: 'user', content: text },
@@ -246,13 +255,27 @@ class ClaudeSession implements AgentSession {
     switch (event.type) {
       case 'message_start':
         this.streamingMessageId = event.message.id
+        this.turnTokens.message = 0
+        this.turnTokens.estimate = 0
         break
+      case 'message_delta':
+        this.turnTokens.message = event.usage.output_tokens
+        this.reportTokens()
+        break
+      case 'message_stop': {
+        const { message, estimate } = this.turnTokens
+        this.turnTokens.finished += Math.max(message, estimate)
+        this.turnTokens.message = 0
+        this.turnTokens.estimate = 0
+        break
+      }
       case 'content_block_delta': {
         if (!this.streamingMessageId) {
           return
         }
         const messageId = this.streamingMessageId
         const id = blockId(messageId, event.index)
+        this.estimateTokens(event.delta)
         if (event.delta.type === 'text_delta') {
           this.stream(messageId, id, 'assistant', event.delta.text)
         } else if (event.delta.type === 'thinking_delta') {
@@ -260,6 +283,36 @@ class ClaudeSession implements AgentSession {
         }
         break
       }
+    }
+  }
+
+  private estimateTokens(
+    delta: Extract<
+      Extract<SDKMessage, { type: 'stream_event' }>['event'],
+      { type: 'content_block_delta' }
+    >['delta']
+  ): void {
+    const text =
+      delta.type === 'text_delta'
+        ? delta.text
+        : delta.type === 'thinking_delta'
+          ? delta.thinking
+          : delta.type === 'input_json_delta'
+            ? delta.partial_json
+            : ''
+    if (text) {
+      this.turnTokens.estimate += text.length / CHARS_PER_TOKEN
+      this.reportTokens()
+    }
+  }
+
+  private reportTokens(): void {
+    const { finished, message, estimate, reported } = this.turnTokens
+    const total = Math.round(finished + Math.max(message, estimate))
+    // Окно получает новое число, только когда оно изменилось, а не на каждый кусочек текста.
+    if (total !== reported) {
+      this.turnTokens.reported = total
+      this.events.tokens(total)
     }
   }
 

@@ -120,3 +120,41 @@ const RESET_TIME_FORMAT = new Intl.DateTimeFormat('en-US', {
 export function formatResetTime(timestamp: number): string {
   return RESET_TIME_FORMAT.format(timestamp)
 }
+
+/** Чем занят агент, пока не видно действий: глагол выбирается на весь ответ. */
+const WORKING_VERBS = [
+  'Thinking',
+  'Pondering',
+  'Brewing',
+  'Tinkering',
+  'Mulling',
+  'Crafting',
+  'Noodling',
+  'Percolating',
+  'Simmering',
+  'Musing'
+] as const
+
+/**
+ * Подпись работающего агента: рассуждает он или пишет ответ, а в остальное время — глагол
+ * на весь ответ. Какую команду он выполняет, видно в группе действий над подписью.
+ */
+export function workingLabel(items: readonly TimelineItem[], seed: string): string {
+  switch (items.at(-1)?.kind) {
+    case 'reasoning':
+      return 'Thinking'
+    case 'assistant':
+      return 'Writing'
+    default:
+      return WORKING_VERBS[hashString(seed) % WORKING_VERBS.length]!
+  }
+}
+
+/** Простой устойчивый хеш строки: один и тот же ответ всегда получает один и тот же глагол. */
+function hashString(value: string): number {
+  let hash = 0
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  }
+  return hash
+}

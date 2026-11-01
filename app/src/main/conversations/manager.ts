@@ -227,6 +227,7 @@ export class ConversationManager {
     const next = conversation.turn ? undefined : conversation.queue.shift()
     if (next) {
       conversation.turn = next
+      this.emit(chatId, conversation, { type: 'tokens', turnTokens: 0 })
     }
     this.updateRunning(chatId, conversation)
     if (!next) {
@@ -309,6 +310,7 @@ export class ConversationManager {
           }
         },
         usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
+        tokens: (turnTokens) => this.emit(chatId, conversation, { type: 'tokens', turnTokens }),
         sessionStarted: (sessionId) => this.services.store.setChatSession(chatId, sessionId),
         closed: () => {
           if (conversation.session === session) {

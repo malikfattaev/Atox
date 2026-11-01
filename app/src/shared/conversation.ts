@@ -105,6 +105,8 @@ export interface ConversationSnapshot {
   running: boolean
   /** Контекст и лимиты по последнему ответу агента; нет — агент ещё не отвечал в этом запуске. */
   usage?: ConversationUsage
+  /** Сколько токенов агент написал, отвечая на текущее сообщение. */
+  turnTokens?: number
 }
 
 export type ConversationEvent =
@@ -120,6 +122,7 @@ export type ConversationEvent =
     }
   | { chatId: string; type: 'running'; running: boolean }
   | { chatId: string; type: 'usage'; usage: ConversationUsage }
+  | { chatId: string; type: 'tokens'; turnTokens: number }
 
 export const EMPTY_CONVERSATION: ConversationSnapshot = {
   items: [],
@@ -142,6 +145,8 @@ export function applyConversationEvent(
       return snapshot.running === event.running ? snapshot : { ...snapshot, running: event.running }
     case 'usage':
       return { ...snapshot, usage: event.usage }
+    case 'tokens':
+      return { ...snapshot, turnTokens: event.turnTokens }
     case 'item': {
       const index = snapshot.items.findIndex(({ id }) => id === event.item.id)
       const items =

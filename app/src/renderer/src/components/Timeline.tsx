@@ -14,7 +14,15 @@ import {
   type LucideProps
 } from 'lucide-react'
 import type { TimelineItem, ToolKind } from '../../../shared/conversation'
-import { formatDuration, summarizeActivity, toolVerb } from '../lib/conversationText'
+import type { AgentId } from '../../../shared/agents'
+import {
+  formatDuration,
+  formatTokens,
+  summarizeActivity,
+  toolVerb,
+  workingLabel
+} from '../lib/conversationText'
+import { AgentIcon } from './AgentIcon'
 import { Markdown } from './Markdown'
 
 type UserItem = Extract<TimelineItem, { kind: 'user' }>
@@ -26,7 +34,7 @@ type Block =
   | { type: 'error'; item: Extract<TimelineItem, { kind: 'error' }> }
   | { type: 'activity'; key: string; items: ActivityItem[] }
   /** Конец ответа на сообщение: сколько агент работал или что он работает сейчас. */
-  | { type: 'turn'; key: string; user: UserItem }
+  | { type: 'turn'; key: string; user: UserItem; items: TimelineItem[] }
 
 const TOOL_ICONS: Record<ToolKind, ComponentType<LucideProps>> = {
   command: SquareTerminal,
@@ -38,15 +46,18 @@ const TOOL_ICONS: Record<ToolKind, ComponentType<LucideProps>> = {
   other: Wrench
 }
 
-/** Как часто обновлять «Working… 12s». */
+/** Как часто обновлять секундомер работающего агента. */
 const CLOCK_INTERVAL_MS = 1000
 
 interface TimelineProps {
   items: readonly TimelineItem[]
   running: boolean
+  agent: AgentId
+  /** Сколько токенов агент написал, отвечая на текущее сообщение. */
+  turnTokens: number
 }
 
-export function Timeline({ items, running }: TimelineProps) {
+export function Timeline({ items, running, agent, turnTokens }: TimelineProps) {
   const blocks = buildBlocks(items)
   const lastTurn = blocks.findLast((block) => block.type === 'turn')
   return (
@@ -87,6 +98,9 @@ export function Timeline({ items, running }: TimelineProps) {
               <TurnStatus
                 key={block.key}
                 user={block.user}
+                items={block.items}
+                agent={agent}
+                tokens={turnTokens}
                 working={running && block === lastTurn && !block.user.finishedAt}
               />
             )
@@ -101,6 +115,7 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
   const blocks: Block[] = []
   let activity: ActivityItem[] = []
   let turn: UserItem | null = null
+  let turnItems: TimelineItem[] = []
 
   const flushActivity = () => {
     if (activity.length > 0) {
@@ -111,17 +126,21 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
   const finishTurn = () => {
     flushActivity()
     if (turn) {
-      blocks.push({ type: 'turn', key: `${turn.id}:turn`, user: turn })
+      blocks.push({ type: 'turn', key: `${turn.id}:turn`, user: turn, items: turnItems })
     }
   }
 
   for (const item of items) {
+    if (item.kind !== 'user') {
+      turnItems.push(item)
+    }
     switch (item.kind) {
       case 'user':
         finishTurn()
         turn = item
+        turnItems = []
         blocks.push({ type: 'user', item })
-        break
+        continue
       case 'reasoning':
         // Codex создаёт рассуждение раньше, чем пишет в него текст.
         if (item.text.trim()) {
@@ -239,16 +258,25 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 interface TurnStatusProps {
   user: UserItem
+  /** Что агент уже сделал, отвечая на сообщение: по последнему видно, чем он занят. */
+  items: readonly TimelineItem[]
+  agent: AgentId
+  tokens: number
   working: boolean
 }
 
-function TurnStatus({ user, working }: TurnStatusProps) {
+function TurnStatus({ user, items, agent, tokens, working }: TurnStatusProps) {
   const now = useClock(working)
   if (working) {
+    const elapsed = formatDuration(now - user.createdAt)
     return (
       <div className="turn-status" data-working>
-        <LoaderCircle className="icon activity__spinner" />
-        Working… {formatDuration(now - user.createdAt)}
+        <AgentIcon agent={agent} className="turn-status__glyph" />
+        <span className="turn-status__verb">{workingLabel(items, user.id)}…</span>
+        <span className="turn-status__meta">
+          ({elapsed}
+          {tokens > 0 && ` · ↓ ${formatTokens(tokens)} tokens`})
+        </span>
       </div>
     )
   }
