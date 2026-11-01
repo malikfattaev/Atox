@@ -52,7 +52,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
 
   // Подсказки команд: видны, пока набирается имя команды и их не закрыли Escape.
   const commandQuery = COMMAND_NAME.exec(text)?.[1]
-  const commands = useAgentCommands(chat.id, commandQuery !== undefined)
+  const commands = useAgentCommands(chat.id, chat.agent, commandQuery !== undefined)
   const [dismissedText, setDismissedText] = useState<string | null>(null)
   const suggestions =
     commandQuery !== undefined && dismissedText !== text ? filterCommands(commands, commandQuery) : []
