@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef } from 'react'
 import { findAgent } from '../../../shared/agents'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useConversation } from '../hooks/useConversation'
@@ -17,7 +17,8 @@ interface ChatViewProps {
   focused: boolean
 }
 
-export function ChatView({ chatId, visible, focused }: ChatViewProps) {
+/** Пока тянут разделитель, рабочая область перерисовывается на каждое движение: чат — нет. */
+export const ChatView = memo(function ChatView({ chatId, visible, focused }: ChatViewProps) {
   const { projects } = useProjectsContext()
   const conversation = useConversation(chatId, visible)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -128,4 +129,4 @@ export function ChatView({ chatId, visible, focused }: ChatViewProps) {
       </div>
     </div>
   )
-}
+})
