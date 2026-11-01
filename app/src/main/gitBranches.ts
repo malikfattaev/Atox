@@ -9,6 +9,9 @@ const execFileAsync = promisify(execFile)
 /** Git меняет HEAD несколькими операциями подряд — ветку читаем, когда они закончились. */
 const HEAD_CHANGE_DELAY_MS = 100
 
+/** Как часто перепроверять все репозитории, когда окно получает фокус. */
+const FOCUS_REFRESH_INTERVAL_MS = 60_000
+
 interface Repository {
   branch: string | null
   /** Файл HEAD репозитория; у worktree он свой, поэтому путь спрашиваем у git. */
@@ -23,6 +26,7 @@ interface Repository {
  */
 export class GitBranchTracker {
   private readonly repositories = new Map<string, Repository>()
+  private lastRefreshAt = 0
 
   constructor(private readonly onChange: (branches: GitBranches) => void) {}
 
@@ -47,7 +51,19 @@ export class GitBranchTracker {
 
   /** Перечитывает все папки: репозиторий могли создать или удалить, пока приложение не следило. */
   async refreshAll(): Promise<void> {
+    this.lastRefreshAt = Date.now()
     await Promise.all(Array.from(this.repositories.keys(), (path) => this.refresh(path)))
+  }
+
+  /**
+   * Окно снова в фокусе: проверяет репозитории, но не чаще раза в интервал. Смену веток
+   * и так замечают наблюдатели за HEAD, а каждая проверка — несколько запусков git
+   * на каждый проект при каждом переключении в окно.
+   */
+  async refreshOnFocus(): Promise<void> {
+    if (Date.now() - this.lastRefreshAt >= FOCUS_REFRESH_INTERVAL_MS) {
+      await this.refreshAll()
+    }
   }
 
   dispose(): void {
