@@ -6,6 +6,7 @@ import {
   applyConversationEvent,
   titleFromMessage,
   type AgentCatalog,
+  type AgentCommand,
   type ChatConfiguration,
   type ConversationEvent,
   type ConversationSnapshot,
@@ -67,6 +68,8 @@ export class ConversationManager {
   /** Разговоры, которые уже загружены: по ним считается, кто сейчас работает. */
   private readonly settled = new Map<string, Conversation>()
   private readonly catalogs = new Map<AgentId, Promise<AgentCatalog>>()
+  /** Команды по агенту и папке проекта: у проектов бывают свои команды и навыки. */
+  private readonly commandLists = new Map<string, Promise<AgentCommand[]>>()
 
   constructor(private readonly services: ConversationServices) {}
 
@@ -156,6 +159,28 @@ export class ConversationManager {
       }
     }
     return this.services.transcripts.flush()
+  }
+
+  /** Команды агента чата для подсказок после «/»; пустой список — агент их не сообщил. */
+  async commands(chatId: string): Promise<AgentCommand[]> {
+    const location = this.services.store.findChat(chatId)
+    if (!location) {
+      return []
+    }
+    const { chat, project } = location
+    const key = `${chat.agent}\0${project.path}`
+    let commands = this.commandLists.get(key)
+    if (!commands) {
+      commands = this.launch(chat.agent, project.path).then((launch) =>
+        this.services.drivers[chat.agent].commands(launch)
+      )
+      this.commandLists.set(key, commands)
+      commands.catch(() => this.commandLists.delete(key))
+    }
+    return commands.catch((error) => {
+      console.error(`Failed to list ${chat.agent} commands`, error)
+      return []
+    })
   }
 
   /** Модели агента; `null` — агент не установлен или не ответил. */

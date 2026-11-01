@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { AGENTS, findAgent, isAgentId } from '../../../shared/agents'
 import type { ContextMenuItem } from '../../../shared/api'
@@ -7,6 +7,7 @@ import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { effortLabel } from '../lib/conversationText'
+import { currentModel, modelConfiguration } from '../lib/modelSelection'
 import { AgentIcon } from './AgentIcon'
 
 const { atox } = window
@@ -18,14 +19,16 @@ interface ModelPickerProps {
   chat: Chat
   /** Разговор уже начат: агента сменить нельзя, только модель и эффорт. */
   started: boolean
+  /** Растёт, когда меню просят открыть без клика — командой `/model` или `/effort`. */
+  openRequest: number
 }
 
 /** Кнопка «Opus 5.5 High» в поле ввода: системное меню с агентом, моделью и эффортом. */
-export function ModelPicker({ chat, started }: ModelPickerProps) {
+export function ModelPicker({ chat, started, openRequest }: ModelPickerProps) {
   const { configureChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const model = catalog && findModel(catalog, chat.model ?? catalog.defaultModel)
+  const model = catalog && currentModel(chat, catalog)
   const effort = chat.effort ?? model?.defaultEffort
 
   const openMenu = async () => {
@@ -42,14 +45,20 @@ export function ModelPicker({ chat, started }: ModelPickerProps) {
     if (kind === 'agent' && isAgentId(value)) {
       await configureChat(chat.id, { agent: value })
     } else if (kind === 'model' && catalog) {
-      const next = findModel(catalog, value)
-      // Эффорт, которого у новой модели нет, сбрасывается на её эффорт по умолчанию.
-      const keepEffort = chat.effort !== undefined && next?.efforts.includes(chat.effort)
-      await configureChat(chat.id, { model: value, ...(!keepEffort && { effort: null }) })
+      await configureChat(chat.id, modelConfiguration(chat, catalog, value))
     } else if (kind === 'effort') {
       await configureChat(chat.id, { effort: value || null })
     }
   }
+
+  // Последняя версия openMenu: эффект ниже срабатывает только на новый запрос открыть меню.
+  const openMenuRef = useRef(openMenu)
+  openMenuRef.current = openMenu
+  useEffect(() => {
+    if (openRequest > 0) {
+      void openMenuRef.current()
+    }
+  }, [openRequest])
 
   const agentName = findAgent(chat.agent)?.name ?? chat.agent
   const label =
@@ -70,10 +79,6 @@ export function ModelPicker({ chat, started }: ModelPickerProps) {
       <ChevronDown className="icon model-picker__chevron" />
     </button>
   )
-}
-
-function findModel(catalog: AgentCatalog, id: string): AgentModel | undefined {
-  return catalog.models.find((model) => model.id === id)
 }
 
 function splitAction(action: PickerAction): [string, string] {

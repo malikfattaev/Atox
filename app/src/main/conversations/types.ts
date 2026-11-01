@@ -1,6 +1,7 @@
 import type { AgentId } from '../../shared/agents'
 import type {
   AgentCatalog,
+  AgentCommand,
   ConversationUsage,
   ModelSelection,
   StreamedField,
@@ -53,5 +54,7 @@ export interface AgentDriver {
   readonly agent: AgentId
   /** Модели, доступные агенту на этом компьютере. */
   catalog(launch: AgentLaunch): Promise<AgentCatalog>
+  /** Команды, которые агент выполняет из сообщения вида `/команда`, — в папке проекта. */
+  commands(launch: AgentLaunch): Promise<AgentCommand[]>
   start(options: SessionOptions, events: SessionEvents): AgentSession
 }

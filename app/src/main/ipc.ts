@@ -257,6 +257,9 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.ConversationsSend, (_event, chatId: string, text: unknown) =>
     conversations.send(chatId, String(text))
   )
+  ipcMain.handle(IpcChannel.ConversationsCommands, (_event, chatId: string) =>
+    conversations.commands(chatId)
+  )
   ipcMain.handle(IpcChannel.ConversationsInterrupt, (_event, chatId: string) =>
     conversations.interrupt(chatId)
   )

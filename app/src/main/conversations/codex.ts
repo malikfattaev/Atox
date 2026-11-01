@@ -124,6 +124,9 @@ export function createCodexDriver(client: ClientInfo): AgentDriver {
       }
     },
 
+    // Codex выполняет команды «/…» только в своём терминальном интерфейсе, а не в app-server.
+    commands: () => Promise.resolve([]),
+
     start(options, events) {
       return new CodexSession(options, events, client)
     }

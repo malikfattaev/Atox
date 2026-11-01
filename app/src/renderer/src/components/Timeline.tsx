@@ -60,7 +60,13 @@ export function Timeline({ items, running }: TimelineProps) {
               </div>
             )
           case 'assistant':
-            return <Markdown key={block.item.id} text={block.item.text} />
+            return (
+              <Markdown
+                key={block.item.id}
+                text={block.item.text}
+                preserveLineBreaks={block.item.commandOutput}
+              />
+            )
           case 'error':
             return (
               <div key={block.item.id} className="message message--error" role="alert">

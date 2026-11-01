@@ -13,6 +13,14 @@ export interface AgentModel {
   secondary?: boolean
 }
 
+/** Команда, которую можно набрать после «/» в поле ввода. */
+export interface AgentCommand {
+  name: string
+  description: string
+  /** Подсказка к аргументам, например `<low|medium|high>`. */
+  argumentHint?: string
+}
+
 /** Модели установленного агента. */
 export interface AgentCatalog {
   agent: AgentId
@@ -64,7 +72,13 @@ export type TimelineItem =
       /** Когда агент закончил отвечать на это сообщение; нет — ещё работает или ждёт очереди. */
       finishedAt?: number
     }
-  | { kind: 'assistant'; id: string; text: string }
+  | {
+      kind: 'assistant'
+      id: string
+      text: string
+      /** Ответ встроенной команды агента (`/usage`, `/context`): переносы строк в нём значимы. */
+      commandOutput?: boolean
+    }
   | { kind: 'reasoning'; id: string; text: string }
   | {
       kind: 'tool'

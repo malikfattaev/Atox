@@ -11,6 +11,7 @@ import {
 import {
   limitOutput,
   type AgentCatalog,
+  type AgentCommand,
   type AgentModel,
   type UsageLimit,
   type TimelineItem,
@@ -30,6 +31,12 @@ const EFFORT_LEVELS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh',
 /** Строка списка моделей, которая означает «модель по умолчанию», а не отдельную модель. */
 const DEFAULT_MODEL_ALIAS = 'default'
 
+/** Модель, которой Claude Code подписывает ответы своих встроенных команд, а не модели. */
+const COMMAND_OUTPUT_MODEL = '<synthetic>'
+
+/** Служебные команды Claude Code для его собственной инфраструктуры — не для людей. */
+const INTERNAL_COMMAND_PREFIX = '__'
+
 /** Полные идентификаторы закреплённых версий: в меню они убраны в подменю. */
 const PINNED_MODEL_PREFIX = 'claude-'
 
@@ -47,20 +54,44 @@ function launchOptions({ executable, env, cwd }: AgentLaunch): Options {
 export const claudeDriver: AgentDriver = {
   agent: 'claude',
 
-  async catalog(launch) {
-    // Список моделей отдаёт сам Claude Code: сессия без сообщений к модели не обращается.
-    const input = new AsyncQueue<SDKUserMessage>()
-    const session = query({ prompt: input, options: launchOptions(launch) })
-    try {
-      return toCatalog(await session.supportedModels())
-    } finally {
-      input.end()
-      session.close()
-    }
+  catalog(launch) {
+    return withIdleSession(launch, async (session) => toCatalog(await session.supportedModels()))
+  },
+
+  commands(launch) {
+    return withIdleSession(launch, async (session) =>
+      (await session.supportedCommands())
+        .filter(({ name }) => !name.startsWith(INTERNAL_COMMAND_PREFIX))
+        .map(
+          ({ name, description, argumentHint }): AgentCommand => ({
+            name,
+            description,
+            ...(argumentHint && { argumentHint })
+          })
+        )
+    )
   },
 
   start(options, events) {
     return new ClaudeSession(options, events)
+  }
+}
+
+/**
+ * Спрашивает что-то у Claude Code без разговора: сессия без сообщений к модели не обращается,
+ * а списки моделей и команд отдаёт сразу.
+ */
+async function withIdleSession<T>(
+  launch: AgentLaunch,
+  read: (session: Query) => Promise<T>
+): Promise<T> {
+  const input = new AsyncQueue<SDKUserMessage>()
+  const session = query({ prompt: input, options: launchOptions(launch) })
+  try {
+    return await read(session)
+  } finally {
+    input.end()
+    session.close()
   }
 }
 
@@ -175,13 +206,24 @@ class ClaudeSession implements AgentSession {
         if (message.subtype === 'init') {
           this.events.sessionStarted(message.session_id)
           void this.reportUsage()
+        } else if (message.subtype === 'local_command_output') {
+          this.events.item({
+            kind: 'assistant',
+            id: message.uuid,
+            text: message.content,
+            commandOutput: true
+          })
         }
         break
       case 'stream_event':
         this.handleStreamEvent(message.event)
         break
       case 'assistant':
-        this.handleAssistantMessage(message.message.id, message.message.content)
+        this.handleAssistantMessage(
+          message.message.id,
+          message.message.content,
+          message.message.model === COMMAND_OUTPUT_MODEL
+        )
         break
       case 'user':
         this.handleToolResults(message.message.content)
@@ -252,7 +294,8 @@ class ClaudeSession implements AgentSession {
 
   private handleAssistantMessage(
     messageId: string,
-    content: Extract<SDKMessage, { type: 'assistant' }>['message']['content']
+    content: Extract<SDKMessage, { type: 'assistant' }>['message']['content'],
+    commandOutput: boolean
   ): void {
     for (const block of content) {
       // Без потока (например, у продолженной сессии) номер блока в сообщении неизвестен.
@@ -261,7 +304,12 @@ class ClaudeSession implements AgentSession {
         case 'text':
           if (block.text) {
             const id = this.takeStreamedId(messageId, 'assistant', fallback)
-            this.events.item({ kind: 'assistant', id, text: block.text })
+            this.events.item({
+              kind: 'assistant',
+              id,
+              text: block.text,
+              ...(commandOutput && { commandOutput })
+            })
           }
           break
         case 'thinking':

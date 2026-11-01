@@ -2,6 +2,7 @@ import type { AgentId } from './agents'
 import type { AppCommand } from './commands'
 import type {
   AgentCatalog,
+  AgentCommand,
   ChatConfiguration,
   ConversationEvent,
   ConversationSnapshot
@@ -106,6 +107,8 @@ export interface AtoxApi {
     /** Лента чата и то, работает ли сейчас его агент. */
     snapshot(chatId: string): Promise<ConversationSnapshot>
     send(chatId: string, text: string): Promise<void>
+    /** Команды агента чата для подсказок после «/». */
+    commands(chatId: string): Promise<AgentCommand[]>
     /** Останавливает ответ агента и отменяет сообщения, ждущие очереди. */
     interrupt(chatId: string): Promise<void>
     /** События ленты одного чата. */
@@ -188,6 +191,7 @@ export const IpcChannel = {
   ConversationsSnapshot: 'conversations:snapshot',
   ConversationsSend: 'conversations:send',
   ConversationsInterrupt: 'conversations:interrupt',
+  ConversationsCommands: 'conversations:commands',
   ConversationsEvent: 'conversations:event',
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
