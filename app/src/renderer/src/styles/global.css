@@ -605,7 +605,11 @@ ul {
 
 @media (prefers-reduced-motion: reduce) {
   .project-chats,
-  .project-chats__content {
+  .project-chats__content,
+  .chat-workers,
+  .chat-workers__toggle .icon,
+  .activity__chevron,
+  .usage-indicator__fill {
     transition: none;
   }
 }
@@ -691,60 +695,6 @@ ul {
   color: var(--color-text-muted);
 }
 
-/* Поиск в терминале */
-
-.find-bar {
-  position: absolute;
-  /* Панель поиска заходит на полосу перетаскивания окна, но должна принимать клики. */
-  -webkit-app-region: no-drag;
-  top: 10px;
-  right: 16px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 4px 4px 10px;
-  background: var(--color-popover);
-  border: 1px solid var(--color-popover-border);
-  border-radius: calc(var(--radius) + 2px);
-  box-shadow: var(--shadow-popover);
-  backdrop-filter: blur(24px) saturate(1.6);
-}
-
-.find-bar__input {
-  width: 200px;
-  padding: 0;
-  font: inherit;
-  color: var(--color-text);
-  background: none;
-  border: none;
-  outline: none;
-  user-select: text;
-}
-
-.find-bar__count {
-  min-width: 64px;
-  padding: 0 6px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.find-bar__button {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius);
-  color: var(--color-text-muted);
-}
-
-.find-bar__button:hover {
-  color: var(--color-text);
-  background: var(--color-hover);
-}
-
 /* Настройки */
 
 .settings {
@@ -806,13 +756,6 @@ ul {
 
 .settings__row--compact {
   padding-block: 10px;
-}
-
-.settings__description {
-  margin: 0 0 12px;
-  font-size: var(--font-size-small);
-  line-height: 1.45;
-  color: var(--color-text-muted);
 }
 
 .settings__subgroup + .settings__subgroup {
@@ -879,47 +822,6 @@ ul {
 .shortcut-reset:hover {
   color: var(--color-text);
   background: var(--color-hover);
-}
-
-.settings__label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.settings__hint {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.settings__input {
-  width: 240px;
-  height: var(--row-height);
-  padding: 0 10px;
-  font: inherit;
-  font-family: var(--font-mono);
-  color: var(--color-text);
-  background: var(--color-hover);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  outline: none;
-  user-select: text;
-}
-
-.settings__input:focus {
-  border-color: var(--color-accent);
-}
-
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.stepper__value {
-  min-width: 28px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 .icon-button:disabled {
@@ -1425,6 +1327,23 @@ ul {
   }
   to {
     background-position: -100% 0;
+  }
+}
+
+/*
+ * Как и кружок в сайдбаре: крутящиеся значки и перелив перерисовывают окно на каждом кадре,
+ * поэтому пока окно не в фокусе или движение отключено в системе, они стоят на месте.
+ */
+:root[data-window-focused='false']
+  :is(.activity__spinner, .turn-status__glyph, .turn-status__verb) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity__spinner,
+  .turn-status__glyph,
+  .turn-status__verb {
+    animation: none;
   }
 }
 
