@@ -27,6 +27,8 @@ import type {
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 
+type StreamedKind = 'assistant' | 'reasoning'
+
 /** Уровни эффорта, которые принимает Claude Code. */
 const EFFORT_LEVELS: readonly EffortLevel[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
@@ -103,8 +105,12 @@ class ClaudeSession implements AgentSession {
   private readonly session: Query
   /** Вызовы инструментов по `tool_use_id`: их результат приходит отдельным сообщением. */
   private readonly tools = new Map<string, ToolItem>()
-  /** Элементы, которые уже появились в ленте, пока агент печатал ответ. */
-  private readonly streamed = new Set<string>()
+  /**
+   * Блоки текста и рассуждений, которые уже появились в ленте, пока модель их печатала, —
+   * по сообщениям модели, в порядке появления. Готовое сообщение Claude Code присылает по
+   * одному блоку, и их номера не совпадают с номерами в потоке: блок находится по виду и порядку.
+   */
+  private readonly streamed = new Map<string, { id: string; kind: StreamedKind }[]>()
   /** Сообщение модели, части которого сейчас приходят потоком. */
   private streamingMessageId: string | null = null
   /** Пользователь остановил ответ: ошибка прерванного хода — не ошибка. */
@@ -191,6 +197,7 @@ class ClaudeSession implements AgentSession {
           this.reportError(message.result || 'Claude stopped with an error.')
         }
         this.streamingMessageId = null
+        this.streamed.clear()
         this.events.turnFinished()
         break
     }
@@ -205,11 +212,12 @@ class ClaudeSession implements AgentSession {
         if (!this.streamingMessageId) {
           return
         }
-        const id = blockId(this.streamingMessageId, event.index)
+        const messageId = this.streamingMessageId
+        const id = blockId(messageId, event.index)
         if (event.delta.type === 'text_delta') {
-          this.stream(id, 'assistant', event.delta.text)
+          this.stream(messageId, id, 'assistant', event.delta.text)
         } else if (event.delta.type === 'thinking_delta') {
-          this.stream(id, 'reasoning', event.delta.thinking)
+          this.stream(messageId, id, 'reasoning', event.delta.thinking)
         }
         break
       }
@@ -217,32 +225,51 @@ class ClaudeSession implements AgentSession {
   }
 
   /** Часть текста, пока модель его печатает; первая часть создаёт элемент ленты. */
-  private stream(id: string, kind: 'assistant' | 'reasoning', delta: string): void {
+  private stream(messageId: string, id: string, kind: StreamedKind, delta: string): void {
     if (!delta) {
       return
     }
-    if (this.streamed.has(id)) {
+    const blocks = this.streamed.get(messageId) ?? []
+    if (blocks.some((block) => block.id === id)) {
       this.events.delta(id, 'text', delta)
     } else {
-      this.streamed.add(id)
+      blocks.push({ id, kind })
+      this.streamed.set(messageId, blocks)
       this.events.item({ kind, id, text: delta })
     }
+  }
+
+  /**
+   * Элемент ленты для готового блока: тот, что уже появился в потоке, или новый, если
+   * поток этот блок не показывал.
+   */
+  private takeStreamedId(messageId: string, kind: StreamedKind, fallback: string): string {
+    const blocks = this.streamed.get(messageId)
+    const index = blocks?.findIndex((block) => block.kind === kind) ?? -1
+    if (!blocks || index < 0) {
+      return fallback
+    }
+    const [block] = blocks.splice(index, 1)
+    return block!.id
   }
 
   private handleAssistantMessage(
     messageId: string,
     content: Extract<SDKMessage, { type: 'assistant' }>['message']['content']
   ): void {
-    content.forEach((block, index) => {
-      const id = blockId(messageId, index)
+    for (const block of content) {
+      // Без потока (например, у продолженной сессии) номер блока в сообщении неизвестен.
+      const fallback = `${messageId}:${randomUUID()}`
       switch (block.type) {
         case 'text':
           if (block.text) {
+            const id = this.takeStreamedId(messageId, 'assistant', fallback)
             this.events.item({ kind: 'assistant', id, text: block.text })
           }
           break
         case 'thinking':
           if (block.thinking) {
+            const id = this.takeStreamedId(messageId, 'reasoning', fallback)
             this.events.item({ kind: 'reasoning', id, text: block.thinking })
           }
           break
@@ -261,8 +288,7 @@ class ClaudeSession implements AgentSession {
           break
         }
       }
-      this.streamed.delete(id)
-    })
+    }
   }
 
   private handleToolResults(content: Extract<SDKMessage, { type: 'user' }>['message']['content']): void {
