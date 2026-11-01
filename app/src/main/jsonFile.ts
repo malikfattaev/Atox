@@ -1,4 +1,4 @@
-import { readFile, rename, writeFile } from 'node:fs/promises'
+import { open, readFile, rename } from 'node:fs/promises'
 
 /**
  * Читает JSON-файл данных указанной версии; `undefined` — файла ещё нет.
@@ -37,6 +37,8 @@ export async function readVersionedJson<T extends { version: number }>(
 export class JsonFileWriter {
   /** Цепочка записей: каждая начинается после предыдущей, поэтому порядок не нарушается. */
   private pendingWrites: Promise<void> = Promise.resolve()
+  /** Временный файл свой у процесса: другой экземпляр не перепишет его посреди записи. */
+  private readonly tempPath: string
 
   /**
    * `compact` — без отступов: для больших файлов, которые часто переписываются целиком
@@ -45,7 +47,9 @@ export class JsonFileWriter {
   constructor(
     private readonly filePath: string,
     private readonly options: { compact?: boolean } = {}
-  ) {}
+  ) {
+    this.tempPath = `${filePath}.${process.pid}.tmp`
+  }
 
   /** Снимок данных берётся в момент вызова, запись — после уже начатых. */
   write(data: unknown): void {
@@ -60,10 +64,19 @@ export class JsonFileWriter {
     return this.pendingWrites
   }
 
-  /** Пишет во временный файл и переименовывает его, чтобы сбой не оставил файл наполовину записанным. */
+  /**
+   * Пишет во временный файл и переименовывает его, чтобы сбой не оставил файл наполовину
+   * записанным. Перед переименованием данные сбрасываются на диск: иначе после отключения
+   * питания на месте файла мог бы оказаться пустой.
+   */
   private async writeAtomically(contents: string): Promise<void> {
-    const tempPath = `${this.filePath}.tmp`
-    await writeFile(tempPath, contents, 'utf-8')
-    await rename(tempPath, this.filePath)
+    const file = await open(this.tempPath, 'w')
+    try {
+      await file.writeFile(contents, 'utf-8')
+      await file.sync()
+    } finally {
+      await file.close()
+    }
+    await rename(this.tempPath, this.filePath)
   }
 }
