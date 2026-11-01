@@ -7,6 +7,7 @@ import {
   FilePen,
   FileText,
   Globe,
+  Image as ImageIcon,
   LoaderCircle,
   Search,
   SquareTerminal,
@@ -22,6 +23,7 @@ import {
   toolVerb,
   workingLabel
 } from '../lib/conversationText'
+import { imagePreview } from '../lib/attachments'
 import { AgentIcon } from './AgentIcon'
 import { Markdown } from './Markdown'
 
@@ -83,10 +85,11 @@ export const Timeline = memo(function Timeline({
             return (
               <div
                 key={block.item.id}
-                className="message message--user"
+                className="user-message"
                 data-fresh={Date.now() - block.item.createdAt < FRESH_MESSAGE_MS || undefined}
               >
-                {block.item.text}
+                {block.item.images && <MessageImages paths={block.item.images} />}
+                {block.item.text && <div className="message message--user">{block.item.text}</div>}
               </div>
             )
           case 'assistant':
@@ -125,6 +128,22 @@ export const Timeline = memo(function Timeline({
     </div>
   )
 })
+
+/** Картинки, приложенные к сообщению; без превью — именем файла. */
+function MessageImages({ paths }: { paths: readonly string[] }) {
+  return (
+    <ul className="message__images">
+      {paths.map((path) => {
+        const preview = imagePreview(path)
+        return (
+          <li key={path} className="message__image" title={path}>
+            {preview ? <img src={preview} alt="" /> : <ImageIcon className="icon" />}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
 
 /** Разбивает ленту на блоки: подряд идущие действия агента сворачиваются в одну группу. */
 function buildBlocks(items: readonly TimelineItem[]): Block[] {

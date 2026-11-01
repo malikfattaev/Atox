@@ -49,6 +49,9 @@
   --composer-max-height: 40vh;
   --composer-button-size: 30px;
   --message-radius: 16px;
+  /* Миниатюры картинок: приложенных в поле ввода и в отправленном сообщении. */
+  --attachment-size: 56px;
+  --message-image-size: 120px;
   --activity-indent: 24px;
   --details-max-height: 320px;
   --command-menu-max-height: 320px;
@@ -1009,9 +1012,17 @@ ul {
   user-select: text;
 }
 
-.message--user {
+/* Сообщение пользователя справа: картинки над пузырём с текстом. */
+.user-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   align-self: flex-end;
   max-width: 85%;
+}
+
+.message--user {
   padding: 10px 16px;
   border-radius: var(--message-radius);
   background: var(--color-bubble);
@@ -1019,8 +1030,36 @@ ul {
   overflow-wrap: anywhere;
 }
 
+/* Картинки сообщения — над его текстом, справа, как и само сообщение. */
+.message__images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message__image {
+  display: grid;
+  place-items: center;
+  width: var(--message-image-size);
+  height: var(--message-image-size);
+  overflow: hidden;
+  border-radius: var(--message-radius);
+  background: var(--color-hover);
+  color: var(--color-text-muted);
+}
+
+.message__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* Только что отправленное сообщение всплывает снизу — быстро, чтобы не задерживать взгляд. */
-.message--user[data-fresh] {
+.user-message[data-fresh] {
   transform-origin: bottom right;
   animation: message-in var(--message-in-duration) cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
@@ -1033,7 +1072,7 @@ ul {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .message--user[data-fresh] {
+  .user-message[data-fresh] {
     animation: none;
   }
 }
@@ -1363,6 +1402,56 @@ ul {
 
 .composer:focus-within {
   border-color: var(--color-popover-border);
+}
+
+/* Приложенные картинки — миниатюры над полем ввода, каждую можно убрать. */
+.composer__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 4px 0;
+  list-style: none;
+}
+
+.composer__attachment {
+  position: relative;
+  width: var(--attachment-size);
+  height: var(--attachment-size);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.composer__attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.composer__attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-text);
+  color: var(--color-surface);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.composer__attachment-remove .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.composer__attachment:hover .composer__attachment-remove,
+.composer__attachment-remove:focus-visible {
+  opacity: 1;
 }
 
 .composer__input {

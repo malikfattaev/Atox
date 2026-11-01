@@ -1,19 +1,12 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ClipboardEvent,
-  type DragEvent,
-  type KeyboardEvent
-} from 'react'
-import { ArrowUp, Square } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { ArrowUp, Square, X } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import type { AgentCommand, ConversationUsage } from '../../../shared/conversation'
 import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { useAgentCommands } from '../hooks/useAgentCommands'
+import { attachImage, isAttachableImage, type Attachment } from '../lib/attachments'
 import {
   currentModel,
   matchEffort,
@@ -47,8 +40,9 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   const { configureChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
   const [text, setText] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const canSend = text.trim().length > 0
+  const canSend = text.trim().length > 0 || attachments.length > 0
 
   // Подсказки команд: видны, пока набирается имя команды и их не закрыли Escape.
   const commandQuery = COMMAND_NAME.exec(text)?.[1]
@@ -150,11 +144,16 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
 
   const submit = (value: string) => {
     const message = value.trim()
-    if (!message) {
+    if (!message && attachments.length === 0) {
       return
     }
-    if (!runLocalCommand(message)) {
-      void atox.conversations.send(chat.id, message)
+    if (attachments.length > 0 || !runLocalCommand(message)) {
+      void atox.conversations.send(
+        chat.id,
+        message,
+        attachments.map(({ path }) => path)
+      )
+      setAttachments([])
     }
     setText('')
   }
@@ -223,28 +222,69 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     }
   }
 
-  // Картинка из буфера сохраняется в файл: агент получает путь к нему, как в терминале.
-  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const images = [...event.clipboardData.files].filter((file) => file.type.startsWith('image/'))
-    if (images.length === 0) {
-      return
-    }
-    event.preventDefault()
-    void Promise.all(images.map((image) => atox.files.savePastedImage(image)))
-      .then((paths) => insert(joinPaths(paths)))
-      .catch((error) => console.error('Failed to paste the image', error))
-  }
-
-  const handleDrop = (event: DragEvent<HTMLFormElement>) => {
-    const paths = [...event.dataTransfer.files]
+  /**
+   * Картинки прикладываются к сообщению, остальные файлы вставляются в текст путями.
+   * `true` — среди файлов было что приложить или вставить.
+   */
+  const addFiles = (files: readonly File[]): boolean => {
+    const images = files.filter(isAttachableImage)
+    const paths = files
+      .filter((file) => !isAttachableImage(file))
       .map((file) => atox.files.getPath(file))
       .filter(Boolean)
-    if (paths.length > 0) {
-      event.preventDefault()
-      insert(joinPaths(paths))
-      inputRef.current?.focus()
+    if (images.length === 0 && paths.length === 0) {
+      return false
     }
+    if (paths.length > 0) {
+      insert(joinPaths(paths))
+    }
+    void Promise.all(images.map(attachImage))
+      .then((added) => setAttachments((current) => [...current, ...added]))
+      .catch((error) => console.error('Failed to attach the image', error))
+    inputRef.current?.focus()
+    return true
   }
+  const addFilesRef = useRef(addFiles)
+  addFilesRef.current = addFiles
+
+  // Картинку можно вставить и бросить в любое место чата, а не только в поле ввода.
+  useEffect(() => {
+    const view = inputRef.current?.closest<HTMLElement>('.chat-view')
+    if (!focused || !view) {
+      return
+    }
+    const acceptPaste = (event: ClipboardEvent) => {
+      const target = event.target
+      const editingElsewhere =
+        target instanceof HTMLElement &&
+        target !== inputRef.current &&
+        (target.isContentEditable || target.matches('input, textarea, select'))
+      const files = [...(event.clipboardData?.files ?? [])]
+      if (!editingElsewhere && files.length > 0 && addFilesRef.current(files)) {
+        event.preventDefault()
+      }
+    }
+    const allowDrop = (event: DragEvent) => {
+      if (event.dataTransfer?.types.includes('Files')) {
+        event.preventDefault()
+      }
+    }
+    const acceptDrop = (event: DragEvent) => {
+      const files = [...(event.dataTransfer?.files ?? [])]
+      if (files.length > 0) {
+        event.preventDefault()
+        addFilesRef.current(files)
+      }
+    }
+    window.addEventListener('paste', acceptPaste)
+    view.addEventListener('dragover', allowDrop)
+    view.addEventListener('drop', acceptDrop)
+    return () => {
+      window.removeEventListener('paste', acceptPaste)
+      view.removeEventListener('dragover', allowDrop)
+      view.removeEventListener('drop', acceptDrop)
+    }
+  }, [focused])
 
   const agentName = findAgent(chat.agent)?.name ?? chat.agent
 
@@ -255,8 +295,6 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
         event.preventDefault()
         send()
       }}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={handleDrop}
     >
       {suggestions.length > 0 && (
         <CommandMenu
@@ -265,6 +303,28 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           onHover={setActiveIndex}
           onChoose={(command) => chooseCommand(command, true)}
         />
+      )}
+      {attachments.length > 0 && (
+        <ul className="composer__attachments">
+          {attachments.map((attachment) => (
+            <li key={attachment.path} className="composer__attachment">
+              <img src={attachment.preview} alt="" />
+              <button
+                type="button"
+                className="composer__attachment-remove"
+                aria-label="Remove image"
+                title="Remove image"
+                onClick={() =>
+                  setAttachments((current) =>
+                    current.filter(({ path }) => path !== attachment.path)
+                  )
+                }
+              >
+                <X className="icon" />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
       <textarea
         ref={inputRef}
@@ -275,7 +335,6 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
         spellCheck={false}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
       />
       <div className="composer__footer">
         <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
