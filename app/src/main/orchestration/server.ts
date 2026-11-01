@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { chmod, mkdir, rm, writeFile } from 'node:fs/promises'
+import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
-import { join } from 'node:path'
-import { findAgent, isAgentId, TERMINAL_AGENT_ID } from '../../shared/agents'
+import { findAgent, isAgentId } from '../../shared/agents'
 import type { Chat } from '../../shared/models'
 import {
   OrchestrationEnv,
@@ -13,17 +12,9 @@ import {
   type OrchestrationResponse
 } from '../../shared/orchestration'
 import type { AgentDetector } from '../agents'
-import type { SettingsStore } from '../settings'
+import type { ConversationManager } from '../conversations/manager'
 import type { ChatLocation, ProjectStore } from '../store'
-import { quoteShell } from '../shellQuote'
-import type { TerminalManager } from '../terminals'
-import { trustFolderForAgent } from './agentTrust'
-import { MessageDelivery } from './delivery'
-import { agentLaunchCommand } from './launch'
 import { formatMessage, formatReport, formatWorkerTask } from './prompts'
-
-/** Размер терминала помощника до того, как его откроют в окне и подгонят под панель. */
-const WORKER_TERMINAL_SIZE = { cols: 120, rows: 32 }
 
 /**
  * Сколько помощников одного агента могут работать одновременно. Каждый тратит лимит
@@ -34,19 +25,16 @@ const MAX_ACTIVE_WORKERS = 4
 /** Запрос — одна строка JSON; больше этого — не команда, а ошибка или мусор. */
 const MAX_REQUEST_BYTES = 1024 * 1024
 
-/** Права на сокет и файлы заданий: только для текущего пользователя. */
+/** Права на сокет: только для текущего пользователя. */
 const OWNER_ONLY = 0o600
 
 interface OrchestrationServices {
   store: ProjectStore
-  settings: SettingsStore
-  terminals: TerminalManager
+  conversations: ConversationManager
   agents: AgentDetector
   /** Путь к сокету, через который команда `atox` обращается к приложению. */
   socketPath: string
-  /** Каталог временных файлов с заданиями помощникам. */
-  tasksDirectory: string
-  /** Путь к команде `atox`, которую получают терминалы. */
+  /** Путь к команде `atox`, которую получают агенты. */
   cliPath: string
   /** Список чатов изменился без участия окна — например, агент запустил помощника. */
   onProjectsChanged(): void
@@ -63,7 +51,7 @@ type Handlers = {
 }
 
 /**
- * Принимает команды `atox` из терминалов чатов: агент может запустить помощника в соседнем
+ * Принимает команды `atox` от агентов чатов: агент может запустить помощника в соседнем
  * чате, переписываться с ним и получить его отчёт. Помощники одного уровня: свои помощники
  * им запускать нельзя, чтобы агенты не плодили друг друга бесконечно.
  */
@@ -71,17 +59,11 @@ export class OrchestrationServer {
   private readonly token = randomBytes(32).toString('hex')
   /** Помощники, которые отчитались и с тех пор не получали новых сообщений от агента. */
   private readonly reportedChatIds = new Set<string>()
-  private readonly delivery: MessageDelivery
   private server: Server | null = null
 
-  constructor(private readonly services: OrchestrationServices) {
-    this.delivery = new MessageDelivery(services.terminals)
-  }
+  constructor(private readonly services: OrchestrationServices) {}
 
   async start(): Promise<void> {
-    // Задания, которые не успел прочитать агент прошлого запуска, больше не нужны.
-    await rm(this.services.tasksDirectory, { recursive: true, force: true })
-    await mkdir(this.services.tasksDirectory, { recursive: true })
     // Сокет прошлого запуска остаётся файлом и не даёт занять адрес.
     await rm(this.services.socketPath, { force: true })
     const server = createServer((socket) => this.accept(socket))
@@ -94,12 +76,11 @@ export class OrchestrationServer {
   }
 
   stop(): void {
-    this.delivery.dispose()
     this.server?.close()
     this.server = null
   }
 
-  /** Переменные, по которым команда `atox` в терминале чата находит приложение и себя. */
+  /** Переменные, по которым команда `atox`, запущенная агентом чата, находит приложение и себя. */
   environment(chatId: string): Record<string, string> {
     return {
       [OrchestrationEnv.Socket]: this.services.socketPath,
@@ -133,11 +114,11 @@ export class OrchestrationServer {
     try {
       const request = parseRequest(line)
       if (request.token !== this.token) {
-        throw new CommandError('Not authorized: run atox from a terminal inside Atox.')
+        throw new CommandError('Not authorized: run atox from an agent inside Atox.')
       }
       const caller = this.services.store.findChat(request.chatId)
       if (!caller) {
-        throw new CommandError('This terminal does not belong to an Atox chat.')
+        throw new CommandError('This agent does not belong to an Atox chat.')
       }
       const handler = this.handlers[request.method] as (
         caller: ChatLocation,
@@ -160,9 +141,7 @@ export class OrchestrationServer {
   private readonly handlers: Handlers = {
     agents: async () => {
       const installed = await this.services.agents.list()
-      return installed
-        .filter((id) => id !== TERMINAL_AGENT_ID)
-        .map((id) => ({ id, name: findAgent(id)?.name ?? id }))
+      return installed.map((id) => ({ id, name: findAgent(id)?.name ?? id }))
     },
 
     start: async (caller, { agent, task, title }) => {
@@ -173,36 +152,21 @@ export class OrchestrationServer {
         throw new CommandError('The task is empty.')
       }
       const active = this.workersOf(caller).filter(
-        (chat) =>
-          this.services.terminals.getRunningProgram(chat.id) !== null &&
-          !this.reportedChatIds.has(chat.id)
+        (chat) => this.services.conversations.isRunning(chat.id) && !this.reportedChatIds.has(chat.id)
       )
       if (active.length >= MAX_ACTIVE_WORKERS) {
         throw new CommandError(
           `You already have ${active.length} workers in progress. Wait for their reports before starting more.`
         )
       }
-      const installed = (await this.services.agents.list()).filter((id) => id !== TERMINAL_AGENT_ID)
+      const installed = await this.services.agents.list()
       if (!isAgentId(agent) || !installed.includes(agent)) {
         const available = installed.join(', ') || 'none'
         throw new CommandError(`Agent "${agent}" is not installed. Available agents: ${available}.`)
       }
-      // Доверие к папке — до создания чата: помощник не должен остановиться на этом вопросе.
-      await trustFolderForAgent(agent, caller.project.path).catch((error) =>
-        console.error('Failed to trust the folder for a worker', error)
-      )
-      const { project, chat } = this.services.store.createWorkerChat(caller.chat.id, agent, title)
-      const taskFile = join(this.services.tasksDirectory, `${chat.id}.md`)
-      await writeFile(taskFile, formatWorkerTask(caller.chat, task), { mode: OWNER_ONLY })
-      const launch = agentLaunchCommand(agent, this.services.settings.get().agentCommands, {
-        worker: true
-      })
-      // Задание передаётся агенту аргументом: так оно приходит первым сообщением, без ожидания,
-      // пока агент запустится. «--» закрывает флаги: иначе флаг со списком значений (например,
-      // --allowedTools у Claude) принял бы задание за ещё одно значение. Файл удаляется сразу
-      // после чтения.
-      const command = `${launch} -- "$(cat ${quoteShell(taskFile)}; rm -f ${quoteShell(taskFile)})"`
-      this.services.terminals.attach(chat.id, project.path, WORKER_TERMINAL_SIZE, command, true)
+      const { chat } = this.services.store.createWorkerChat(caller.chat.id, agent, title)
+      // Задание — первое сообщение помощнику: он сразу начинает работать.
+      await this.services.conversations.send(chat.id, formatWorkerTask(caller.chat, task))
       this.services.onProjectsChanged()
       return { chatId: chat.id, title: chat.title }
     },
@@ -239,7 +203,7 @@ export class OrchestrationServer {
       return { chatId: parent.chat.id }
     },
 
-    remove: (caller, { chatIds }) => {
+    remove: async (caller, { chatIds }) => {
       const ids = Array.isArray(chatIds) ? [...new Set(chatIds.map(String))] : []
       if (ids.length === 0) {
         throw new CommandError('Specify the chat ids of the workers to remove.')
@@ -258,8 +222,8 @@ export class OrchestrationServer {
         return worker
       })
       for (const worker of workers) {
-        this.services.terminals.kill(worker.id)
         this.services.store.removeChat(worker.id)
+        await this.services.conversations.remove(worker.id)
         this.reportedChatIds.delete(worker.id)
       }
       this.services.onProjectsChanged()
@@ -270,8 +234,8 @@ export class OrchestrationServer {
       this.workersOf(caller).map((chat) => ({
         chatId: chat.id,
         title: chat.title,
-        agent: chat.agent ?? TERMINAL_AGENT_ID,
-        running: this.services.terminals.isRunning(chat.id),
+        agent: chat.agent,
+        running: this.services.conversations.isRunning(chat.id),
         reported: this.reportedChatIds.has(chat.id),
         startedAt: chat.createdAt
       }))
@@ -296,15 +260,11 @@ export class OrchestrationServer {
     return target
   }
 
-  /**
-   * Ставит текст в очередь агенту чата: он придёт, как только агент сможет его принять.
-   * В пустую оболочку не пишет — там текст выполнился бы как команда.
-   */
+  /** Ставит текст в очередь агенту чата: он получит его, как только закончит текущую работу. */
   private deliver(chat: Chat, text: string): void {
-    if (this.services.terminals.getRunningProgram(chat.id) === null) {
-      throw new CommandError(`No agent is running in "${chat.title}", so the message was not sent.`)
-    }
-    this.delivery.enqueue(chat.id, text)
+    void this.services.conversations
+      .send(chat.id, text)
+      .catch((error) => console.error('Failed to deliver an agent message', error))
   }
 }
 

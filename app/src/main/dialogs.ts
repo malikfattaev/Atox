@@ -26,23 +26,17 @@ export async function confirm(
 }
 
 /**
- * Предупреждение о запущенных программах, например:
- * «“claude” is still running in this chat. Deleting the chat will stop it.»
+ * Предупреждение о работающих агентах, например:
+ * «Claude is still working in this chat. Deleting the chat will stop it.»
  */
-export function describeRunningPrograms(
-  programs: string[],
+export function describeWorkingAgents(
+  count: number,
   location: string,
-  consequence: string
+  consequence: string,
+  agentName?: string
 ): string {
-  const verb = new Set(programs).size > 1 ? 'are' : 'is'
-  const pronoun = programs.length > 1 ? 'them' : 'it'
-  return `${formatProgramList(programs)} ${verb} still running ${location}. ${consequence} will stop ${pronoun}.`
-}
-
-/** «claude», «claude and npm», «claude, npm and node» — без повторов. */
-function formatProgramList(programs: string[]): string {
-  const unique = [...new Set(programs)].map((program) => `“${program}”`)
-  return unique.length <= 1
-    ? (unique[0] ?? '')
-    : `${unique.slice(0, -1).join(', ')} and ${unique.at(-1)}`
+  const subject =
+    count === 1 ? `${agentName ?? 'An agent'} is` : `${count} agents are`
+  const pronoun = count === 1 ? 'it' : 'them'
+  return `${subject} still working ${location}. ${consequence} will stop ${pronoun}.`
 }

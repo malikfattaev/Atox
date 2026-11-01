@@ -2,7 +2,6 @@ import {
   createContext,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -30,9 +29,12 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
       })
   )
 
-  // Сообщения и задания, которые Atox отправляет агентам: их ответ — работа.
+  // Работа агентов во всех чатах, в том числе тех, что сейчас не на экране.
   useEffect(
-    () => window.atox.terminal.onSubmit((chatId) => tracker.reportSubmit(chatId)),
+    () =>
+      window.atox.conversations.onRunningChange((chatId, running) =>
+        tracker.reportRunning(chatId, running)
+      ),
     [tracker]
   )
 
@@ -48,22 +50,13 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('focus', markSeen)
   }, [visibleChatIds, tracker])
 
-  // Помощников окно не показывает, пока их не откроют, — их работа видна по выводу терминала.
-  // Подписка на вывод без xterm почти ничего не стоит.
+  // Помощники работают в фоне: о результате сообщает их агент, а не уведомление.
   const { projects: projectList } = projects
-  const workerChatIds = useMemo(
-    () =>
-      projectList.flatMap(({ chats }) => chats.filter(isWorkerChat).map(({ id }) => id)).join(' '),
-    [projectList]
-  )
   useEffect(() => {
-    const chatIds = workerChatIds ? workerChatIds.split(' ') : []
-    tracker.setBackgroundChats(chatIds)
-    const unsubscribes = chatIds.map((chatId) =>
-      window.atox.terminal.onData(chatId, (data) => tracker.reportOutput(chatId, data))
+    tracker.setBackgroundChats(
+      projectList.flatMap(({ chats }) => chats.filter(isWorkerChat).map(({ id }) => id))
     )
-    return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
-  }, [workerChatIds, tracker])
+  }, [projectList, tracker])
 
   // Удалённые чаты больше не отслеживаются. Чаты других пространств остаются: их состояние
   // должно дождаться возвращения в пространство.

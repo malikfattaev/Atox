@@ -2,24 +2,16 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { X } from 'lucide-react'
 import { DEFAULT_SPLIT_POSITION } from '../../../shared/split'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { ChatView } from './ChatView'
 import { SettingsView } from './SettingsView'
 import { SplitResizer } from './SplitResizer'
-import { TerminalView } from './TerminalView'
 
 interface WorkspaceProps {
-  /** Открытый поиск: в каком чате и номер запроса (⌘F). */
-  find: FindRequest | null
-  onCloseFind(): void
   settingsOpen: boolean
   onCloseSettings(): void
 }
 
-export interface FindRequest {
-  chatId: string
-  request: number
-}
-
-export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: WorkspaceProps) {
+export function Workspace({ settingsOpen, onCloseSettings }: WorkspaceProps) {
   const {
     projects,
     activeChatId,
@@ -28,8 +20,7 @@ export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: 
     currentProjectId,
     selectChat,
     closeChatPane,
-    setSplitPosition,
-    applyTerminalTitle
+    setSplitPosition
   } = useProjectsContext()
   const workspaceRef = useRef<HTMLElement>(null)
   // Пока тянут разделитель, положение живёт здесь; у проекта сохраняется только итоговое.
@@ -53,7 +44,7 @@ export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: 
         const visible = !settingsOpen && pane >= 0
         const focused = visible && chatId === activeChatId
         return (
-          // Терминалы открытых чатов остаются смонтированными: скрытый чат не теряет вывод.
+          // Открытые чаты остаются смонтированными: скрытый чат не теряет черновик и прокрутку.
           <section
             key={chatId}
             className="chat-pane"
@@ -76,14 +67,7 @@ export function Workspace({ find, onCloseFind, settingsOpen, onCloseSettings }: 
                 </button>
               </header>
             )}
-            <TerminalView
-              chatId={chatId}
-              visible={visible}
-              focused={focused}
-              findRequest={find?.chatId === chatId ? find.request : null}
-              onCloseFind={onCloseFind}
-              onTitleChange={(title) => void applyTerminalTitle(chatId, title)}
-            />
+            <ChatView chatId={chatId} visible={visible} focused={focused} />
           </section>
         )
       })}

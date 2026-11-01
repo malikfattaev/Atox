@@ -2,7 +2,6 @@ import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'elect
 import { IpcChannel } from '../shared/api'
 import type { AppCommand } from '../shared/commands'
 import { IS_MAC } from '../shared/platform'
-import { TERMINAL_FONT_SIZE } from '../shared/settings'
 import {
   findShortcutConflict,
   LINUX_QUIT_ACCELERATOR,
@@ -12,7 +11,10 @@ import {
 } from '../shared/shortcuts'
 import type { SettingsStore } from './settings'
 
-/** Дополнительное сочетание увеличения шрифта для раскладок, где «+» набирается с Shift. */
+/** Шаг и пределы масштаба окна в уровнях Electron: каждый уровень — 20% размера. */
+const ZOOM_LEVEL = { step: 0.5, min: -3, max: 5 } as const
+
+/** Дополнительное сочетание увеличения масштаба для раскладок, где «+» набирается с Shift. */
 const ZOOM_IN_ALIAS = IS_MAC ? 'CmdOrCtrl+=' : 'Ctrl+='
 
 function sendCommand(command: AppCommand): void {
@@ -52,7 +54,6 @@ export class AppMenu {
   }
 
   private buildTemplate(shortcuts: ShortcutOverrides): MenuItemConstructorOptions[] {
-    const settings = this.settings
     const accelerator = (id: ShortcutId) =>
       this.recordingShortcut ? undefined : resolveAccelerator(id, shortcuts)
     const commandItem = (
@@ -64,8 +65,14 @@ export class AppMenu {
       accelerator: accelerator(id),
       click: () => sendCommand(command)
     })
-    const changeFontSize = (resolve: (current: number) => number) => () =>
-      settings.update({ terminalFontSize: resolve(settings.get().terminalFontSize) })
+    // Масштаб всего окна, как в браузере: крупнее становятся и лента, и сайдбар.
+    const zoom = (resolve: (level: number) => number) => () => {
+      const contents = BrowserWindow.getFocusedWindow()?.webContents
+      if (contents) {
+        const level = resolve(contents.getZoomLevel())
+        contents.setZoomLevel(Math.min(ZOOM_LEVEL.max, Math.max(ZOOM_LEVEL.min, level)))
+      }
+    }
     // На раскладках без отдельной «+» увеличение срабатывает и по ⌘= (Ctrl+=), как в браузерах, —
     // если это сочетание не отдано другому действию.
     const zoomInAlias =
@@ -88,24 +95,24 @@ export class AppMenu {
         {
           label: 'Actual Size',
           accelerator: accelerator('actualSize'),
-          click: changeFontSize(() => TERMINAL_FONT_SIZE.default)
+          click: zoom(() => 0)
         },
         {
           label: 'Zoom In',
           accelerator: accelerator('zoomIn'),
-          click: changeFontSize((size) => size + 1)
+          click: zoom((level) => level + ZOOM_LEVEL.step)
         },
         {
           label: 'Zoom In',
           accelerator: zoomInAlias,
-          click: changeFontSize((size) => size + 1),
+          click: zoom((level) => level + ZOOM_LEVEL.step),
           visible: false,
           acceleratorWorksWhenHidden: true
         },
         {
           label: 'Zoom Out',
           accelerator: accelerator('zoomOut'),
-          click: changeFontSize((size) => size - 1)
+          click: zoom((level) => level - ZOOM_LEVEL.step)
         },
         ...developmentItems
       ]

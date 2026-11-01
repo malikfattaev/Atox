@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from '../../../shared/api'
 import { isProjectColor, PROJECT_COLORS, type ProjectColor } from '../../../shared/projectColors'
-import { colorSchemeQuery } from './terminalTheme'
+import { colorSchemeQuery } from './colorScheme'
 
 /** Пункт меню цвета: `color:red`, `color:none` и т. д. */
 const COLOR_ACTION_PREFIX = 'color:'

@@ -1,42 +1,6 @@
 export type ChatActivityStatus = 'idle' | 'working' | 'unread'
 
-/** Тишина в выводе, после которой работа в чате считается законченной. */
-const QUIET_PERIOD_MS = 1500
-
-/** Вывод сразу после ввода — эхо набранного текста, а не работа программы. */
-const ECHO_WINDOW_MS = 250
-
-/**
- * Дольше запуск или перерисовка не длятся: если вывод всё ещё идёт, программа уже работает —
- * например, агенту пришло сообщение сразу после открытия чата.
- */
-const SETTLE_LIMIT_MS = 5000
-
-/**
- * Служебные последовательности терминала: команды курсора и экрана, заголовки, запросы
- * возможностей. Вывод только из них — перерисовка, а не работа программы.
- */
-const TERMINAL_CONTROLS =
-  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[P_^X][\s\S]*?(?:\x1b\\|$)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]|[\x00-\x1f\x7f]/g
-
-/**
- * После Enter пользователя или сообщения от Atox вывод программы — ответ на него, то есть работа.
- * Ответ ждём долго: команда может молча собирать проект несколько минут.
- */
-const RESPONSE_WAIT_MS = 10 * 60 * 1000
-
-/** После конца работы её продолжение — тот же ответ: агент мог замолчать посреди него. */
-const CONTINUATION_MS = 30_000
-
-/**
- * Вывод, который никто не запускал, — работа, только если он идёт непрерывно хотя бы столько.
- * Агент, который сам продолжил работу (например, когда закончилась фоновая команда), всё это
- * время показывает анимацию ожидания. Простаивающий агент выводит короткими вспышками: сводку
- * «пока вас не было», обновлённую строку состояния, перерисовку экрана.
- */
-const SPONTANEOUS_WORK_MS = 3000
-
-/** Уведомлять о завершении только долгой работы — быстрые команды не должны отвлекать. */
+/** Уведомлять о завершении только долгой работы — быстрые ответы не должны отвлекать. */
 const NOTIFY_MIN_WORK_MS = 10_000
 
 export interface ChatActivityEnvironment {
@@ -48,25 +12,11 @@ export interface ChatActivityEnvironment {
 interface ChatState {
   status: ChatActivityStatus
   workStartedAt: number
-  lastOutputAt: number
-  lastInputAt: number
-  /** До этого момента вывод — ответ на отправленное пользователем или Atox. */
-  submittedUntil: number
-  /** Начало непрерывного вывода, который никто не запускал; 0 — такого вывода нет. */
-  spontaneousSince: number
-  /**
-   * Программа запускается или перерисовывает экран под новый размер: её вывод — не работа,
-   * пока он не затихнет или пользователь что-нибудь не наберёт.
-   */
-  settling: boolean
-  settleDeadline: number
-  settleTimer?: ReturnType<typeof setTimeout>
-  quietTimer?: ReturnType<typeof setTimeout>
 }
 
 /**
- * Следит за активностью терминалов по их выводу: работает ли программа, закончила ли она,
- * пока пользователь смотрел в другое место, и нужно ли его позвать.
+ * Состояние чатов для индикаторов в сайдбаре: работает ли агент, закончил ли он, пока
+ * пользователь смотрел в другое место, и нужно ли его позвать.
  */
 export class ChatActivityTracker {
   private readonly chats = new Map<string, ChatState>()
@@ -89,80 +39,32 @@ export class ChatActivityTracker {
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
-  }
-
-  /**
-   * Пользователь нажал Enter или Atox отправил программе сообщение: её следующий вывод —
-   * ответ, то есть работа.
-   */
-  reportSubmit(chatId: string): void {
-    this.state(chatId).submittedUntil = Date.now() + RESPONSE_WAIT_MS
-  }
-
-  reportInput(chatId: string): void {
-    const state = this.state(chatId)
-    state.lastInputAt = Date.now()
-    // Пользователь что-то отправил — дальше вывод снова может быть работой.
-    state.settling = false
-    clearTimeout(state.settleTimer)
-  }
-
-  /**
-   * Терминал чата подключили или изменили его размер: программа сейчас запустится или
-   * перерисует экран. Так бывает, когда чат просто открывают, — это не работа.
-   */
-  reportRedraw(chatId: string): void {
-    const state = this.state(chatId)
-    if (state.status !== 'working') {
-      state.settling = true
-      state.settleDeadline = Date.now() + SETTLE_LIMIT_MS
-      this.restartSettleTimer(state)
+    return () => {
+      this.listeners.delete(listener)
     }
   }
 
-  reportOutput(chatId: string, data: string): void {
+  /** Агент чата начал или закончил работу. */
+  reportRunning(chatId: string, running: boolean): void {
     const state = this.state(chatId)
-    const now = Date.now()
-    if (now - state.lastInputAt < ECHO_WINDOW_MS || !hasVisibleText(data)) {
-      return
-    }
-    if (state.settling && now < state.settleDeadline) {
-      this.restartSettleTimer(state)
-      return
-    }
-    state.settling = false
-
-    if (state.status !== 'working') {
-      const workStartedAt = this.workStart(state, now)
-      state.lastOutputAt = now
-      if (workStartedAt === null) {
-        return
+    if (running) {
+      if (state.status !== 'working') {
+        state.workStartedAt = Date.now()
       }
-      state.workStartedAt = workStartedAt
       this.setStatus(state, 'working')
+      return
     }
-    state.lastOutputAt = now
-    clearTimeout(state.quietTimer)
-    state.quietTimer = setTimeout(() => this.finishWork(chatId, state), QUIET_PERIOD_MS)
-  }
-
-  /**
-   * Программа просит внимания: звонок терминала или уведомление через OSC 9. Считается только
-   * во время работы — например, агент ждёт разрешения. Простаивающий агент тоже напоминает
-   * о себе («жду ввода»), но это не новость для пользователя.
-   */
-  reportAttention(chatId: string, message: string): void {
+    if (state.status !== 'working') {
+      return
+    }
     if (this.backgroundChatIds.has(chatId) || this.environment.isChatInView(chatId)) {
+      this.setStatus(state, 'idle')
       return
     }
-    const state = this.state(chatId)
-    if (state.status !== 'working' && Date.now() >= state.submittedUntil) {
-      return
-    }
-    clearTimeout(state.quietTimer)
     this.setStatus(state, 'unread')
-    this.environment.notify(chatId, message)
+    if (Date.now() - state.workStartedAt >= NOTIFY_MIN_WORK_MS) {
+      this.environment.notify(chatId, 'Finished working')
+    }
   }
 
   markSeen(chatId: string): void {
@@ -173,62 +75,13 @@ export class ChatActivityTracker {
   }
 
   forget(chatId: string): void {
-    clearTimeout(this.chats.get(chatId)?.quietTimer)
-    clearTimeout(this.chats.get(chatId)?.settleTimer)
     this.chats.delete(chatId)
-  }
-
-  /**
-   * С какого момента вывод — работа; `null` — пока не работа. Ответ на отправленное — сразу,
-   * вывод без повода — когда он непрерывно идёт достаточно долго.
-   */
-  private workStart(state: ChatState, now: number): number | null {
-    if (now < state.submittedUntil) {
-      state.spontaneousSince = 0
-      return now
-    }
-    if (state.spontaneousSince === 0 || now - state.lastOutputAt >= QUIET_PERIOD_MS) {
-      state.spontaneousSince = now
-    }
-    if (now - state.spontaneousSince < SPONTANEOUS_WORK_MS) {
-      return null
-    }
-    const since = state.spontaneousSince
-    state.spontaneousSince = 0
-    return since
-  }
-
-  private finishWork(chatId: string, state: ChatState): void {
-    // Продолжение ответа после короткой паузы — та же работа, а дальше вывод без повода — нет.
-    state.submittedUntil = Date.now() + CONTINUATION_MS
-    if (this.backgroundChatIds.has(chatId) || this.environment.isChatInView(chatId)) {
-      this.setStatus(state, 'idle')
-      return
-    }
-    this.setStatus(state, 'unread')
-    if (state.lastOutputAt - state.workStartedAt >= NOTIFY_MIN_WORK_MS) {
-      this.environment.notify(chatId, 'Finished working')
-    }
-  }
-
-  private restartSettleTimer(state: ChatState): void {
-    clearTimeout(state.settleTimer)
-    state.settleTimer = setTimeout(() => (state.settling = false), QUIET_PERIOD_MS)
   }
 
   private state(chatId: string): ChatState {
     let state = this.chats.get(chatId)
     if (!state) {
-      state = {
-        status: 'idle',
-        workStartedAt: 0,
-        lastOutputAt: 0,
-        lastInputAt: 0,
-        submittedUntil: 0,
-        spontaneousSince: 0,
-        settling: false,
-        settleDeadline: 0
-      }
+      state = { status: 'idle', workStartedAt: 0 }
       this.chats.set(chatId, state)
     }
     return state
@@ -240,8 +93,4 @@ export class ChatActivityTracker {
       this.listeners.forEach((listener) => listener())
     }
   }
-}
-
-function hasVisibleText(data: string): boolean {
-  return data.replace(TERMINAL_CONTROLS, '').trim().length > 0
 }

@@ -3,8 +3,8 @@
   --sidebar-resizer-width: 8px;
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
   --titlebar-height: 44px;
-  --terminal-padding-top: 12px;
-  --workspace-drag-height: var(--terminal-padding-top);
+  /* Полоса над лентой, за которую можно перетаскивать окно. */
+  --workspace-drag-height: 12px;
   --row-height: 34px;
   /* Зазор между строками сайдбара: выделенные соседние строки не слипаются. */
   --row-spacing: 3px;
@@ -40,6 +40,17 @@
   --worker-chevron-size: 14px;
   /* Насколько плотно залита цветная папка проекта. */
   --project-icon-fill: 40%;
+  /* Ширина колонки ленты и поля ввода: строки длиннее читать тяжело. */
+  --chat-column-width: 768px;
+  --chat-gutter: 24px;
+  --chat-block-gap: 16px;
+  --composer-radius: 16px;
+  --composer-padding: 12px;
+  --composer-max-height: 40vh;
+  --composer-button-size: 30px;
+  --message-radius: 16px;
+  --activity-indent: 24px;
+  --details-max-height: 320px;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   --font-mono: 'SF Mono', Menlo, Monaco, monospace;
@@ -66,6 +77,11 @@
   --color-avatar: rgba(0, 0, 0, 0.12);
   --color-status-idle: rgba(0, 0, 0, 0.2);
   --color-group: rgba(0, 0, 0, 0.03);
+  --color-bubble: rgba(0, 0, 0, 0.05);
+  --color-code: rgba(0, 0, 0, 0.04);
+  --color-danger: #d70015;
+  --color-danger-background: rgba(215, 0, 21, 0.06);
+  --shadow-composer: 0 4px 24px rgba(0, 0, 0, 0.06);
 
   color-scheme: light dark;
   font-family: var(--font-sans);
@@ -93,6 +109,11 @@
     --color-avatar: rgba(255, 255, 255, 0.16);
     --color-status-idle: rgba(255, 255, 255, 0.22);
     --color-group: rgba(255, 255, 255, 0.035);
+    --color-bubble: rgba(255, 255, 255, 0.08);
+    --color-code: rgba(255, 255, 255, 0.06);
+    --color-danger: #ff6961;
+    --color-danger-background: rgba(255, 105, 97, 0.1);
+    --shadow-composer: 0 4px 24px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -914,8 +935,8 @@ ul {
 
 /*
  * Невидимая полоса по верхнему краю рабочей области: за неё окно можно перетаскивать с любого
- * места сверху. Она занимает только отступ над терминалом — зона перетаскивания не принимает
- * клики, и строки терминала под ней нельзя было бы выделить.
+ * места сверху. Она занимает только отступ над лентой — зона перетаскивания не принимает
+ * клики, и текст под ней нельзя было бы выделить.
  */
 .workspace::before {
   content: '';
@@ -936,10 +957,6 @@ ul {
 
 .app[data-sidebar='hidden'] .chat-pane {
   top: var(--titlebar-height);
-}
-
-.app[data-sidebar='hidden'] .terminal-view {
-  padding-top: 0;
 }
 
 .workspace__empty {
@@ -1031,13 +1048,405 @@ ul {
   -webkit-app-region: no-drag;
 }
 
-.terminal-view {
+/* Чат: лента сообщений и поле ввода под ней */
+
+.chat-view {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: var(--terminal-padding-top) 0 12px 16px;
 }
 
-.terminal-view__host {
-  height: 100%;
+.chat-view__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(var(--workspace-drag-height) + var(--chat-gutter)) var(--chat-gutter) var(--chat-gutter);
+}
+
+.chat-view__column,
+.chat-view__composer {
+  width: 100%;
+  max-width: var(--chat-column-width);
+  margin: 0 auto;
+}
+
+.chat-view__composer {
+  padding: 0 var(--chat-gutter) var(--chat-gutter);
+  max-width: calc(var(--chat-column-width) + 2 * var(--chat-gutter));
+}
+
+/* Пустой чат: приветствие и поле ввода посередине, как в Codex. */
+.chat-view[data-empty='true'] {
+  justify-content: center;
+}
+
+.chat-view[data-empty='true'] .chat-view__scroll {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.chat-view__greeting {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--chat-block-gap);
+  line-height: 1.6;
+  user-select: text;
+}
+
+.message--user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 10px 16px;
+  border-radius: var(--message-radius);
+  background: var(--color-bubble);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message--error {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  color: var(--color-danger);
+  background: var(--color-danger-background);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message--error .icon {
+  margin-top: 3px;
+}
+
+/* Ответ агента */
+
+.markdown {
+  overflow-wrap: anywhere;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown table,
+.markdown blockquote {
+  margin: 0 0 12px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 20px 0 8px;
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  font-size: 1.4em;
+}
+
+.markdown h2 {
+  font-size: 1.2em;
+}
+
+.markdown h3,
+.markdown h4 {
+  font-size: 1em;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;
+}
+
+.markdown ul {
+  list-style: disc;
+}
+
+.markdown li + li {
+  margin-top: 4px;
+}
+
+.markdown a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.markdown a:hover {
+  text-decoration: underline;
+}
+
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--color-code);
+}
+
+.markdown pre {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--color-code);
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.markdown pre code {
+  padding: 0;
+  background: none;
+  font-size: var(--font-size-small);
+}
+
+.markdown blockquote {
+  padding-left: 12px;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.markdown table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 16px 0;
+}
+
+/* Действия агента: свёрнутая сводка и список команд, правок и чтений */
+
+.activity {
+  color: var(--color-text-muted);
+}
+
+.activity__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 2px 0;
+  border-radius: 6px;
+}
+
+.activity__summary:hover {
+  color: var(--color-text);
+}
+
+.activity__summary-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity__chevron {
+  transition: rotate var(--collapse-duration) var(--collapse-easing);
+}
+
+.activity[data-expanded='true'] .activity__chevron {
+  rotate: 90deg;
+}
+
+.activity__spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.activity__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0 calc(var(--activity-indent) / 2);
+  padding-left: calc(var(--activity-indent) / 2);
+  border-left: 1px solid var(--color-border);
+}
+
+.activity-row__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.activity-row__header:not(:disabled):hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.activity-row__verb {
+  flex-shrink: 0;
+}
+
+.activity-row__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.activity-row__title[data-code] {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+}
+
+.activity-row__failed {
+  color: var(--color-danger);
+}
+
+.activity-row__details {
+  max-height: var(--details-max-height);
+  overflow: auto;
+  margin: 4px 0 8px var(--activity-indent);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--color-code);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.activity-row__details[data-prose] {
+  font-family: var(--font-sans);
+  font-size: var(--font-size);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.turn-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+/* Поле ввода */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--composer-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--composer-radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-composer);
+}
+
+.composer:focus-within {
+  border-color: var(--color-popover-border);
+}
+
+.composer__input {
+  width: 100%;
+  max-height: var(--composer-max-height);
+  padding: 2px 4px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.composer__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.composer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.composer__button {
+  display: grid;
+  place-items: center;
+  width: var(--composer-button-size);
+  height: var(--composer-button-size);
+  border-radius: 50%;
+  color: var(--color-on-accent);
+  background: var(--color-text);
+}
+
+.composer__button:disabled {
+  opacity: 0.25;
+}
+
+.composer__button .icon {
+  color: var(--color-surface);
+}
+
+.composer__stop-icon {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.model-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+}
+
+.model-picker:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.model-picker__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-picker__chevron {
+  width: 14px;
+  height: 14px;
 }

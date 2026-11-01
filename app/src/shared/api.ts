@@ -1,5 +1,11 @@
 import type { AgentId } from './agents'
 import type { AppCommand } from './commands'
+import type {
+  AgentCatalog,
+  ChatConfiguration,
+  ConversationEvent,
+  ConversationSnapshot
+} from './conversation'
 import type { Project, SpacesState, UserProfile } from './models'
 import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
@@ -17,6 +23,8 @@ export type ContextMenuItem<Action extends string> =
       checked?: boolean
       /** Сочетание клавиш, которое показывается справа от пункта (само меню его не перехватывает). */
       accelerator?: string
+      /** `false` — пункт виден, но выбрать его нельзя, например пояснение «Loading…». */
+      enabled?: boolean
     }
   | {
       type: 'submenu'
@@ -34,11 +42,6 @@ export interface MenuPosition {
 
 /** Текущая ветка git по пути папки проекта; `null` — папка не репозиторий git. */
 export type GitBranches = Record<string, string | null>
-
-export interface TerminalSize {
-  cols: number
-  rows: number
-}
 
 /** API, который preload пробрасывает в renderer как `window.atox`. */
 export interface AtoxApi {
@@ -78,34 +81,37 @@ export interface AtoxApi {
     remove(spaceId: string): Promise<{ spaces: SpacesState; projects: Project[] } | null>
   }
   agents: {
-    /** Агенты, которые установлены на компьютере; пустой терминал доступен всегда. */
+    /** Агенты, которые установлены на компьютере. */
     available(): Promise<AgentId[]>
+    /** Модели агента; `null` — агент не установлен или не ответил. */
+    catalog(agent: AgentId): Promise<AgentCatalog | null>
   }
   chats: {
     /**
      * Создаёт чат с агентом. Выбранный агент становится агентом по умолчанию; без агента
-     * берётся агент по умолчанию (если он установлен) или пустой терминал.
+     * берётся агент по умолчанию.
      */
     create(projectId: string, agent?: AgentId): Promise<{ projects: Project[]; chatId: string }>
     remove(chatId: string): Promise<Project[]>
-    /** Переименование пользователем: после него заголовок терминала название не меняет. */
+    /** Переименование пользователем: после него первое сообщение название не меняет. */
     rename(chatId: string, title: string): Promise<Project[]>
     /** Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта. */
     move(chatId: string, toIndex: number): Promise<Project[]>
-    /** Заголовок, который выставила программа в терминале; игнорируется, если название задано вручную. */
-    applyTerminalTitle(chatId: string, title: string): Promise<Project[]>
+    /** Меняет агента, модель или эффорт чата. */
+    configure(chatId: string, configuration: ChatConfiguration): Promise<Project[]>
     /** Список чатов изменился без участия окна — например, агент запустил помощника. */
     onChanged(listener: (projects: Project[]) => void): () => void
   }
-  terminal: {
-    /** Запускает терминал чата, если он ещё не запущен, и возвращает уже накопленный вывод. */
-    attach(chatId: string, size: TerminalSize): Promise<string>
-    write(chatId: string, data: string): void
-    resize(chatId: string, size: TerminalSize): void
-    onData(chatId: string, listener: (data: string) => void): () => void
-    onExit(chatId: string, listener: () => void): () => void
-    /** Atox отправил программе сообщение или задание — в любом чате. */
-    onSubmit(listener: (chatId: string) => void): () => void
+  conversations: {
+    /** Лента чата и то, работает ли сейчас его агент. */
+    snapshot(chatId: string): Promise<ConversationSnapshot>
+    send(chatId: string, text: string): Promise<void>
+    /** Останавливает ответ агента и отменяет сообщения, ждущие очереди. */
+    interrupt(chatId: string): Promise<void>
+    /** События ленты одного чата. */
+    onEvent(chatId: string, listener: (event: ConversationEvent) => void): () => void
+    /** Агент какого-либо чата начал или закончил работу. */
+    onRunningChange(listener: (chatId: string, running: boolean) => void): () => void
   }
   files: {
     /** Путь на диске к файлу, перетащенному в окно. */
@@ -172,18 +178,17 @@ export const IpcChannel = {
   ProjectsMove: 'projects:move',
   ProjectsReveal: 'projects:reveal',
   AgentsAvailable: 'agents:available',
+  AgentsCatalog: 'agents:catalog',
   ChatsCreate: 'chats:create',
   ChatsRemove: 'chats:remove',
   ChatsRename: 'chats:rename',
   ChatsMove: 'chats:move',
-  ChatsApplyTerminalTitle: 'chats:apply-terminal-title',
+  ChatsConfigure: 'chats:configure',
   ProjectsChanged: 'projects:changed',
-  TerminalAttach: 'terminal:attach',
-  TerminalWrite: 'terminal:write',
-  TerminalResize: 'terminal:resize',
-  TerminalData: 'terminal:data',
-  TerminalExit: 'terminal:exit',
-  TerminalSubmit: 'terminal:submit',
+  ConversationsSnapshot: 'conversations:snapshot',
+  ConversationsSend: 'conversations:send',
+  ConversationsInterrupt: 'conversations:interrupt',
+  ConversationsEvent: 'conversations:event',
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
@@ -199,17 +204,3 @@ export const IpcChannel = {
   ShortcutsRecording: 'shortcuts:recording',
   ContextMenu: 'context-menu'
 } as const
-
-export interface TerminalDataEvent {
-  chatId: string
-  data: string
-}
-
-export interface TerminalExitEvent {
-  chatId: string
-}
-
-/** Atox отправил программе в терминале чата сообщение или задание. */
-export interface TerminalSubmitEvent {
-  chatId: string
-}

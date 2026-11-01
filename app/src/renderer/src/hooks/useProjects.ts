@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentId } from '../../../shared/agents'
+import type { ChatConfiguration } from '../../../shared/conversation'
 import { moveChatGroup, topLevelChats } from '../../../shared/chats'
 import { moveItemWithinGroup } from '../../../shared/list'
 import type { Project, Space } from '../../../shared/models'
@@ -79,7 +80,8 @@ export interface ProjectsState {
   removeChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
   moveChat(chatId: string, toIndex: number): Promise<void>
-  applyTerminalTitle(chatId: string, title: string): Promise<void>
+  /** Меняет агента, модель или эффорт чата. */
+  configureChat(chatId: string, configuration: ChatConfiguration): Promise<void>
 }
 
 export function useProjects(): ProjectsState {
@@ -345,9 +347,9 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
-  const applyTerminalTitle = useCallback(
-    async (chatId: string, title: string) =>
-      applyProjects(await atox.chats.applyTerminalTitle(chatId, title)),
+  const configureChat = useCallback(
+    async (chatId: string, configuration: ChatConfiguration) =>
+      applyProjects(await atox.chats.configure(chatId, configuration)),
     [applyProjects]
   )
 
@@ -381,7 +383,7 @@ export function useProjects(): ProjectsState {
     removeChat,
     renameChat,
     moveChat,
-    applyTerminalTitle
+    configureChat
   }
 }
 

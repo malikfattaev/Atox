@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { userInfo } from 'node:os'
+import { delimiter, dirname, sep } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -96,8 +97,24 @@ function sessionEnvironment(): Record<string, string> {
       env[key] = value
     }
   }
+  env['PATH'] = inheritedPath()
   env['LANG'] ??= FALLBACK_LANG
   return env
+}
+
+/**
+ * PATH процесса без каталогов образа AppImage: их дописывает его AppRun, и по имени `atox`
+ * агент нашёл бы сам бинарник приложения вместо команды для агентов.
+ */
+function inheritedPath(): string {
+  const entries = (process.env['PATH'] ?? '').split(delimiter).filter(Boolean)
+  if (!process.env['APPIMAGE']) {
+    return entries.join(delimiter)
+  }
+  const appDir = dirname(process.execPath)
+  return entries
+    .filter((entry) => entry !== appDir && !entry.startsWith(appDir + sep))
+    .join(delimiter)
 }
 
 function parseEnvironment(output: string): Record<string, string> | null {

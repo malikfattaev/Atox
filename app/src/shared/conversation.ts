@@ -27,6 +27,13 @@ export interface ModelSelection {
   effort?: string
 }
 
+/** Что можно поменять в чате; `null` — вернуть значение по умолчанию. Агента — только до первого сообщения. */
+export interface ChatConfiguration {
+  agent?: AgentId
+  model?: string | null
+  effort?: string | null
+}
+
 /** Чем занят инструмент — по этому выбираются значок и сводка «Ran 2 commands». */
 export type ToolKind = 'command' | 'read' | 'edit' | 'search' | 'web' | 'agent' | 'other'
 

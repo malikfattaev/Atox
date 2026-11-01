@@ -5,7 +5,7 @@ import type { Space } from '../../../shared/models'
 import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
-import { colorSchemeQuery } from '../lib/terminalTheme'
+import { colorSchemeQuery } from '../lib/colorScheme'
 import { InlineRename } from './InlineRename'
 
 const { atox } = window

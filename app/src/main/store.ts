@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
-import type { AgentId } from '../shared/agents'
+import { DEFAULT_AGENT_ID, isAgentId, type AgentId } from '../shared/agents'
+import type { ChatConfiguration, ModelSelection } from '../shared/conversation'
 import { insertWorkerChat, moveChatGroup, removeChatFromList } from '../shared/chats'
 import { moveItemWithinGroup } from '../shared/list'
 import type { Chat, Project, Space, SpacesState } from '../shared/models'
@@ -44,6 +45,12 @@ export class ProjectStore {
   static async load(filePath: string): Promise<ProjectStore> {
     const data = await readVersionedJson<StoreFile>(filePath, STORE_VERSION)
     const projects = Array.isArray(data?.projects) ? data.projects : []
+    // Чаты прежних версий были терминалами: их разговор продолжается с агентом по умолчанию.
+    for (const chat of projects.flatMap((project) => project.chats)) {
+      if (!isAgentId(chat.agent)) {
+        chat.agent = DEFAULT_AGENT_ID
+      }
+    }
     const saved = Array.isArray(data?.spaces) ? data.spaces : []
     const spaces = saved.length > 0 ? saved : [createSpace(DEFAULT_SPACE_NAME)]
     // Проект без существующего пространства (в том числе из прежнего формата) — в первом.
@@ -252,9 +259,10 @@ export class ProjectStore {
     }
   }
 
-  createChat(projectId: string, agent: AgentId): Chat {
+  /** Новый чат; `selection` — модель и эффорт, с которыми он начнётся. */
+  createChat(projectId: string, agent: AgentId, selection: Partial<ModelSelection> = {}): Chat {
     const project = this.getProject(projectId)
-    const chat = newChat(project, agent)
+    const chat: Chat = { ...newChat(project, agent), ...selection }
     // Новые чаты сверху, как в Codex и Cursor.
     project.chats.unshift(chat)
     this.persist()
@@ -296,8 +304,8 @@ export class ProjectStore {
   }
 
   /**
-   * Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта (терминал чата
-   * привязан к папке проекта); помощники переезжают вместе с ним.
+   * Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта (агент чата
+   * работает в папке проекта); помощники переезжают вместе с ним.
    */
   moveChat(chatId: string, toIndex: number): void {
     const project = this.findChat(chatId)?.project
@@ -321,11 +329,54 @@ export class ProjectStore {
     }
   }
 
-  /** Название из заголовка терминала применяется, только пока пользователь не задал своё. */
-  applyTerminalTitle(chatId: string, title: string): void {
+  /**
+   * Название из первого сообщения применяется, только пока пользователь не задал своё.
+   * `true` — название изменилось.
+   */
+  applyAutomaticTitle(chatId: string, title: string): boolean {
     const chat = this.findChat(chatId)?.chat
-    if (chat && !chat.hasCustomTitle && title && chat.title !== title) {
-      chat.title = title
+    if (!chat || chat.hasCustomTitle || !title || chat.title === title) {
+      return false
+    }
+    chat.title = title
+    this.persist()
+    return true
+  }
+
+  /**
+   * Меняет агента, модель или эффорт чата; `null` возвращает значение по умолчанию.
+   * Агента можно сменить, только пока разговор с ним не начат. `true` — что-то изменилось.
+   */
+  configureChat(chatId: string, { agent, model, effort }: ChatConfiguration): boolean {
+    const chat = this.findChat(chatId)?.chat
+    if (!chat) {
+      return false
+    }
+    const before = JSON.stringify([chat.agent, chat.model, chat.effort])
+    if (agent && agent !== chat.agent && !chat.sessionId) {
+      // Модели у агентов свои: выбор прежнего агента новому не подходит.
+      chat.agent = agent
+      delete chat.model
+      delete chat.effort
+    }
+    if (model !== undefined) {
+      setOptional(chat, 'model', model)
+    }
+    if (effort !== undefined) {
+      setOptional(chat, 'effort', effort)
+    }
+    const changed = JSON.stringify([chat.agent, chat.model, chat.effort]) !== before
+    if (changed) {
+      this.persist()
+    }
+    return changed
+  }
+
+  /** Запоминает разговор на стороне агента, чтобы продолжить его после перезапуска. */
+  setChatSession(chatId: string, sessionId: string): void {
+    const chat = this.findChat(chatId)?.chat
+    if (chat && chat.sessionId !== sessionId) {
+      chat.sessionId = sessionId
       this.persist()
     }
   }
@@ -386,6 +437,14 @@ function newChat(project: Project, agent: AgentId): Chat {
     title: `Chat ${project.chats.length + 1}`,
     agent,
     createdAt: Date.now()
+  }
+}
+
+function setOptional(chat: Chat, key: 'model' | 'effort', value: string | null): void {
+  if (value) {
+    chat[key] = value
+  } else {
+    delete chat[key]
   }
 }
 

@@ -1,32 +1,34 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppCommand } from '../shared/commands'
 import type { Settings } from '../shared/settings'
-import {
-  IpcChannel,
-  type AtoxApi,
-  type GitBranches,
-  type TerminalDataEvent,
-  type TerminalExitEvent,
-  type TerminalSubmitEvent
-} from '../shared/api'
+import type { ConversationEvent } from '../shared/conversation'
+import { IpcChannel, type AtoxApi, type GitBranches } from '../shared/api'
 
 type Listener<Payload> = (payload: Payload) => void
 
 /**
- * Один IPC-слушатель на канал, раздающий события подписчикам конкретного чата:
- * иначе каждый открытый терминал добавлял бы свой слушатель на общий канал.
+ * Один IPC-слушатель событий разговоров, раздающий их подписчикам конкретного чата:
+ * иначе каждый открытый чат добавлял бы свой слушатель на общий канал.
  */
-function createChatEventHub<Event extends { chatId: string }, Payload>(
-  channel: string,
-  select: (event: Event) => Payload
-) {
-  const listeners = new Map<string, Set<Listener<Payload>>>()
+function createConversationEventHub() {
+  const listeners = new Map<string, Set<Listener<ConversationEvent>>>()
+  const runningListeners = new Set<(chatId: string, running: boolean) => void>()
 
-  ipcRenderer.on(channel, (_event, payload: Event) => {
-    listeners.get(payload.chatId)?.forEach((listener) => listener(select(payload)))
+  ipcRenderer.on(IpcChannel.ConversationsEvent, (_event, payload: ConversationEvent) => {
+    listeners.get(payload.chatId)?.forEach((listener) => listener(payload))
+    if (payload.type === 'running') {
+      runningListeners.forEach((listener) => listener(payload.chatId, payload.running))
+    }
   })
 
-  return (chatId: string, listener: Listener<Payload>) => {
+  const onRunningChange = (listener: (chatId: string, running: boolean) => void) => {
+    runningListeners.add(listener)
+    return () => {
+      runningListeners.delete(listener)
+    }
+  }
+
+  const onEvent = (chatId: string, listener: Listener<ConversationEvent>) => {
     const chatListeners = listeners.get(chatId) ?? new Set()
     chatListeners.add(listener)
     listeners.set(chatId, chatListeners)
@@ -38,16 +40,11 @@ function createChatEventHub<Event extends { chatId: string }, Payload>(
       }
     }
   }
+
+  return { onEvent, onRunningChange }
 }
 
-const onTerminalData = createChatEventHub<TerminalDataEvent, string>(
-  IpcChannel.TerminalData,
-  ({ data }) => data
-)
-const onTerminalExit = createChatEventHub<TerminalExitEvent, void>(
-  IpcChannel.TerminalExit,
-  () => undefined
-)
+const conversationEvents = createConversationEventHub()
 
 /** Подписка на событие main-процесса; возвращает отписку. */
 function subscribe<Payload>(channel: string, listener: Listener<Payload>): () => void {
@@ -82,25 +79,24 @@ const api: AtoxApi = {
     remove: (spaceId) => ipcRenderer.invoke(IpcChannel.SpacesRemove, spaceId)
   },
   agents: {
-    available: () => ipcRenderer.invoke(IpcChannel.AgentsAvailable)
+    available: () => ipcRenderer.invoke(IpcChannel.AgentsAvailable),
+    catalog: (agent) => ipcRenderer.invoke(IpcChannel.AgentsCatalog, agent)
   },
   chats: {
     create: (projectId, agent) => ipcRenderer.invoke(IpcChannel.ChatsCreate, projectId, agent),
     remove: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsRemove, chatId),
     rename: (chatId, title) => ipcRenderer.invoke(IpcChannel.ChatsRename, chatId, title),
     move: (chatId, toIndex) => ipcRenderer.invoke(IpcChannel.ChatsMove, chatId, toIndex),
-    applyTerminalTitle: (chatId, title) =>
-      ipcRenderer.invoke(IpcChannel.ChatsApplyTerminalTitle, chatId, title),
+    configure: (chatId, configuration) =>
+      ipcRenderer.invoke(IpcChannel.ChatsConfigure, chatId, configuration),
     onChanged: (listener) => subscribe(IpcChannel.ProjectsChanged, listener)
   },
-  terminal: {
-    attach: (chatId, size) => ipcRenderer.invoke(IpcChannel.TerminalAttach, chatId, size),
-    write: (chatId, data) => ipcRenderer.send(IpcChannel.TerminalWrite, chatId, data),
-    resize: (chatId, size) => ipcRenderer.send(IpcChannel.TerminalResize, chatId, size),
-    onData: onTerminalData,
-    onExit: (chatId, listener) => onTerminalExit(chatId, () => listener()),
-    onSubmit: (listener) =>
-      subscribe<TerminalSubmitEvent>(IpcChannel.TerminalSubmit, ({ chatId }) => listener(chatId))
+  conversations: {
+    snapshot: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsSnapshot, chatId),
+    send: (chatId, text) => ipcRenderer.invoke(IpcChannel.ConversationsSend, chatId, text),
+    interrupt: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsInterrupt, chatId),
+    onEvent: conversationEvents.onEvent,
+    onRunningChange: conversationEvents.onRunningChange
   },
   files: {
     getPath: (file) => webUtils.getPathForFile(file),

@@ -13,7 +13,6 @@ const NUMBER_KEY_CODE = /^Digit([1-9])$/
 interface AppCommandHandlers {
   projects: ProjectsState
   toggleSidebar(): void
-  openFind(chatId: string): void
   openSettings(): void
 }
 
@@ -62,15 +61,10 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
         case 'open-settings':
           handlersRef.current.openSettings()
           break
-        case 'find':
-          if (activeChatId) {
-            handlersRef.current.openFind(activeChatId)
-          }
-          break
       }
     }
 
-    // Перехват на этапе погружения: иначе нажатие съест сфокусированный терминал.
+    // Перехват на этапе погружения: иначе нажатие съест сфокусированное поле ввода.
     const selectByNumber = (event: KeyboardEvent) => {
       const digit = NUMBER_KEY_CODE.exec(event.code)?.[1]
       const chatModifier = IS_MAC ? event.metaKey : event.altKey

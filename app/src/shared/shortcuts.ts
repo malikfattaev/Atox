@@ -27,11 +27,11 @@ export const SHORTCUTS = {
   chatByNumber: { label: 'Go to chat by number', keys: byPlatform('⌘1 – ⌘9', 'Alt+1 – Alt+9') },
   openChatBeside: { label: 'Open chat to the side', keys: byPlatform('⌘ Click', 'Ctrl+Click') },
   openProject: { label: 'Open project', accelerator: byPlatform('CmdOrCtrl+O', 'Ctrl+Shift+O') },
-  find: { label: 'Find in terminal', accelerator: byPlatform('CmdOrCtrl+F', 'Ctrl+Shift+F') },
+  find: { label: 'Find in chat', accelerator: byPlatform('CmdOrCtrl+F', 'Ctrl+Shift+F') },
   newLine: { label: 'New line without sending', keys: byPlatform('⇧↩', 'Shift+Enter') },
-  zoomIn: { label: 'Increase font size', accelerator: byPlatform('CmdOrCtrl+Plus', 'Ctrl+Plus') },
-  zoomOut: { label: 'Decrease font size', accelerator: byPlatform('CmdOrCtrl+-', 'Ctrl+-') },
-  actualSize: { label: 'Default font size', accelerator: byPlatform('CmdOrCtrl+0', 'Ctrl+0') },
+  zoomIn: { label: 'Zoom in', accelerator: byPlatform('CmdOrCtrl+Plus', 'Ctrl+Plus') },
+  zoomOut: { label: 'Zoom out', accelerator: byPlatform('CmdOrCtrl+-', 'Ctrl+-') },
+  actualSize: { label: 'Actual size', accelerator: byPlatform('CmdOrCtrl+0', 'Ctrl+0') },
   toggleSidebar: {
     label: 'Show or hide sidebar',
     accelerator: byPlatform('CmdOrCtrl+B', 'Ctrl+Shift+B')
@@ -60,7 +60,7 @@ export const SHORTCUT_GROUPS: ReadonlyArray<{ title: string; shortcuts: readonly
     ]
   },
   {
-    title: 'Terminal',
+    title: 'Chat',
     shortcuts: ['find', 'newLine', 'zoomIn', 'zoomOut', 'actualSize']
   },
   {

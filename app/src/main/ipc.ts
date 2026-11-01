@@ -10,39 +10,29 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage
 } from 'electron'
-import {
-  IpcChannel,
-  type ContextMenuItem,
-  type MenuPosition,
-  type GitBranches,
-  type TerminalDataEvent,
-  type TerminalExitEvent,
-  type TerminalSubmitEvent,
-  type TerminalSize
-} from '../shared/api'
+import { IpcChannel, type ContextMenuItem, type MenuPosition, type GitBranches } from '../shared/api'
+import type { ChatConfiguration, ConversationEvent } from '../shared/conversation'
 import type { Project } from '../shared/models'
 import { IS_MAC } from '../shared/platform'
 import { isProjectColor } from '../shared/projectColors'
 import type { Settings } from '../shared/settings'
-import { isAgentId, TERMINAL_AGENT_ID, type AgentId } from '../shared/agents'
+import { findAgent, isAgentId, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
-import { confirm, describeRunningPrograms } from './dialogs'
+import type { ConversationManager } from './conversations/manager'
+import { confirm, describeWorkingAgents } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
 import { createColorSwatch } from './menuSwatch'
-import { agentLaunchCommand } from './orchestration/launch'
 import { savePastedImage } from './pastedImages'
 import { getUserProfile } from './system'
-import { normalizeTerminalTitle } from './terminalTitle'
-import type { TerminalManager } from './terminals'
 import type { AppUpdater } from './updater'
 
 interface AppServices {
   store: ProjectStore
   settings: SettingsStore
-  terminals: TerminalManager
+  conversations: ConversationManager
   branches: GitBranchTracker
   agents: AgentDetector
   /** `null` — обновления недоступны, например при запуске из исходников. */
@@ -53,7 +43,7 @@ interface AppServices {
 export function registerIpcHandlers({
   store,
   settings,
-  terminals,
+  conversations,
   branches,
   agents,
   updater,
@@ -86,17 +76,17 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.ProjectsRemove, async (event, projectId: string) => {
     const project = store.getProject(projectId)
-    const programs = project.chats.flatMap((chat) => terminals.getRunningProgram(chat.id) ?? [])
+    const working = project.chats.filter((chat) => conversations.isRunning(chat.id))
     const confirmed =
-      programs.length === 0 ||
+      working.length === 0 ||
       (await confirm(BrowserWindow.fromWebContents(event.sender), {
         message: `Remove “${project.name}” from the list?`,
-        detail: `${describeRunningPrograms(programs, 'in this project', 'Removing the project')} The folder stays on disk.`,
+        detail: `${describeWorkingAgents(working.length, 'in this project', 'Removing the project')} The folder stays on disk.`,
         confirmLabel: 'Remove'
       }))
     if (confirmed) {
       store.removeProject(projectId)
-      project.chats.forEach((chat) => terminals.kill(chat.id))
+      await Promise.all(project.chats.map((chat) => conversations.remove(chat.id)))
       trackProjectBranches()
     }
     return store.list()
@@ -187,11 +177,15 @@ export function registerIpcHandlers({
   })
 
   ipcMain.handle(IpcChannel.AgentsAvailable, () => agents.list())
+  ipcMain.handle(IpcChannel.AgentsCatalog, (_event, agent: unknown) =>
+    isAgentId(agent) ? conversations.catalog(agent) : null
+  )
 
-  /** Агент по умолчанию, если он установлен, иначе пустой терминал. */
+  /** Агент по умолчанию, если он установлен, иначе первый установленный. */
   const resolveDefaultAgent = async (): Promise<AgentId> => {
     const { defaultAgent } = settings.get()
-    return (await agents.list()).includes(defaultAgent) ? defaultAgent : TERMINAL_AGENT_ID
+    const installed = await agents.list()
+    return installed.includes(defaultAgent) ? defaultAgent : (installed[0] ?? defaultAgent)
   }
 
   ipcMain.handle(IpcChannel.ChatsCreate, async (_event, projectId: string, agent?: unknown) => {
@@ -199,22 +193,24 @@ export function registerIpcHandlers({
     if (isAgentId(agent) && agent !== settings.get().defaultAgent) {
       settings.update({ defaultAgent: agent })
     }
-    const chat = store.createChat(projectId, isAgentId(agent) ? agent : await resolveDefaultAgent())
+    const chosen = isAgentId(agent) ? agent : await resolveDefaultAgent()
+    const chat = store.createChat(projectId, chosen, settings.get().agentModels[chosen])
     return { projects: store.list(), chatId: chat.id }
   })
 
   ipcMain.handle(IpcChannel.ChatsRemove, async (event, chatId: string) => {
-    const program = terminals.getRunningProgram(chatId)
+    const location = store.findChat(chatId)
     const confirmed =
-      program === null ||
+      !location ||
+      !conversations.isRunning(chatId) ||
       (await confirm(BrowserWindow.fromWebContents(event.sender), {
-        message: `Delete “${store.findChat(chatId)?.chat.title ?? 'chat'}”?`,
-        detail: describeRunningPrograms([program], 'in this chat', 'Deleting the chat'),
+        message: `Delete “${location.chat.title}”?`,
+        detail: describeWorkingAgents(1, 'in this chat', 'Deleting the chat', findAgent(location.chat.agent)?.name),
         confirmLabel: 'Delete'
       }))
     if (confirmed) {
-      terminals.kill(chatId)
       store.removeChat(chatId)
+      await conversations.remove(chatId)
     }
     return store.list()
   })
@@ -229,29 +225,41 @@ export function registerIpcHandlers({
     return store.list()
   })
 
-  ipcMain.handle(IpcChannel.ChatsApplyTerminalTitle, (_event, chatId: string, title: string) => {
-    store.applyTerminalTitle(chatId, normalizeTerminalTitle(title))
-    return store.list()
-  })
-
-  ipcMain.handle(IpcChannel.TerminalAttach, (_event, chatId: string, size: TerminalSize) => {
-    const location = store.findChat(chatId)
-    if (!location) {
-      throw new Error(`Chat ${chatId} not found`)
+  ipcMain.handle(
+    IpcChannel.ChatsConfigure,
+    async (_event, chatId: string, configuration: unknown) => {
+      await conversations.configure(chatId, parseConfiguration(configuration))
+      const chat = store.findChat(chatId)?.chat
+      if (chat) {
+        // Выбор запоминается: следующий чат начнётся с того же агента, модели и эффорта.
+        const { defaultAgent, agentModels } = settings.get()
+        const selection = {
+          ...(chat.model && { model: chat.model }),
+          ...(chat.effort && { effort: chat.effort })
+        }
+        if (
+          defaultAgent !== chat.agent ||
+          JSON.stringify(agentModels[chat.agent] ?? {}) !== JSON.stringify(selection)
+        ) {
+          settings.update({
+            defaultAgent: chat.agent,
+            agentModels: { ...agentModels, [chat.agent]: selection }
+          })
+        }
+      }
+      return store.list()
     }
-    const command = agentLaunchCommand(location.chat.agent, settings.get().agentCommands, {
-      worker: Boolean(location.chat.parentChatId)
-    })
-    return terminals.attach(chatId, location.project.path, size, command)
-  })
+  )
 
-  ipcMain.on(IpcChannel.TerminalWrite, (_event, chatId: string, data: string) => {
-    terminals.write(chatId, data)
-  })
-
-  ipcMain.on(IpcChannel.TerminalResize, (_event, chatId: string, size: TerminalSize) => {
-    terminals.resize(chatId, size)
-  })
+  ipcMain.handle(IpcChannel.ConversationsSnapshot, (_event, chatId: string) =>
+    conversations.snapshot(chatId)
+  )
+  ipcMain.handle(IpcChannel.ConversationsSend, (_event, chatId: string, text: unknown) =>
+    conversations.send(chatId, String(text))
+  )
+  ipcMain.handle(IpcChannel.ConversationsInterrupt, (_event, chatId: string) =>
+    conversations.interrupt(chatId)
+  )
 
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
     savePastedImage(data, type)
@@ -286,6 +294,20 @@ export function registerIpcHandlers({
   )
 
   ipcMain.handle(IpcChannel.ContextMenu, showContextMenu)
+}
+
+/** Настройки чата из окна: берутся только известные поля нужных типов. */
+function parseConfiguration(value: unknown): ChatConfiguration {
+  const source = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const optionalString = (field: unknown) =>
+    field === null ? null : typeof field === 'string' && field ? field : undefined
+  const model = optionalString(source['model'])
+  const effort = optionalString(source['effort'])
+  return {
+    ...(isAgentId(source['agent']) && { agent: source['agent'] }),
+    ...(model !== undefined && { model }),
+    ...(effort !== undefined && { effort })
+  }
 }
 
 function showContextMenu(
@@ -331,6 +353,7 @@ function buildMenuTemplate(
           icon: item.swatch ? createColorSwatch(item.swatch) : menuSymbol(item.symbol),
           type: item.checked === undefined ? 'normal' : 'checkbox',
           checked: item.checked,
+          enabled: item.enabled ?? true,
           accelerator: item.accelerator,
           // Сочетание только подписано у пункта: срабатывать оно должно у главного меню и окна.
           registerAccelerator: false,
@@ -352,16 +375,8 @@ export function broadcastGitBranches(branches: GitBranches): void {
   broadcast(IpcChannel.GitBranchesChanged, branches)
 }
 
-export function broadcastTerminalData(payload: TerminalDataEvent): void {
-  broadcast(IpcChannel.TerminalData, payload)
-}
-
-export function broadcastTerminalExit(payload: TerminalExitEvent): void {
-  broadcast(IpcChannel.TerminalExit, payload)
-}
-
-export function broadcastTerminalSubmit(payload: TerminalSubmitEvent): void {
-  broadcast(IpcChannel.TerminalSubmit, payload)
+export function broadcastConversationEvent(event: ConversationEvent): void {
+  broadcast(IpcChannel.ConversationsEvent, event)
 }
 
 function broadcast(channel: string, payload: unknown): void {

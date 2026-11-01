@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
-import { confirm, describeRunningPrograms } from './dialogs'
-import type { TerminalManager } from './terminals'
+import type { ConversationManager } from './conversations/manager'
+import { confirm, describeWorkingAgents } from './dialogs'
 
 interface Flushable {
   flush(): Promise<void>
@@ -12,26 +12,26 @@ export interface QuitHandling {
 }
 
 interface QuitHandlingOptions {
-  terminals: TerminalManager
+  conversations: ConversationManager
   /** Хранилища, чьи записи на диск нужно дождаться перед выходом. */
   stores: Flushable[]
 }
 
 /**
- * Выход из приложения: подтверждение, если в чатах что-то работает, остановка терминалов
+ * Выход из приложения: подтверждение, если в чатах работают агенты, их остановка
  * и ожидание записи данных на диск.
  */
-export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): QuitHandling {
+export function setupQuitHandling({ conversations, stores }: QuitHandlingOptions): QuitHandling {
   let quitConfirmed = false
   let storesFlushed = false
   const cancelListeners = new Set<() => void>()
 
   app.on('before-quit', (event) => {
     if (!quitConfirmed) {
-      const running = terminals.listRunningPrograms()
-      if (running.length > 0) {
+      const working = conversations.runningChatIds().length
+      if (working > 0) {
         event.preventDefault()
-        void confirmQuit(running.map(({ program }) => program)).then((confirmed) => {
+        void confirmQuit(working).then((confirmed) => {
           if (confirmed) {
             quitConfirmed = true
             app.quit()
@@ -43,7 +43,7 @@ export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): Q
       }
       quitConfirmed = true
     }
-    terminals.killAll()
+    conversations.closeAll()
   })
 
   // Выход откладывается, пока не допишутся изменения: последние из них приходят из окна,
@@ -61,7 +61,7 @@ export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): Q
     })
   })
 
-  // Ctrl+C в терминале и остановка процесса — явная команда выйти, без вопросов.
+  // Ctrl+C в терминале, из которого запущен Atox, и остановка процесса — явная команда выйти, без вопросов.
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {
       quitConfirmed = true
@@ -72,11 +72,11 @@ export function setupQuitHandling({ terminals, stores }: QuitHandlingOptions): Q
   return { onQuitCancelled: (listener) => cancelListeners.add(listener) }
 }
 
-function confirmQuit(programs: string[]): Promise<boolean> {
-  const location = programs.length === 1 ? 'in a chat' : `in ${programs.length} chats`
+function confirmQuit(working: number): Promise<boolean> {
+  const location = working === 1 ? 'in a chat' : `in ${working} chats`
   return confirm(BrowserWindow.getFocusedWindow(), {
     message: 'Quit Atox?',
-    detail: describeRunningPrograms(programs, location, 'Quitting'),
+    detail: describeWorkingAgents(working, location, 'Quitting'),
     confirmLabel: 'Quit'
   })
 }

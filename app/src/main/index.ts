@@ -1,15 +1,17 @@
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, sep } from 'node:path'
+import { basename, delimiter, join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { AgentDetector } from './agents'
+import { claudeDriver } from './conversations/claude'
+import { createCodexDriver } from './conversations/codex'
+import { ConversationManager } from './conversations/manager'
+import { TranscriptStore } from './conversations/transcripts'
 import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
 import {
   broadcastGitBranches,
+  broadcastConversationEvent,
   broadcastProjectsChanged,
-  broadcastTerminalData,
-  broadcastTerminalExit,
-  broadcastTerminalSubmit,
   broadcastUpdateReady,
   registerIpcHandlers
 } from './ipc'
@@ -18,14 +20,16 @@ import { installCli, installCodexRules, installSkills } from './orchestration/in
 import { OrchestrationServer } from './orchestration/server'
 import { setupQuitHandling } from './quit'
 import { SettingsStore } from './settings'
+import { ShellEnvironment } from './shellEnvironment'
 import { ProjectStore } from './store'
-import { TerminalManager } from './terminals'
 import { createUpdateInstaller } from './updateInstallers'
 import { AppUpdater } from './updater'
 import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
+/** Каталог с лентами чатов: у каждого чата свой файл. */
+const TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
 
 /** Собранная команда `atox` для агентов — рядом с main-процессом. */
 const CLI_SCRIPT = join('out', 'main', 'atox.js')
@@ -40,19 +44,6 @@ if (!app.isPackaged) {
   app.setPath('userData', app.getPath('userData') + DEV_USER_DATA_SUFFIX)
 }
 
-/**
- * PATH процесса без каталогов образа AppImage: их дописывает его AppRun, и в терминалах
- * под именем `atox` нашёлся бы сам бинарник приложения.
- */
-function inheritedPath(): string[] {
-  const entries = (process.env['PATH'] ?? '').split(':').filter(Boolean)
-  if (!appImage) {
-    return entries
-  }
-  const appDir = dirname(process.execPath)
-  return entries.filter((entry) => entry !== appDir && !entry.startsWith(appDir + sep))
-}
-
 async function bootstrap(): Promise<void> {
   await app.whenReady()
 
@@ -65,19 +56,33 @@ async function bootstrap(): Promise<void> {
     process.execPath,
     join(app.getAppPath(), CLI_SCRIPT)
   )
-  // Команду `atox` агенты находят по PATH; оболочка входа дописывает к нему свои каталоги.
-  const terminalPath = [binDirectory, ...inheritedPath()].join(':')
-  const terminals = new TerminalManager(
-    {
-      appName: app.getName(),
-      environment: (chatId) => ({ ...orchestration.environment(chatId), PATH: terminalPath })
-    },
-    {
-      onData: (chatId, data) => broadcastTerminalData({ chatId, data }),
-      onExit: (chatId) => broadcastTerminalExit({ chatId }),
-      onSubmit: (chatId) => broadcastTerminalSubmit({ chatId })
+  const shell = new ShellEnvironment()
+  const agents = new AgentDetector(shell)
+  // Агенты получают окружение оболочки входа пользователя, а команду `atox` находят по PATH.
+  const agentEnvironment = async (chatId?: string): Promise<Record<string, string>> => {
+    const environment = await shell.get()
+    return {
+      ...environment,
+      PATH: [binDirectory, environment['PATH']].filter(Boolean).join(delimiter),
+      ...(chatId && orchestration.environment(chatId))
     }
-  )
+  }
+  const conversations = new ConversationManager({
+    store,
+    agents,
+    drivers: {
+      claude: claudeDriver,
+      codex: createCodexDriver({
+        name: 'atox',
+        title: app.getName(),
+        version: app.getVersion()
+      })
+    },
+    transcripts: new TranscriptStore(join(userData, TRANSCRIPTS_DIRECTORY_NAME)),
+    environment: agentEnvironment,
+    onEvent: broadcastConversationEvent,
+    onProjectsChanged: () => broadcastProjectsChanged(store.list())
+  })
   const branches = new GitBranchTracker(broadcastGitBranches)
   // Обновляется только собранное приложение; адрес релизов можно подменить для проверки обновлений.
   const updateInstaller = app.isPackaged ? createUpdateInstaller() : null
@@ -88,16 +93,13 @@ async function bootstrap(): Promise<void> {
         onReady: broadcastUpdateReady
       })
     : null
-  const agents = new AgentDetector(() => settings.get().agentCommands)
   const orchestration = new OrchestrationServer({
     store,
-    settings,
-    terminals,
+    conversations,
     agents,
     // Путь к сокету ограничен ~100 символами, поэтому он во временном каталоге пользователя,
     // а не в длинном пути данных приложения. Имя различает сборку для разработки.
     socketPath: join(tmpdir(), `${basename(userData)}.sock`),
-    tasksDirectory: join(userData, 'tasks'),
     cliPath,
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
   })
@@ -114,13 +116,16 @@ async function bootstrap(): Promise<void> {
     )
   }
   const menu = new AppMenu(settings)
-  registerIpcHandlers({ store, settings, terminals, branches, updater, agents, menu })
+  registerIpcHandlers({ store, settings, conversations, branches, updater, agents, menu })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshAll())
   app.on('will-quit', () => branches.dispose())
   menu.install()
 
-  const quitHandling = setupQuitHandling({ terminals, stores: [store, settings] })
+  const quitHandling = setupQuitHandling({
+    conversations,
+    stores: [store, settings, conversations]
+  })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())
     app.on('will-quit', () => updater.installOnQuit())

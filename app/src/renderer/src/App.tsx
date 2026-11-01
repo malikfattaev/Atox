@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from './components/Sidebar'
-import { Workspace, type FindRequest } from './components/Workspace'
+import { Workspace } from './components/Workspace'
 import { ChatActivityProvider } from './hooks/ChatActivityContext'
 import { ProjectsProvider, useProjectsContext } from './hooks/ProjectsContext'
 import { SettingsProvider } from './hooks/SettingsContext'
@@ -21,31 +21,21 @@ export function App() {
 function Layout() {
   const projects = useProjectsContext()
   const [sidebarVisible, setSidebarVisible] = useState(true)
-  const [find, setFind] = useState<FindRequest | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const toggleSidebar = useCallback(() => setSidebarVisible((visible) => !visible), [])
-  const openFind = useCallback((chatId: string) => {
-    setFind((current) => ({ chatId, request: (current?.request ?? 0) + 1 }))
-  }, [])
-  const closeFind = useCallback(() => setFind(null), [])
   const openSettings = useCallback(() => setSettingsOpen(true), [])
   const closeSettings = useCallback(() => setSettingsOpen(false), [])
 
   // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает настройки.
   useEffect(closeSettings, [projects.activeChatId, closeSettings])
 
-  useAppCommands({ projects, toggleSidebar, openFind, openSettings })
+  useAppCommands({ projects, toggleSidebar, openSettings })
 
   return (
     <div className="app" data-sidebar={sidebarVisible ? 'visible' : 'hidden'}>
       {sidebarVisible && <Sidebar onOpenSettings={openSettings} />}
-      <Workspace
-        find={find}
-        onCloseFind={closeFind}
-        settingsOpen={settingsOpen}
-        onCloseSettings={closeSettings}
-      />
+      <Workspace settingsOpen={settingsOpen} onCloseSettings={closeSettings} />
     </div>
   )
 }

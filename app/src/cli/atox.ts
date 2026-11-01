@@ -26,7 +26,7 @@ Delegate work to another agent in a new Atox chat in the same folder.
   atox remove <chat-id> [<chat-id>...]     Stop workers and remove their chats
   atox report <summary>                    Worker: report the result to the parent agent
 
-Works only in terminals inside Atox.`
+Works only for agents running in Atox chats.`
 
 /** Сколько ждать ответа приложения: команды выполняются сразу и не ждут работы агентов. */
 const RESPONSE_TIMEOUT_MS = 30_000
@@ -159,7 +159,7 @@ function call<Method extends OrchestrationMethod>(
   const chatId = process.env[OrchestrationEnv.ChatId]
   if (!socketPath || !token || !chatId) {
     return Promise.reject(
-      new Error('atox works only in terminals of Atox chats opened after Atox was updated.')
+      new Error('atox works only for agents running in Atox chats.')
     )
   }
 

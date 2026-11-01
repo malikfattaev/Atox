@@ -1,24 +1,17 @@
-import { DEFAULT_AGENT_ID, type AgentCommands, type AgentId } from './agents'
+import { DEFAULT_AGENT_ID, type AgentId } from './agents'
+import type { ModelSelection } from './conversation'
 import type { ShortcutOverrides } from './shortcuts'
 
 export interface Settings {
-  /** Размер шрифта терминалов в пикселях. */
-  terminalFontSize: number
-  /** Агент нового чата по ⌘N; меняется на последний выбранный в меню нового чата. */
+  /** Агент нового чата по ⌘N; меняется на последний выбранный. */
   defaultAgent: AgentId
-  /** Свои команды запуска агентов вместо стандартных. */
-  agentCommands: AgentCommands
+  /** Последние выбранные модель и эффорт каждого агента: с ними начинается новый чат. */
+  agentModels: Partial<Record<AgentId, Partial<ModelSelection>>>
   /** Ширина сайдбара в пикселях; меняется перетаскиванием его края. */
   sidebarWidth: number
   /** Свои горячие клавиши вместо стандартных. */
   shortcuts: ShortcutOverrides
 }
-
-export const TERMINAL_FONT_SIZE = {
-  default: 13,
-  min: 9,
-  max: 28
-} as const
 
 /** Сайдбар по умолчанию самый узкий: его можно только расширить. */
 export const SIDEBAR_WIDTH = {
@@ -28,9 +21,8 @@ export const SIDEBAR_WIDTH = {
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
-  terminalFontSize: TERMINAL_FONT_SIZE.default,
   defaultAgent: DEFAULT_AGENT_ID,
-  agentCommands: {},
+  agentModels: {},
   sidebarWidth: SIDEBAR_WIDTH.default,
   shortcuts: {}
 }

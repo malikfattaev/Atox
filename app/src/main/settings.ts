@@ -1,10 +1,5 @@
-import { AGENTS, DEFAULT_AGENT_ID, isAgentId, type AgentCommands } from '../shared/agents'
-import {
-  clampSidebarWidth,
-  DEFAULT_SETTINGS,
-  TERMINAL_FONT_SIZE,
-  type Settings
-} from '../shared/settings'
+import { AGENTS, DEFAULT_AGENT_ID, isAgentId } from '../shared/agents'
+import { clampSidebarWidth, DEFAULT_SETTINGS, type Settings } from '../shared/settings'
 import {
   canonicalAccelerator,
   findShortcutConflict,
@@ -63,13 +58,9 @@ export class SettingsStore {
 
 /** Приводит значения к допустимым: файл мог быть отредактирован вручную. */
 function normalize(settings: Settings): Settings {
-  const fontSize = Number.isFinite(settings.terminalFontSize)
-    ? Math.round(settings.terminalFontSize)
-    : TERMINAL_FONT_SIZE.default
   return {
-    terminalFontSize: Math.min(TERMINAL_FONT_SIZE.max, Math.max(TERMINAL_FONT_SIZE.min, fontSize)),
     defaultAgent: isAgentId(settings.defaultAgent) ? settings.defaultAgent : DEFAULT_AGENT_ID,
-    agentCommands: normalizeAgentCommands(settings.agentCommands),
+    agentModels: normalizeAgentModels(settings.agentModels),
     sidebarWidth: clampSidebarWidth(settings.sidebarWidth),
     shortcuts: normalizeShortcuts(settings.shortcuts)
   }
@@ -98,14 +89,19 @@ function normalizeShortcuts(shortcuts: unknown): ShortcutOverrides {
   return normalized
 }
 
-/** Оставляет только непустые команды известных агентов. */
-function normalizeAgentCommands(commands: unknown): AgentCommands {
-  const source = typeof commands === 'object' && commands !== null ? commands : {}
-  const normalized: AgentCommands = {}
+/** Оставляет выбор моделей только известных агентов и только строковые значения. */
+function normalizeAgentModels(value: unknown): Settings['agentModels'] {
+  const source = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const normalized: Settings['agentModels'] = {}
   for (const { id } of AGENTS) {
-    const command = (source as Record<string, unknown>)[id]
-    if (typeof command === 'string' && command.trim()) {
-      normalized[id] = command.trim()
+    const selection = source[id]
+    if (typeof selection !== 'object' || selection === null) {
+      continue
+    }
+    const { model, effort } = selection as Record<string, unknown>
+    normalized[id] = {
+      ...(typeof model === 'string' && model && { model }),
+      ...(typeof effort === 'string' && effort && { effort })
     }
   }
   return normalized

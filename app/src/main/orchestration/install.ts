@@ -33,7 +33,7 @@ description: Delegate work to other coding agents (Claude Code, Codex) that run 
 
 # Atox agents
 
-Inside Atox every chat is a terminal with a CLI agent. The \`atox\` command starts another agent in a new chat in the same folder; the user sees it nested under your chat. Its report comes back to your chat as a new message starting with "[Atox] Worker".
+Inside Atox every chat is a conversation with a coding agent (Claude Code or Codex). The \`atox\` command starts another agent in a new chat in the same folder; the user sees it nested under your chat. Its report comes back to your chat as a new message starting with "[Atox] Worker".
 
 ## Commands
 
