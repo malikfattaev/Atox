@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { findAgent, isAgentId } from '../../shared/agents'
@@ -56,9 +56,15 @@ type Handlers = {
  * им запускать нельзя, чтобы агенты не плодили друг друга бесконечно.
  */
 export class OrchestrationServer {
-  private readonly token = randomBytes(32).toString('hex')
+  /**
+   * Из секрета выводится свой токен каждого чата: агент может действовать только от имени
+   * своего чата, даже если узнает id чужого — например, помощник id своего агента.
+   */
+  private readonly secret = randomBytes(32)
   /** Помощники, которые отчитались и с тех пор не получали новых сообщений от агента. */
   private readonly reportedChatIds = new Set<string>()
+  /** Помощники, которых уже создали, но которые ещё не начали работать. */
+  private readonly startingChatIds = new Set<string>()
   private server: Server | null = null
 
   constructor(private readonly services: OrchestrationServices) {}
@@ -84,10 +90,20 @@ export class OrchestrationServer {
   environment(chatId: string): Record<string, string> {
     return {
       [OrchestrationEnv.Socket]: this.services.socketPath,
-      [OrchestrationEnv.Token]: this.token,
+      [OrchestrationEnv.Token]: this.chatToken(chatId),
       [OrchestrationEnv.ChatId]: chatId,
       [OrchestrationEnv.Cli]: this.services.cliPath
     }
+  }
+
+  private chatToken(chatId: string): string {
+    return createHmac('sha256', this.secret).update(chatId).digest('hex')
+  }
+
+  private isAuthorized({ token, chatId }: OrchestrationRequest): boolean {
+    const expected = Buffer.from(this.chatToken(chatId))
+    const received = Buffer.from(token)
+    return received.length === expected.length && timingSafeEqual(received, expected)
   }
 
   private accept(socket: Socket): void {
@@ -113,17 +129,17 @@ export class OrchestrationServer {
   private async respond(line: string): Promise<OrchestrationResponse> {
     try {
       const request = parseRequest(line)
-      if (request.token !== this.token) {
+      if (!this.isAuthorized(request)) {
         throw new CommandError('Not authorized: run atox from an agent inside Atox.')
       }
       const caller = this.services.store.findChat(request.chatId)
       if (!caller) {
         throw new CommandError('This agent does not belong to an Atox chat.')
       }
-      const handler = this.handlers[request.method] as (
-        caller: ChatLocation,
-        params: unknown
-      ) => unknown
+      // Только свои методы: имя из запроса не должно находить методы прототипа объекта.
+      const handler = Object.hasOwn(this.handlers, request.method)
+        ? (this.handlers[request.method] as (caller: ChatLocation, params: unknown) => unknown)
+        : undefined
       if (!handler) {
         throw new CommandError(`Unknown command: ${request.method}`)
       }
@@ -151,22 +167,30 @@ export class OrchestrationServer {
       if (!task?.trim()) {
         throw new CommandError('The task is empty.')
       }
+      const installed = await this.services.agents.list()
+      if (!isAgentId(agent) || !installed.includes(agent)) {
+        const available = installed.join(', ') || 'none'
+        throw new CommandError(`Agent "${agent}" is not installed. Available agents: ${available}.`)
+      }
+      // Подсчёт и создание идут без ожидания между ними: параллельные команды не обойдут лимит.
       const active = this.workersOf(caller).filter(
-        (chat) => this.services.conversations.isRunning(chat.id) && !this.reportedChatIds.has(chat.id)
+        (chat) =>
+          !this.reportedChatIds.has(chat.id) &&
+          (this.startingChatIds.has(chat.id) || this.services.conversations.isRunning(chat.id))
       )
       if (active.length >= MAX_ACTIVE_WORKERS) {
         throw new CommandError(
           `You already have ${active.length} workers in progress. Wait for their reports before starting more.`
         )
       }
-      const installed = await this.services.agents.list()
-      if (!isAgentId(agent) || !installed.includes(agent)) {
-        const available = installed.join(', ') || 'none'
-        throw new CommandError(`Agent "${agent}" is not installed. Available agents: ${available}.`)
-      }
       const { chat } = this.services.store.createWorkerChat(caller.chat.id, agent, title)
-      // Задание — первое сообщение помощнику: он сразу начинает работать.
-      await this.services.conversations.send(chat.id, formatWorkerTask(caller.chat, task))
+      this.startingChatIds.add(chat.id)
+      try {
+        // Задание — первое сообщение помощнику: он сразу начинает работать.
+        await this.services.conversations.send(chat.id, formatWorkerTask(caller.chat, task))
+      } finally {
+        this.startingChatIds.delete(chat.id)
+      }
       this.services.onProjectsChanged()
       return { chatId: chat.id, title: chat.title }
     },
