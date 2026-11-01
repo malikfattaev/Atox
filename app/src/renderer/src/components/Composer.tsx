@@ -71,10 +71,26 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   useLayoutEffect(() => {
     const input = inputRef.current
     if (input) {
-      input.style.height = 'auto'
-      input.style.height = `${input.scrollHeight}px`
+      fitToContent(input)
     }
   }, [text])
+
+  // Поле стало уже или шире (раздвинули чаты, скрыли сайдбар): строки перенеслись иначе.
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) {
+      return
+    }
+    let width = input.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (input.clientWidth !== width) {
+        width = input.clientWidth
+        fitToContent(input)
+      }
+    })
+    observer.observe(input)
+    return () => observer.disconnect()
+  }, [])
 
   /** `true` — Atox выполнил команду сам и писать агенту ничего не нужно. */
   const runLocalCommand = (message: string): boolean => {
@@ -265,4 +281,10 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
 /** Пути через пробел; путь с пробелами — в кавычках, чтобы агент прочитал его целиком. */
 function joinPaths(paths: readonly string[]): string {
   return paths.map((path) => (/\s/.test(path) ? `"${path}"` : path)).join(' ')
+}
+
+/** Высота поля ввода по его тексту. */
+function fitToContent(input: HTMLTextAreaElement): void {
+  input.style.height = 'auto'
+  input.style.height = `${input.scrollHeight}px`
 }
