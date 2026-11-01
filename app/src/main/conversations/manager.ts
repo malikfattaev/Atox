@@ -225,11 +225,13 @@ export class ConversationManager {
   /** Отдаёт агенту следующее сообщение из очереди, если он свободен. */
   private pump(chatId: string, conversation: Conversation): void {
     const next = conversation.turn ? undefined : conversation.queue.shift()
+    if (next) {
+      conversation.turn = next
+    }
     this.updateRunning(chatId, conversation)
     if (!next) {
       return
     }
-    conversation.turn = next
     this.ensureSession(chatId, conversation)
       .then((session) => session.send(next.text))
       .catch((error) => {
