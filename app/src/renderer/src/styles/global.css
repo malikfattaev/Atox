@@ -53,6 +53,7 @@
   --details-max-height: 320px;
   --command-menu-max-height: 320px;
   --working-spin-duration: 3s;
+  --message-in-duration: 180ms;
   --working-shimmer-duration: 2s;
 
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
@@ -1114,6 +1115,25 @@ ul {
   background: var(--color-bubble);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Только что отправленное сообщение всплывает снизу — быстро, чтобы не задерживать взгляд. */
+.message--user[data-fresh] {
+  transform-origin: bottom right;
+  animation: message-in var(--message-in-duration) cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message--user[data-fresh] {
+    animation: none;
+  }
 }
 
 .message--error {

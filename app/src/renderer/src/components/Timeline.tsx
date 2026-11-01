@@ -46,6 +46,12 @@ const TOOL_ICONS: Record<ToolKind, ComponentType<LucideProps>> = {
   other: Wrench
 }
 
+/**
+ * Сообщение моложе этого только что отправлено и появляется с анимацией; старые сообщения
+ * при открытии чата появляются сразу.
+ */
+const FRESH_MESSAGE_MS = 2000
+
 /** Как часто обновлять секундомер работающего агента. */
 const CLOCK_INTERVAL_MS = 1000
 
@@ -66,7 +72,11 @@ export function Timeline({ items, running, agent, turnTokens }: TimelineProps) {
         switch (block.type) {
           case 'user':
             return (
-              <div key={block.item.id} className="message message--user">
+              <div
+                key={block.item.id}
+                className="message message--user"
+                data-fresh={Date.now() - block.item.createdAt < FRESH_MESSAGE_MS || undefined}
+              >
                 {block.item.text}
               </div>
             )
