@@ -16,7 +16,7 @@ const IMAGE_EXTENSIONS: Readonly<Record<string, string>> = {
 
 /**
  * Сохраняет вставленную картинку во временный файл и возвращает путь к нему.
- * Агенты в терминале не видят буфер обмена приложения, но принимают путь к картинке.
+ * Агент получает картинку из файла: буфер обмена приложения ему недоступен.
  */
 export async function savePastedImage(data: ArrayBuffer, type: string): Promise<string> {
   const extension = IMAGE_EXTENSIONS[type]

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { extname } from 'node:path'
 import {
   query,
   type EffortLevel,
@@ -67,13 +69,11 @@ export const claudeDriver: AgentDriver = {
     return withIdleSession(launch, async (session) =>
       (await session.supportedCommands())
         .filter(({ name }) => !name.startsWith(INTERNAL_COMMAND_PREFIX))
-        .map(
-          ({ name, description, argumentHint }): AgentCommand => ({
-            name,
-            description,
-            ...(argumentHint && { argumentHint })
-          })
-        )
+        .map(({ name, description, argumentHint }): AgentCommand => ({
+          name,
+          description,
+          ...(argumentHint && { argumentHint })
+        }))
     )
   },
 
@@ -168,14 +168,29 @@ class ClaudeSession implements AgentSession {
     void this.consume()
   }
 
-  send(text: string): void {
+  send(text: string, images: readonly string[]): void {
     this.interrupted = false
     Object.assign(this.turnTokens, { finished: 0, message: 0, estimate: 0, reported: 0 })
-    this.input.push({
-      type: 'user',
-      message: { role: 'user', content: text },
-      parent_tool_use_id: null
-    })
+    if (images.length === 0) {
+      this.input.push({
+        type: 'user',
+        message: { role: 'user', content: text },
+        parent_tool_use_id: null
+      })
+      return
+    }
+    void userContent(text, images)
+      .then((content) =>
+        this.input.push({
+          type: 'user',
+          message: { role: 'user', content },
+          parent_tool_use_id: null
+        })
+      )
+      .catch((error) => {
+        this.reportError(`Could not attach the image. ${errorMessage(error)}`)
+        this.events.turnFinished()
+      })
   }
 
   interrupt(): void {
@@ -490,4 +505,47 @@ function describeTool(
 function describeMcpTool(name: string): string {
   const [prefix, server, ...tool] = name.split('__')
   return prefix === 'mcp' && server && tool.length > 0 ? `${server} · ${tool.join('__')}` : name
+}
+
+/** Форматы картинок, которые Claude принимает прямо в сообщении. */
+const IMAGE_MEDIA_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp'
+} as const
+
+/** Больше этого картинку в сообщение не вложить: после base64 она превысит лимит API в 5 МБ. */
+const MAX_INLINE_IMAGE_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4)
+
+type UserContent = Exclude<Extract<SDKUserMessage['message'], { role: 'user' }>['content'], string>
+
+/**
+ * Текст и картинки сообщения. Картинку, которую нельзя вложить (большая или в другом
+ * формате), Claude получает путём к файлу и откроет её сам.
+ */
+async function userContent(text: string, images: readonly string[]): Promise<UserContent> {
+  const blocks: UserContent = []
+  const notAttached: string[] = []
+  for (const path of images) {
+    const mediaType =
+      IMAGE_MEDIA_TYPES[extname(path).toLowerCase() as keyof typeof IMAGE_MEDIA_TYPES]
+    const data = mediaType ? await readFile(path) : null
+    if (mediaType && data && data.length <= MAX_INLINE_IMAGE_BYTES) {
+      blocks.push({
+        type: 'image',
+        source: { type: 'base64', media_type: mediaType, data: data.toString('base64') }
+      })
+    } else {
+      notAttached.push(path)
+    }
+  }
+  const fullText = [text, ...notAttached.map((path) => `[Image: ${path}]`)]
+    .filter(Boolean)
+    .join('\n')
+  if (fullText) {
+    blocks.push({ type: 'text', text: fullText })
+  }
+  return blocks
 }

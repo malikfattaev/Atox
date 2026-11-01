@@ -61,6 +61,8 @@ export type TimelineItem =
       kind: 'user'
       id: string
       text: string
+      /** Картинки, приложенные к сообщению, — пути к файлам. */
+      images?: string[]
       createdAt: number
       /** Когда агент закончил отвечать на это сообщение; нет — ещё работает или ждёт очереди. */
       finishedAt?: number

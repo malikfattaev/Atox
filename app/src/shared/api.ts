@@ -106,7 +106,8 @@ export interface AtoxApi {
   conversations: {
     /** Лента чата и то, работает ли сейчас его агент. */
     snapshot(chatId: string): Promise<ConversationSnapshot>
-    send(chatId: string, text: string): Promise<void>
+    /** `images` — пути к картинкам, которые агент получит вместе с текстом. */
+    send(chatId: string, text: string, images?: readonly string[]): Promise<void>
     /** Команды агента чата для подсказок после «/». */
     commands(chatId: string): Promise<AgentCommand[]>
     /** Останавливает ответ агента и отменяет сообщения, ждущие очереди. */

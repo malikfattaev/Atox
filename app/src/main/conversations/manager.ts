@@ -33,6 +33,7 @@ type EventPayload = ConversationEvent extends infer Event
 interface QueuedMessage {
   itemId: string
   text: string
+  images: readonly string[]
 }
 
 interface PendingDelta {
@@ -97,9 +98,9 @@ export class ConversationManager {
     return this.conversation(chatId).snapshot
   }
 
-  async send(chatId: string, text: string): Promise<void> {
+  async send(chatId: string, text: string, images: readonly string[] = []): Promise<void> {
     const message = text.trim()
-    if (!message) {
+    if (!message && images.length === 0) {
       return
     }
     const conversation = this.conversation(chatId)
@@ -108,13 +109,18 @@ export class ConversationManager {
       kind: 'user',
       id: randomUUID(),
       text: message,
+      ...(images.length > 0 && { images: [...images] }),
       createdAt: Date.now()
     }
     this.emit(chatId, conversation, { type: 'item', item })
-    if (isFirst && this.services.store.applyAutomaticTitle(chatId, titleFromMessage(message))) {
+    if (
+      isFirst &&
+      message &&
+      this.services.store.applyAutomaticTitle(chatId, titleFromMessage(message))
+    ) {
       this.services.onProjectsChanged()
     }
-    conversation.queue.push({ itemId: item.id, text: message })
+    conversation.queue.push({ itemId: item.id, text: message, images })
     this.pump(chatId, conversation)
   }
 
@@ -245,7 +251,7 @@ export class ConversationManager {
         if (conversation.interruptedTurn === next) {
           this.finishTurn(chatId, conversation)
         } else {
-          session.send(next.text)
+          session.send(next.text, next.images)
         }
       })
       .catch((error) => {

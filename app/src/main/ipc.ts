@@ -10,7 +10,12 @@ import {
   type MenuItemConstructorOptions,
   type NativeImage
 } from 'electron'
-import { IpcChannel, type ContextMenuItem, type MenuPosition, type GitBranches } from '../shared/api'
+import {
+  IpcChannel,
+  type ContextMenuItem,
+  type MenuPosition,
+  type GitBranches
+} from '../shared/api'
 import type { ChatConfiguration, ConversationEvent } from '../shared/conversation'
 import type { Project } from '../shared/models'
 import { IS_MAC } from '../shared/platform'
@@ -205,7 +210,12 @@ export function registerIpcHandlers({
       !conversations.isRunning(chatId) ||
       (await confirm(BrowserWindow.fromWebContents(event.sender), {
         message: `Delete “${location.chat.title}”?`,
-        detail: describeWorkingAgents(1, 'in this chat', 'Deleting the chat', findAgent(location.chat.agent)?.name),
+        detail: describeWorkingAgents(
+          1,
+          'in this chat',
+          'Deleting the chat',
+          findAgent(location.chat.agent)?.name
+        ),
         confirmLabel: 'Delete'
       }))
     if (confirmed) {
@@ -254,8 +264,14 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.ConversationsSnapshot, (_event, chatId: string) =>
     conversations.snapshot(chatId)
   )
-  ipcMain.handle(IpcChannel.ConversationsSend, (_event, chatId: string, text: unknown) =>
-    conversations.send(chatId, String(text))
+  ipcMain.handle(
+    IpcChannel.ConversationsSend,
+    (_event, chatId: string, text: unknown, images: unknown) =>
+      conversations.send(
+        chatId,
+        String(text),
+        Array.isArray(images) ? images.filter((path) => typeof path === 'string') : []
+      )
   )
   ipcMain.handle(IpcChannel.ConversationsCommands, (_event, chatId: string) =>
     conversations.commands(chatId)
@@ -301,7 +317,8 @@ export function registerIpcHandlers({
 
 /** Настройки чата из окна: берутся только известные поля нужных типов. */
 function parseConfiguration(value: unknown): ChatConfiguration {
-  const source = typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const source =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
   const optionalString = (field: unknown) =>
     field === null ? null : typeof field === 'string' && field ? field : undefined
   const model = optionalString(source['model'])

@@ -175,14 +175,17 @@ class CodexSession implements AgentSession {
     this.thread.catch(() => this.rpc.kill())
   }
 
-  send(text: string): void {
+  send(text: string, images: readonly string[]): void {
     const { selection } = this.options
     this.interruptRequested = false
     this.thread
       .then((threadId) =>
         this.rpc.request<{ turn: Turn }>('turn/start', {
           threadId,
-          input: [{ type: 'text', text, text_elements: [] }],
+          input: [
+            ...(text ? [{ type: 'text', text, text_elements: [] }] : []),
+            ...images.map((path) => ({ type: 'localImage', path }))
+          ],
           ...(selection?.model && { model: selection.model }),
           ...(selection?.effort && { effort: selection.effort })
         })

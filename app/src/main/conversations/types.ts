@@ -45,7 +45,8 @@ export interface SessionEvents {
 
 /** Разговор с запущенным агентом. Сообщения отправляются по одному: следующее — после `turnFinished`. */
 export interface AgentSession {
-  send(text: string): void
+  /** `images` — пути к картинкам, приложенным к сообщению. */
+  send(text: string, images: readonly string[]): void
   /** Просит агента остановить текущую работу; закончит он её событием `turnFinished`. */
   interrupt(): void
   close(): void
