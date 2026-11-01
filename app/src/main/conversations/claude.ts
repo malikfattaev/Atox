@@ -13,7 +13,6 @@ import {
   type AgentCatalog,
   type AgentCommand,
   type AgentModel,
-  type UsageLimit,
   type TimelineItem,
   type ToolKind
 } from '../../shared/conversation'
@@ -411,76 +410,17 @@ class ClaudeSession implements AgentSession {
     }
   }
 
-  /** Заполненность контекста и лимиты подписки — то же, что показывают `/context` и `/usage`. */
+  /** Заполненность контекста — то же, что показывает `/context`. */
   private async reportUsage(): Promise<void> {
-    const [context, account] = await Promise.all([
-      this.session.getContextUsage().catch(() => null),
-      // Лимиты подписки SDK пока отдаёт экспериментальным методом: без них индикатор покажет контекст.
-      this.session.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET().catch(() => null)
-    ])
-    if (!context && !account) {
-      return
+    const context = await this.session.getContextUsage().catch(() => null)
+    if (context) {
+      this.events.usage({ context: { used: context.totalTokens, limit: context.maxTokens } })
     }
-    this.events.usage({
-      ...(context && {
-        context: { used: context.totalTokens, limit: context.maxTokens }
-      }),
-      limits: account?.rate_limits_available ? toUsageLimits(account.rate_limits) : []
-    })
   }
 
   private reportError(message: string): void {
     this.events.item({ kind: 'error', id: randomUUID(), message })
   }
-}
-
-type RateLimits = Awaited<
-  ReturnType<Query['usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET']>
->['rate_limits']
-
-interface RateLimitWindow {
-  utilization: number | null
-  resets_at: string | null
-}
-
-const SESSION_WINDOW_LABEL = 'Session (5 hours)'
-
-/** Окна лимитов подписки Claude в том порядке и с теми названиями, что у `/usage`. */
-const RATE_LIMIT_WINDOWS = [
-  ['five_hour', SESSION_WINDOW_LABEL],
-  ['seven_day', 'Week (all models)'],
-  ['seven_day_opus', 'Week (Opus)'],
-  ['seven_day_sonnet', 'Week (Sonnet)']
-] as const
-
-function toUsageLimits(limits: RateLimits): UsageLimit[] {
-  if (!limits) {
-    return []
-  }
-  const windows: [string, RateLimitWindow | null | undefined][] = [
-    ...RATE_LIMIT_WINDOWS.map(([key, label]): [string, RateLimitWindow | null | undefined] => [
-      label,
-      limits[key]
-    ]),
-    ...(limits.model_scoped ?? []).map((window): [string, RateLimitWindow] => [
-      `Week (${window.display_name})`,
-      window
-    ])
-  ]
-  return windows.flatMap(([label, window]): UsageLimit[] => {
-    // Окно сессии показывается всегда: пользователю важно видеть, что Claude его не сообщил.
-    if (!window || window.utilization === null) {
-      return label === SESSION_WINDOW_LABEL ? [{ label, usedPercent: null }] : []
-    }
-    const resetsAt = window.resets_at ? Date.parse(window.resets_at) : NaN
-    return [
-      {
-        label,
-        usedPercent: window.utilization,
-        ...(Number.isFinite(resetsAt) && { resetsAt })
-      }
-    ]
-  })
 }
 
 function blockId(messageId: string, index: number): string {

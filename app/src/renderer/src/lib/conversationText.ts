@@ -109,18 +109,6 @@ export function formatTokens(tokens: number): string {
   return `${Number((tokens / 1_000_000).toFixed(1))}M`
 }
 
-/** Интерфейс Atox на английском — даты тоже, независимо от языка системы. */
-const RESET_TIME_FORMAT = new Intl.DateTimeFormat('en-US', {
-  weekday: 'short',
-  hour: 'numeric',
-  minute: '2-digit'
-})
-
-/** Когда обновится лимит: «Thu 9:00 AM» в часовом поясе пользователя. */
-export function formatResetTime(timestamp: number): string {
-  return RESET_TIME_FORMAT.format(timestamp)
-}
-
 /** Чем занят агент, пока не видно действий: глагол выбирается на весь ответ. */
 const WORKING_VERBS = [
   'Thinking',

@@ -29,20 +29,13 @@ export interface AgentCatalog {
   defaultModel: string
 }
 
-/** Лимит подписки агента, например недельный. */
-export interface UsageLimit {
-  label: string
-  /** Сколько лимита израсходовано, в процентах; `null` — агент не сообщил это окно. */
-  usedPercent: number | null
-  /** Когда лимит обновится, в миллисекундах Unix; нет — агент не сообщил. */
-  resetsAt?: number
-}
-
-/** Заполненность контекста разговора и лимиты подписки — то, что показывают `/context` и `/usage`. */
+/**
+ * Заполненность контекста разговора, как в `/context`. Лимиты подписки Atox не показывает:
+ * агенты сообщают их неполно, а точная картина есть в их собственном `/usage`.
+ */
 export interface ConversationUsage {
   /** Сколько токенов занимает разговор и сколько вмещает модель. */
-  context?: { used: number; limit: number }
-  limits: UsageLimit[]
+  context: { used: number; limit: number }
 }
 
 /** Модель и эффорт, выбранные для чата. */

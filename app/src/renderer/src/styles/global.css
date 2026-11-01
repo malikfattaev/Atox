@@ -1567,11 +1567,6 @@ ul {
   font-variant-numeric: tabular-nums;
 }
 
-.usage-indicator:hover {
-  color: var(--color-text);
-  background: var(--color-hover);
-}
-
 .usage-indicator__ring {
   width: 16px;
   height: 16px;
