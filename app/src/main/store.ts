@@ -45,11 +45,13 @@ export class ProjectStore {
   static async load(filePath: string): Promise<ProjectStore> {
     const data = await readVersionedJson<StoreFile>(filePath, STORE_VERSION)
     const projects = Array.isArray(data?.projects) ? data.projects : []
-    // Чаты прежних версий были терминалами: их разговор продолжается с агентом по умолчанию.
     for (const chat of projects.flatMap((project) => project.chats)) {
+      // Чаты прежних версий были терминалами: в них теперь разговор с агентом по умолчанию.
       if (!isAgentId(chat.agent)) {
         chat.agent = DEFAULT_AGENT_ID
       }
+      // Прежние версии продолжали разговор после перезапуска; теперь каждый запуск — новый.
+      delete (chat as { sessionId?: string }).sessionId
     }
     const saved = Array.isArray(data?.spaces) ? data.spaces : []
     const spaces = saved.length > 0 ? saved : [createSpace(DEFAULT_SPACE_NAME)]
@@ -345,15 +347,20 @@ export class ProjectStore {
 
   /**
    * Меняет агента, модель или эффорт чата; `null` возвращает значение по умолчанию.
-   * Агента можно сменить, только пока разговор с ним не начат. `true` — что-то изменилось.
+   * Агента можно сменить, только пока разговор с ним не начат (`started`).
+   * `true` — что-то изменилось.
    */
-  configureChat(chatId: string, { agent, model, effort }: ChatConfiguration): boolean {
+  configureChat(
+    chatId: string,
+    { agent, model, effort }: ChatConfiguration,
+    started: boolean
+  ): boolean {
     const chat = this.findChat(chatId)?.chat
     if (!chat) {
       return false
     }
     const before = JSON.stringify([chat.agent, chat.model, chat.effort])
-    if (agent && agent !== chat.agent && !chat.sessionId) {
+    if (agent && agent !== chat.agent && !started) {
       // Модели у агентов свои: выбор прежнего агента новому не подходит.
       chat.agent = agent
       delete chat.model
@@ -370,15 +377,6 @@ export class ProjectStore {
       this.persist()
     }
     return changed
-  }
-
-  /** Запоминает разговор на стороне агента, чтобы продолжить его после перезапуска. */
-  setChatSession(chatId: string, sessionId: string): void {
-    const chat = this.findChat(chatId)?.chat
-    if (chat && chat.sessionId !== sessionId) {
-      chat.sessionId = sessionId
-      this.persist()
-    }
   }
 
   findProject(projectId: string): Project | undefined {

@@ -40,20 +40,13 @@ export class JsonFileWriter {
   /** Временный файл свой у процесса: другой экземпляр не перепишет его посреди записи. */
   private readonly tempPath: string
 
-  /**
-   * `compact` — без отступов: для больших файлов, которые часто переписываются целиком
-   * и которые человек не читает.
-   */
-  constructor(
-    private readonly filePath: string,
-    private readonly options: { compact?: boolean } = {}
-  ) {
+  constructor(private readonly filePath: string) {
     this.tempPath = `${filePath}.${process.pid}.tmp`
   }
 
   /** Снимок данных берётся в момент вызова, запись — после уже начатых. */
   write(data: unknown): void {
-    const contents = this.options.compact ? JSON.stringify(data) : JSON.stringify(data, null, 2)
+    const contents = JSON.stringify(data, null, 2)
     this.pendingWrites = this.pendingWrites
       .then(() => this.writeAtomically(contents))
       .catch((error) => console.error(`Failed to write ${this.filePath}`, error))

@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, delimiter, join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
@@ -5,7 +6,6 @@ import { AgentDetector } from './agents'
 import { claudeDriver } from './conversations/claude'
 import { createCodexDriver } from './conversations/codex'
 import { ConversationManager } from './conversations/manager'
-import { TranscriptStore } from './conversations/transcripts'
 import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
 import {
@@ -28,8 +28,11 @@ import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
-/** Каталог с лентами чатов: у каждого чата свой файл. */
-const TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
+/**
+ * Каталог, где прежние версии хранили ленты чатов. Теперь разговоры живут до выхода
+ * из Atox, а оставшиеся файлы удаляются.
+ */
+const LEGACY_TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
 
 /** Собранная команда `atox` для агентов — рядом с main-процессом. */
 const CLI_SCRIPT = join('out', 'main', 'atox.js')
@@ -84,7 +87,6 @@ async function bootstrap(): Promise<void> {
         version: app.getVersion()
       })
     },
-    transcripts: new TranscriptStore(join(userData, TRANSCRIPTS_DIRECTORY_NAME)),
     environment: agentEnvironment,
     onEvent: broadcastConversationEvent,
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
@@ -114,6 +116,10 @@ async function bootstrap(): Promise<void> {
     .start()
     .catch((error) => console.error('Failed to start orchestration', error))
   app.on('will-quit', () => orchestration.stop())
+  void rm(join(userData, LEGACY_TRANSCRIPTS_DIRECTORY_NAME), {
+    recursive: true,
+    force: true
+  }).catch((error) => console.error('Failed to remove old chat transcripts', error))
   void installSkills().catch((error) => console.error('Failed to install agent skills', error))
   void installCodexRules().catch((error) => console.error('Failed to install Codex rules', error))
   if (app.isPackaged && appImage) {
@@ -130,7 +136,7 @@ async function bootstrap(): Promise<void> {
 
   const quitHandling = setupQuitHandling({
     conversations,
-    stores: [store, settings, conversations]
+    stores: [store, settings]
   })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())

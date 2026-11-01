@@ -16,14 +16,7 @@ import {
 import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
-import type { TranscriptStore } from './transcripts'
 import type { AgentDriver, AgentLaunch, AgentSession } from './types'
-
-/**
- * Как часто сохранять ленту, пока агент пишет ответ: если Atox закроют посреди долгого хода,
- * пропадут лишь последние секунды.
- */
-const PERSIST_DELAY_MS = 2000
 
 /**
  * Как часто отправлять окну накопленный текст ответа. Агент присылает его по слову, и
@@ -51,6 +44,11 @@ interface PendingDelta {
 interface Conversation {
   snapshot: ConversationSnapshot
   session: AgentSession | null
+  /**
+   * Разговор на стороне агента (сессия Claude, тред Codex): по нему сессия, перезапущенная
+   * ради новой модели, продолжает тот же разговор. Живёт до выхода из Atox.
+   */
+  sessionId: string | null
   /** Чат удалён или приложение закрывается: новых сессий для него не запускают. */
   disposed: boolean
   /** Модель или эффорт сменились: сессию нужно перезапустить, как только агент освободится. */
@@ -61,7 +59,6 @@ interface Conversation {
   turn: QueuedMessage | null
   /** Сообщение, которое остановили, пока агент ещё запускался: отправлять его не нужно. */
   interruptedTurn: QueuedMessage | null
-  persistTimer: ReturnType<typeof setTimeout> | null
   /** Текст ответа, который ещё не отправлен окну, по элементу и полю. */
   pendingDeltas: Map<string, PendingDelta>
   /** Последний счётчик токенов хода, который ещё не отправлен окну. */
@@ -73,7 +70,6 @@ export interface ConversationServices {
   store: ProjectStore
   agents: AgentDetector
   drivers: Record<AgentId, AgentDriver>
-  transcripts: TranscriptStore
   /** Окружение процесса агента; с `chatId` — с переменными для команды `atox` этого чата. */
   environment(chatId?: string): Promise<Record<string, string>>
   onEvent(event: ConversationEvent): void
@@ -84,11 +80,11 @@ export interface ConversationServices {
 /**
  * Разговоры в чатах: лента каждого чата, сессия с его агентом и очередь сообщений.
  * Агент получает сообщения по одному — следующее, когда закончит отвечать на предыдущее.
+ * Разговоры живут, пока открыт Atox: после перезапуска каждый чат начинается заново,
+ * как терминал.
  */
 export class ConversationManager {
-  private readonly conversations = new Map<string, Promise<Conversation>>()
-  /** Разговоры, которые уже загружены: по ним считается, кто сейчас работает. */
-  private readonly settled = new Map<string, Conversation>()
+  private readonly conversations = new Map<string, Conversation>()
   private readonly catalogs = new Map<AgentId, Promise<AgentCatalog>>()
   /** Команды по агенту и папке проекта: у проектов бывают свои команды и навыки. */
   private readonly commandLists = new Map<string, Promise<AgentCommand[]>>()
@@ -98,7 +94,7 @@ export class ConversationManager {
   constructor(private readonly services: ConversationServices) {}
 
   async snapshot(chatId: string): Promise<ConversationSnapshot> {
-    return (await this.conversation(chatId)).snapshot
+    return this.conversation(chatId).snapshot
   }
 
   async send(chatId: string, text: string): Promise<void> {
@@ -106,7 +102,7 @@ export class ConversationManager {
     if (!message) {
       return
     }
-    const conversation = await this.conversation(chatId)
+    const conversation = this.conversation(chatId)
     const isFirst = !conversation.snapshot.items.some(({ kind }) => kind === 'user')
     const item: TimelineItem = {
       kind: 'user',
@@ -119,13 +115,12 @@ export class ConversationManager {
       this.services.onProjectsChanged()
     }
     conversation.queue.push({ itemId: item.id, text: message })
-    this.persist(chatId, conversation)
     this.pump(chatId, conversation)
   }
 
   /** Останавливает текущий ответ агента; сообщения, ждавшие очереди, тоже отменяются. */
   async interrupt(chatId: string): Promise<void> {
-    const conversation = await this.conversation(chatId)
+    const conversation = this.conversation(chatId)
     conversation.queue = []
     if (conversation.turn) {
       // Пока агент запускается, сессии ещё нет: сообщение просто не уйдёт ему.
@@ -137,8 +132,9 @@ export class ConversationManager {
 
   /** Меняет агента, модель или эффорт чата; новая модель вступает в силу со следующего сообщения. */
   async configure(chatId: string, configuration: ChatConfiguration): Promise<void> {
-    const conversation = await this.conversation(chatId)
-    const changed = this.services.store.configureChat(chatId, configuration)
+    const conversation = this.conversation(chatId)
+    const started = conversation.snapshot.items.some(({ kind }) => kind === 'user')
+    const changed = this.services.store.configureChat(chatId, configuration, started)
     if (changed && conversation.session) {
       conversation.stale = true
       this.restartIfIdle(conversation)
@@ -151,42 +147,25 @@ export class ConversationManager {
 
   /** Чаты, в которых агент работает или ждёт очереди: о них спрашивают перед выходом. */
   runningChatIds(): string[] {
-    return [...this.settled.entries()]
+    return [...this.conversations.entries()]
       .filter(([, conversation]) => conversation.turn !== null || conversation.queue.length > 0)
       .map(([chatId]) => chatId)
   }
 
   /** Чат удалён: агент останавливается, лента стирается. */
   async remove(chatId: string): Promise<void> {
-    const conversation = await this.conversations.get(chatId)
+    const conversation = this.conversations.get(chatId)
     this.conversations.delete(chatId)
-    this.settled.delete(chatId)
     if (conversation) {
       this.dispose(conversation)
-      if (conversation.persistTimer) {
-        clearTimeout(conversation.persistTimer)
-      }
     }
-    await this.services.transcripts.remove(chatId)
   }
 
   closeAll(): void {
     this.closing = true
-    for (const [chatId, conversation] of this.settled) {
-      this.flushStream(chatId, conversation)
+    for (const conversation of this.conversations.values()) {
       this.dispose(conversation)
     }
-  }
-
-  /** Записывает отложенные изменения лент и дожидается записи — перед выходом из приложения. */
-  flush(): Promise<void> {
-    for (const [chatId, conversation] of this.settled) {
-      this.flushStream(chatId, conversation)
-      if (conversation.persistTimer) {
-        this.persist(chatId, conversation, { immediately: true })
-      }
-    }
-    return this.services.transcripts.flush()
   }
 
   /** Команды агента чата для подсказок после «/»; пустой список — агент их не сообщил. */
@@ -226,31 +205,26 @@ export class ConversationManager {
     })
   }
 
-  private conversation(chatId: string): Promise<Conversation> {
+  private conversation(chatId: string): Conversation {
     let conversation = this.conversations.get(chatId)
     if (!conversation) {
       if (!this.services.store.findChat(chatId)) {
-        return Promise.reject(new Error(`Chat ${chatId} not found`))
+        throw new Error(`Chat ${chatId} not found`)
       }
-      conversation = this.services.transcripts.load(chatId).then((items) => {
-        const loaded: Conversation = {
-          snapshot: { items, running: false },
-          session: null,
-          disposed: false,
-          stale: false,
-          queue: [],
-          turn: null,
-          interruptedTurn: null,
-          persistTimer: null,
-          pendingDeltas: new Map(),
-          pendingTokens: null,
-          streamTimer: null
-        }
-        this.settled.set(chatId, loaded)
-        return loaded
-      })
+      conversation = {
+        snapshot: { items: [], running: false },
+        session: null,
+        sessionId: null,
+        disposed: false,
+        stale: false,
+        queue: [],
+        turn: null,
+        interruptedTurn: null,
+        pendingDeltas: new Map(),
+        pendingTokens: null,
+        streamTimer: null
+      }
       this.conversations.set(chatId, conversation)
-      conversation.catch(() => this.conversations.delete(chatId))
     }
     return conversation
   }
@@ -304,7 +278,6 @@ export class ConversationManager {
         item: { ...item, finishedAt: Date.now() }
       })
     }
-    this.persist(chatId, conversation, { immediately: true })
     this.restartIfIdle(conversation)
     this.pump(chatId, conversation)
   }
@@ -336,7 +309,7 @@ export class ConversationManager {
     const session: AgentSession = driver.start(
       {
         ...launch,
-        ...(chat.sessionId && { sessionId: chat.sessionId }),
+        ...(conversation.sessionId && { sessionId: conversation.sessionId }),
         selection: {
           ...(chat.model && { model: chat.model }),
           ...(chat.effort && { effort: chat.effort })
@@ -358,7 +331,9 @@ export class ConversationManager {
         },
         usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
         tokens: (turnTokens) => this.emit(chatId, conversation, { type: 'tokens', turnTokens }),
-        sessionStarted: (sessionId) => this.services.store.setChatSession(chatId, sessionId),
+        sessionStarted: (sessionId) => {
+          conversation.sessionId = sessionId
+        },
         closed: () => {
           if (conversation.session === session) {
             conversation.session = null
@@ -454,41 +429,12 @@ export class ConversationManager {
     const event = { chatId, ...payload } as ConversationEvent
     conversation.snapshot = applyConversationEvent(conversation.snapshot, event)
     this.services.onEvent(event)
-    // Лента сохраняется, а состояние работы и лимиты агент сообщит заново.
-    if (event.type === 'item' || event.type === 'delta') {
-      this.persist(chatId, conversation)
-    }
   }
 
   private updateRunning(chatId: string, conversation: Conversation): void {
     const running = conversation.turn !== null || conversation.queue.length > 0
     if (conversation.snapshot.running !== running) {
       this.emit(chatId, conversation, { type: 'running', running })
-    }
-  }
-
-  private persist(
-    chatId: string,
-    conversation: Conversation,
-    { immediately = false }: { immediately?: boolean } = {}
-  ): void {
-    if (conversation.persistTimer) {
-      if (!immediately) {
-        return
-      }
-      clearTimeout(conversation.persistTimer)
-    }
-    const save = () => {
-      conversation.persistTimer = null
-      // Чат могли удалить, пока ждали записи.
-      if (this.settled.get(chatId) === conversation) {
-        this.services.transcripts.save(chatId, conversation.snapshot.items)
-      }
-    }
-    if (immediately) {
-      save()
-    } else {
-      conversation.persistTimer = setTimeout(save, PERSIST_DELAY_MS)
     }
   }
 }
