@@ -67,6 +67,36 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     }
   }, [focused])
 
+  // Escape останавливает агента, как в терминале. Escape, который уже что-то закрыл
+  // (подсказки, переименование), агента не трогает.
+  useEffect(() => {
+    if (!focused || !running) {
+      return
+    }
+    const stopOnEscape = (event: globalThis.KeyboardEvent) => {
+      const target = event.target
+      const editingElsewhere =
+        target instanceof HTMLElement &&
+        target !== inputRef.current &&
+        (target.isContentEditable || target.matches('input, textarea, select'))
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !event.isComposing &&
+        !editingElsewhere &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.shiftKey
+      ) {
+        event.preventDefault()
+        void atox.conversations.interrupt(chat.id)
+      }
+    }
+    window.addEventListener('keydown', stopOnEscape)
+    return () => window.removeEventListener('keydown', stopOnEscape)
+  }, [focused, running, chat.id])
+
   // Поле растёт вместе с текстом, пока не упрётся в max-height из стилей.
   useLayoutEffect(() => {
     const input = inputRef.current
@@ -256,7 +286,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
               type="button"
               className="composer__button"
               aria-label="Stop"
-              title="Stop"
+              title="Stop (Esc)"
               onClick={() => void atox.conversations.interrupt(chat.id)}
             >
               <Square className="icon composer__stop-icon" />
