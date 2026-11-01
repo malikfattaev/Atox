@@ -20,6 +20,7 @@ import type { ChatConfiguration, ConversationEvent } from '../shared/conversatio
 import type { Project } from '../shared/models'
 import { IS_MAC } from '../shared/platform'
 import { isProjectColor } from '../shared/projectColors'
+import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
 import { findAgent, isAgentId, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
@@ -289,11 +290,21 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.GitBranches, () => branches.list())
 
-  ipcMain.handle(IpcChannel.RepositoryCommits, (_event, projectId: string) =>
-    repository.commits(store.getProject(projectId).path)
+  ipcMain.handle(IpcChannel.RepositoryCommits, (_event, projectId: string, loaded?: number) =>
+    repository.commits(store.getProject(projectId).path, loaded)
   )
-  ipcMain.handle(IpcChannel.RepositoryGitHub, (_event, projectId: string) =>
-    repository.github(store.getProject(projectId).path)
+  ipcMain.handle(IpcChannel.RepositoryMoreCommits, (_event, projectId: string, cursor: string) =>
+    repository.moreCommits(store.getProject(projectId).path, cursor)
+  )
+  ipcMain.handle(
+    IpcChannel.RepositoryGitHub,
+    (_event, projectId: string, loaded?: GitHubCounts) =>
+      repository.github(store.getProject(projectId).path, loaded)
+  )
+  ipcMain.handle(
+    IpcChannel.RepositoryMoreGitHub,
+    (_event, projectId: string, kind: GitHubKind, state: ListState, cursor: string) =>
+      repository.moreGitHub(store.getProject(projectId).path, kind, state, cursor)
   )
 
   ipcMain.handle(IpcChannel.UpdatesReadyVersion, () => updater?.readyVersion ?? null)

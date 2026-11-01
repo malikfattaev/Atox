@@ -115,8 +115,13 @@ const api: AtoxApi = {
     }
   },
   repository: {
-    commits: (projectId) => ipcRenderer.invoke(IpcChannel.RepositoryCommits, projectId),
-    github: (projectId) => ipcRenderer.invoke(IpcChannel.RepositoryGitHub, projectId)
+    commits: (projectId, loaded) =>
+      ipcRenderer.invoke(IpcChannel.RepositoryCommits, projectId, loaded),
+    moreCommits: (projectId, cursor) =>
+      ipcRenderer.invoke(IpcChannel.RepositoryMoreCommits, projectId, cursor),
+    github: (projectId, loaded) => ipcRenderer.invoke(IpcChannel.RepositoryGitHub, projectId, loaded),
+    moreGitHub: (projectId, kind, state, cursor) =>
+      ipcRenderer.invoke(IpcChannel.RepositoryMoreGitHub, projectId, kind, state, cursor)
   },
   updates: {
     readyVersion: () => ipcRenderer.invoke(IpcChannel.UpdatesReadyVersion),

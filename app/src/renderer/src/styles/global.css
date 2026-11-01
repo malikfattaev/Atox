@@ -1065,6 +1065,30 @@ ul {
   color: var(--color-text-muted);
 }
 
+.repository__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px var(--repository-gutter) 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.repository__more-button {
+  padding: 0;
+  font: inherit;
+  color: var(--color-accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.repository__more-button:hover {
+  text-decoration: underline;
+}
+
 .repository__message-title {
   margin: 0;
   font-weight: 500;

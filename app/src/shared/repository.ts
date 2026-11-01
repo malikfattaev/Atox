@@ -56,21 +56,39 @@ export interface Issue {
   labels: IssueLabel[]
 }
 
-/** Открытые и недавно закрытые элементы с их общим числом в репозитории. */
-export interface Listing<Item> {
-  open: Item[]
-  closed: Item[]
-  openCount: number
-  closedCount: number
+/** Часть длинного списка: элементы подгружаются страницами, пока не кончатся. */
+export interface Page<Item> {
+  items: Item[]
+  /** Курсор следующей страницы; `null` — загружено всё. */
+  next: string | null
 }
+
+/** Начало списка вместе с числом всех его элементов, а не только загруженных. */
+export interface Listing<Item> extends Page<Item> {
+  total: number
+}
+
+/** Элементы списков GitHub. */
+export interface GitHubItems {
+  pullRequests: PullRequest
+  issues: Issue
+}
+
+export type GitHubKind = keyof GitHubItems
+
+/** Открытые и закрытые элементы — отдельные списки со своими счётчиками. */
+export type ListState = 'open' | 'closed'
+
+/** Сколько элементов каждого списка GitHub уже загружено: обновление загружает не меньше. */
+export type GitHubCounts = Record<GitHubKind, Record<ListState, number>>
 
 export interface GitHubOverview {
   /** Адрес репозитория на GitHub. */
   url: string
   /** Владелец и имя, например `owner/repo`. */
   name: string
-  pullRequests: Listing<PullRequest>
-  issues: Listing<Issue>
+  pullRequests: Record<ListState, Listing<PullRequest>>
+  issues: Record<ListState, Listing<Issue>>
 }
 
 /** Почему данные репозитория не получилось загрузить. */

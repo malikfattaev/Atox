@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject
+} from 'react'
 import {
   ArrowUpRight,
   CircleDot,
@@ -13,6 +21,7 @@ import {
 import type {
   GitHubOverview,
   Issue,
+  ListState,
   Listing,
   PullRequest,
   RepositoryError,
@@ -26,7 +35,11 @@ import { CommitItem, IssueItem, PullRequestItem } from './RepositoryItems'
 const { atox } = window
 
 export type RepositorySection = 'commits' | 'pulls' | 'issues'
-type StateFilter = 'open' | 'closed'
+
+/** Насколько заранее подгружать следующую страницу, пока до конца списка ещё не докрутили. */
+const LOAD_AHEAD_PX = 600
+
+const formatCount = (count: number) => count.toLocaleString('en-US')
 
 const SECTIONS: ReadonlyArray<{ id: RepositorySection; label: string; icon: LucideIcon }> = [
   { id: 'commits', label: 'Commits', icon: GitCommitHorizontal },
@@ -60,8 +73,9 @@ export function RepositoryView({
   onClose
 }: RepositoryViewProps) {
   const { createChat } = useProjectsContext()
-  const { commits, github, loading, refresh } = useRepository(project.id, branch)
-  const [stateFilter, setStateFilter] = useState<StateFilter>('open')
+  const { commits, github, loading, refresh, loadMore } = useRepository(project.id, branch)
+  const [stateFilter, setStateFilter] = useState<ListState>('open')
+  const bodyRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const overview = github?.ok ? github.data : null
 
@@ -93,10 +107,11 @@ export function RepositoryView({
         'Read the issue and its comments with gh first, then implement the fix.'
     )
 
+  // Числа всего репозитория, а не только загруженных страниц.
   const counts: Record<RepositorySection, number | null> = {
-    commits: commits?.ok ? commits.data.length : null,
-    pulls: overview?.pullRequests.openCount ?? null,
-    issues: overview?.issues.openCount ?? null
+    commits: commits?.ok ? commits.data.total : null,
+    pulls: overview?.pullRequests.open.total ?? null,
+    issues: overview?.issues.open.total ?? null
   }
 
   return (
@@ -156,7 +171,7 @@ export function RepositoryView({
               <Icon className="segmented__icon" />
               {label}
               {counts[id] !== null && counts[id] > 0 && (
-                <span className="segmented__count">{counts[id]}</span>
+                <span className="segmented__count">{formatCount(counts[id])}</span>
               )}
             </button>
           ))}
@@ -165,7 +180,7 @@ export function RepositoryView({
         <div className="repository__filters">
           {section !== 'commits' && overview && (
             <StateFilterPicker
-              listing={section === 'pulls' ? overview.pullRequests : overview.issues}
+              lists={section === 'pulls' ? overview.pullRequests : overview.issues}
               value={stateFilter}
               onChange={setStateFilter}
             />
@@ -190,14 +205,17 @@ export function RepositoryView({
         </div>
       </div>
 
-      <div className="repository__body">
+      <div className="repository__body" ref={bodyRef}>
         {section === 'commits' && (
           <SectionContent
+            key="commits"
             result={commits}
             query={query}
             empty="No commits yet"
-            items={(data) =>
-              data.map((commit) => ({
+            scrollRoot={bodyRef}
+            onLoadMore={() => loadMore('commits')}
+            list={(data) =>
+              mapListing(data, (commit) => ({
                 key: commit.hash,
                 searchable: {
                   title: commit.subject,
@@ -210,11 +228,14 @@ export function RepositoryView({
         )}
         {section === 'pulls' && (
           <SectionContent
+            key={`pulls:${stateFilter}`}
             result={github}
             query={query}
             empty={stateFilter === 'open' ? 'No open pull requests' : 'No closed pull requests'}
-            items={(data: GitHubOverview) =>
-              data.pullRequests[stateFilter].map((pullRequest) => ({
+            scrollRoot={bodyRef}
+            onLoadMore={() => loadMore({ kind: 'pullRequests', state: stateFilter })}
+            list={(data: GitHubOverview) =>
+              mapListing(data.pullRequests[stateFilter], (pullRequest) => ({
                 key: String(pullRequest.number),
                 searchable: {
                   title: pullRequest.title,
@@ -227,11 +248,14 @@ export function RepositoryView({
         )}
         {section === 'issues' && (
           <SectionContent
+            key={`issues:${stateFilter}`}
             result={github}
             query={query}
             empty={stateFilter === 'open' ? 'No open issues' : 'No closed issues'}
-            items={(data: GitHubOverview) =>
-              data.issues[stateFilter].map((issue) => ({
+            scrollRoot={bodyRef}
+            onLoadMore={() => loadMore({ kind: 'issues', state: stateFilter })}
+            list={(data: GitHubOverview) =>
+              mapListing(data.issues[stateFilter], (issue) => ({
                 key: String(issue.number),
                 searchable: {
                   title: issue.title,
@@ -248,17 +272,17 @@ export function RepositoryView({
 }
 
 function StateFilterPicker({
-  listing,
+  lists,
   value,
   onChange
 }: {
-  listing: Listing<unknown>
-  value: StateFilter
-  onChange(value: StateFilter): void
+  lists: Record<ListState, Listing<unknown>>
+  value: ListState
+  onChange(value: ListState): void
 }) {
-  const options: ReadonlyArray<{ id: StateFilter; label: string; count: number }> = [
-    { id: 'open', label: 'Open', count: listing.openCount },
-    { id: 'closed', label: 'Closed', count: listing.closedCount }
+  const options: ReadonlyArray<{ id: ListState; label: string; count: number }> = [
+    { id: 'open', label: 'Open', count: lists.open.total },
+    { id: 'closed', label: 'Closed', count: lists.closed.total }
   ]
   return (
     <div className="segmented segmented--small" role="radiogroup" aria-label="State">
@@ -272,7 +296,7 @@ function StateFilterPicker({
           onClick={() => onChange(id)}
         >
           {label}
-          <span className="segmented__count">{count}</span>
+          <span className="segmented__count">{formatCount(count)}</span>
         </button>
       ))}
     </div>
@@ -285,36 +309,144 @@ interface SectionItem {
   node: ReactNode
 }
 
+function mapListing<Item>(
+  listing: Listing<Item>,
+  toSectionItem: (item: Item) => SectionItem
+): Listing<SectionItem> {
+  return { ...listing, items: listing.items.map(toSectionItem) }
+}
+
 interface SectionContentProps<Data> {
   /** `undefined` — данные ещё ни разу не загружались. */
   result: RepositoryResult<Data> | undefined
   query: string
   empty: string
-  items(data: Data): SectionItem[]
+  /** Прокручиваемая область, у конца которой подгружается следующая страница. */
+  scrollRoot: RefObject<HTMLElement | null>
+  list(data: Data): Listing<SectionItem>
+  onLoadMore(): Promise<void>
 }
 
-function SectionContent<Data>({ result, query, empty, items }: SectionContentProps<Data>) {
+function SectionContent<Data>({
+  result,
+  query,
+  empty,
+  scrollRoot,
+  list,
+  onLoadMore
+}: SectionContentProps<Data>) {
   if (!result) {
     return <p className="repository__message">Loading…</p>
   }
   if (!result.ok) {
     return <ErrorMessage error={result.error} />
   }
-  const all = items(result.data)
-  const visible = filterItems(all, query)
-  if (visible.length === 0) {
-    return (
-      <p className="repository__message">
-        {all.length === 0 ? empty : `Nothing matches “${query.trim()}”`}
-      </p>
-    )
-  }
+  const listing = list(result.data)
+  const filtering = query.trim() !== ''
+  const visible = filterItems(listing.items, query)
   return (
-    <ul className="repository__list">
-      {visible.map(({ key, node }) => (
-        <Fragment key={key}>{node}</Fragment>
-      ))}
-    </ul>
+    <>
+      {visible.length === 0 ? (
+        <p className="repository__message">
+          {listing.items.length === 0 && !listing.next
+            ? empty
+            : `Nothing matches “${query.trim()}”`}
+        </p>
+      ) : (
+        <ul className="repository__list">
+          {visible.map(({ key, node }) => (
+            <Fragment key={key}>{node}</Fragment>
+          ))}
+        </ul>
+      )}
+      {listing.next && (
+        <LoadMore
+          loaded={listing.items.length}
+          total={listing.total}
+          // Фильтр ищет только среди загруженного: догружать всю историю ради него — дорого.
+          automatic={!filtering}
+          scrollRoot={scrollRoot}
+          onLoadMore={onLoadMore}
+        />
+      )}
+    </>
+  )
+}
+
+interface LoadMoreProps {
+  loaded: number
+  total: number
+  /** Подгружать, как только конец списка близко; иначе — по кнопке. */
+  automatic: boolean
+  scrollRoot: RefObject<HTMLElement | null>
+  onLoadMore(): Promise<void>
+}
+
+/** Конец не полностью загруженного списка: подгружает следующую страницу. */
+function LoadMore({ loaded, total, automatic, scrollRoot, onLoadMore }: LoadMoreProps) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'failed'>('idle')
+  const busy = useRef(false)
+  const footer = useRef<HTMLDivElement>(null)
+  const latestOnLoadMore = useRef(onLoadMore)
+  latestOnLoadMore.current = onLoadMore
+
+  const load = useCallback(() => {
+    if (busy.current) {
+      return
+    }
+    busy.current = true
+    setStatus('loading')
+    latestOnLoadMore
+      .current()
+      .then(
+        () => setStatus('idle'),
+        () => setStatus('failed')
+      )
+      .finally(() => {
+        busy.current = false
+      })
+  }, [])
+
+  // Наблюдатель пересоздаётся после каждой страницы: если конец списка всё ещё виден,
+  // он сразу сообщит об этом и подгрузит следующую.
+  useEffect(() => {
+    const target = footer.current
+    if (!automatic || status !== 'idle' || !target) {
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          load()
+        }
+      },
+      { root: scrollRoot.current, rootMargin: `0px 0px ${LOAD_AHEAD_PX}px 0px` }
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [automatic, status, loaded, load, scrollRoot])
+
+  const progress = `${formatCount(loaded)} of ${formatCount(total)}`
+  return (
+    <div ref={footer} className="repository__more">
+      {status === 'failed' ? (
+        <>
+          Couldn’t load more.
+          <button type="button" className="repository__more-button" onClick={load}>
+            Retry
+          </button>
+        </>
+      ) : automatic || status === 'loading' ? (
+        `Loading… ${progress}`
+      ) : (
+        <>
+          Searched {progress}.
+          <button type="button" className="repository__more-button" onClick={load}>
+            Load more
+          </button>
+        </>
+      )}
+    </div>
   )
 }
 

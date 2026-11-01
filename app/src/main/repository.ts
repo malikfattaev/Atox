@@ -2,10 +2,15 @@ import { execFile } from 'node:child_process'
 import type {
   CheckStatus,
   Commit,
+  GitHubCounts,
+  GitHubItems,
+  GitHubKind,
   GitHubOverview,
   Issue,
   IssueState,
+  ListState,
   Listing,
+  Page,
   PullRequest,
   RepositoryError,
   RepositoryResult,
@@ -13,18 +18,19 @@ import type {
 } from '../shared/repository'
 import type { ShellEnvironment } from './shellEnvironment'
 
-/** Сколько коммитов текущей ветки показывать. */
-const COMMIT_LIMIT = 100
-/** Сколько открытых PR и issue загружать — обычно их меньше. */
-const OPEN_LIMIT = 50
-/** Сколько недавно закрытых PR и issue загружать: старые нужны редко. */
-const CLOSED_LIMIT = 30
+/** Сколько коммитов загружать за раз: дальше список подгружается при прокрутке. */
+const COMMIT_PAGE_SIZE = 100
+/**
+ * Сколько PR или issue загружать за раз. Больше не просим и при обновлении: на большом
+ * репозитории запрос с сотней PR и их проверками GitHub отклоняет как слишком тяжёлый.
+ */
+const GITHUB_PAGE_SIZE = 50
 /** Сколько меток issue показывать. */
 const LABEL_LIMIT = 4
 
 /** Сколько ждать ответа git и GitHub, прежде чем считать запрос неудавшимся. */
 const COMMAND_TIMEOUT_MS = 20_000
-/** Ответ GitHub со всеми PR и issue — до нескольких сотен килобайт. */
+/** Ответ GitHub со страницами PR и issue — до нескольких сотен килобайт. */
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
 /** Разделители полей и записей в выводе `git log`: в сообщениях коммитов они не встречаются. */
@@ -32,33 +38,33 @@ const FIELD_SEPARATOR = '\x1f'
 const RECORD_SEPARATOR = '\x1e'
 const TAG_PREFIX = 'tag: '
 
-/**
- * Один запрос GraphQL вместо нескольких вызовов `gh pr list` и `gh issue list`: так быстрее,
- * и сразу приходят статус CI, решение ревью и число комментариев без их текста.
- * `{owner}` и `{repo}` gh подставляет сам — из удалённого репозитория папки проекта.
- */
-const OVERVIEW_QUERY = `
-query($owner: String!, $name: String!, $openLimit: Int!, $closedLimit: Int!, $labelLimit: Int!) {
-  repository(owner: $owner, name: $name) {
-    url
-    nameWithOwner
-    openPullRequests: pullRequests(states: OPEN, first: $openLimit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      ...PullRequests
-    }
-    closedPullRequests: pullRequests(states: [MERGED, CLOSED], first: $closedLimit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      ...PullRequests
-    }
-    openIssues: issues(states: OPEN, first: $openLimit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      ...Issues
-    }
-    closedIssues: issues(states: CLOSED, first: $closedLimit, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      ...Issues
-    }
-  }
+/** Курсор коммитов — вершина, от которой листаем, и сколько коммитов уже пропущено. */
+const COMMIT_CURSOR = /^([0-9a-f]{40,64}):(\d+)$/
+
+/** Фильтр по состоянию в запросе GitHub для каждого списка. */
+const LIST_STATES: Record<GitHubKind, Record<ListState, string>> = {
+  pullRequests: { open: 'OPEN', closed: '[MERGED, CLOSED]' },
+  issues: { open: 'OPEN', closed: 'CLOSED' }
 }
 
+const LISTS: ReadonlyArray<readonly [GitHubKind, ListState]> = [
+  ['pullRequests', 'open'],
+  ['pullRequests', 'closed'],
+  ['issues', 'open'],
+  ['issues', 'closed']
+]
+
+/**
+ * Поля элементов каждого списка. Статус CI, решение ревью и число комментариев приходят
+ * сразу, без их текста.
+ */
+const FRAGMENTS: Record<GitHubKind, { name: string; text: string }> = {
+  pullRequests: {
+    name: 'PullRequests',
+    text: `
 fragment PullRequests on PullRequestConnection {
   totalCount
+  pageInfo { hasNextPage endCursor }
   nodes {
     number
     title
@@ -74,10 +80,14 @@ fragment PullRequests on PullRequestConnection {
     comments { totalCount }
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
   }
-}
-
+}`
+  },
+  issues: {
+    name: 'Issues',
+    text: `
 fragment Issues on IssueConnection {
   totalCount
+  pageInfo { hasNextPage endCursor }
   nodes {
     number
     title
@@ -89,14 +99,68 @@ fragment Issues on IssueConnection {
     comments { totalCount }
     labels(first: $labelLimit) { nodes { name color } }
   }
+}`
+  }
 }
-`
+
+type ListAlias = `${ListState}${Capitalize<GitHubKind>}`
+
+/** Имя списка в запросе и его переменной размера, например `openPullRequests`. */
+function listAlias(kind: GitHubKind, state: ListState): ListAlias {
+  return `${state}${kind.charAt(0).toUpperCase()}${kind.slice(1)}` as ListAlias
+}
+
+/** Список одного вида и состояния, свежие изменения сверху. */
+function connectionField(kind: GitHubKind, state: ListState, first: string, after?: string) {
+  const arguments_ = [
+    `states: ${LIST_STATES[kind][state]}`,
+    `first: ${first}`,
+    ...(after ? [`after: ${after}`] : []),
+    'orderBy: {field: UPDATED_AT, direction: DESC}'
+  ]
+  return `${kind}(${arguments_.join(', ')}) { ...${FRAGMENTS[kind].name} }`
+}
+
+/**
+ * Один запрос GraphQL вместо нескольких вызовов `gh pr list` и `gh issue list`: первые
+ * страницы всех четырёх списков сразу. `{owner}` и `{repo}` gh подставляет сам — из
+ * удалённого репозитория папки проекта.
+ */
+const OVERVIEW_QUERY = `
+query($owner: String!, $name: String!, $labelLimit: Int!, ${LISTS.map(
+  ([kind, state]) => `$${listAlias(kind, state)}: Int!`
+).join(', ')}) {
+  repository(owner: $owner, name: $name) {
+    url
+    nameWithOwner
+${LISTS.map(
+  ([kind, state]) =>
+    `    ${listAlias(kind, state)}: ${connectionField(kind, state, `$${listAlias(kind, state)}`)}`
+).join('\n')}
+  }
+}
+${FRAGMENTS.pullRequests.text}
+${FRAGMENTS.issues.text}`
+
+/** Следующая страница одного списка — после курсора предыдущей. */
+function pageQuery(kind: GitHubKind, state: ListState): string {
+  // Объявленная, но не использованная переменная — ошибка GraphQL, а метки есть только у issue.
+  const labelVariable = kind === 'issues' ? ', $labelLimit: Int!' : ''
+  return `
+query($owner: String!, $name: String!, $first: Int!, $after: String!${labelVariable}) {
+  repository(owner: $owner, name: $name) {
+    list: ${connectionField(kind, state, '$first', '$after')}
+  }
+}
+${FRAGMENTS[kind].text}`
+}
 
 /** Автор удалённой учётной записи GitHub — вместо него GitHub отдаёт `null`. */
 const GHOST_AUTHOR = 'ghost'
 
 interface Connection<Node> {
   totalCount: number
+  pageInfo: { hasNextPage: boolean; endCursor: string | null }
   nodes: Node[]
 }
 
@@ -128,18 +192,15 @@ interface IssueNode {
   labels: { nodes: Array<{ name: string; color: string }> } | null
 }
 
-interface OverviewResponse {
-  data?: {
-    repository: {
-      url: string
-      nameWithOwner: string
-      openPullRequests: Connection<PullRequestNode>
-      closedPullRequests: Connection<PullRequestNode>
-      openIssues: Connection<IssueNode>
-      closedIssues: Connection<IssueNode>
-    } | null
-  }
+interface GitHubNodes {
+  pullRequests: PullRequestNode
+  issues: IssueNode
 }
+
+type OverviewRepository = { url: string; nameWithOwner: string } & Record<
+  ListAlias,
+  Connection<GitHubNodes[GitHubKind]>
+>
 
 /** Ошибка запуска программы: код выхода и то, что она написала в stderr. */
 class CommandError extends Error {
@@ -159,36 +220,74 @@ class CommandError extends Error {
 export class RepositoryReader {
   constructor(private readonly shell: ShellEnvironment) {}
 
-  async commits(path: string): Promise<RepositoryResult<Commit[]>> {
+  /** Коммиты текущей ветки — не меньше `loaded`, чтобы обновление не укоротило список. */
+  async commits(path: string, loaded = 0): Promise<RepositoryResult<Listing<Commit>>> {
     try {
-      const [log, unpushed] = await Promise.all([
-        this.run('git', ['log', `-n${COMMIT_LIMIT}`, `--format=${LOG_FORMAT}`, 'HEAD'], path),
-        this.unpushedCommits(path)
+      // Листаем от конкретного коммита, а не от HEAD: новые коммиты не сдвинут следующие страницы.
+      const head = (await this.run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], path)).trim()
+      const [page, total] = await Promise.all([
+        this.commitPage(path, head, 0, Math.max(loaded, COMMIT_PAGE_SIZE)),
+        this.run('git', ['rev-list', '--count', head], path)
       ])
-      return { ok: true, data: parseLog(log, unpushed) }
+      return { ok: true, data: { ...page, total: Number(total.trim()) } }
     } catch (error) {
       if (!(await this.isRepository(path))) {
         return { ok: false, error: { kind: 'not-git' } }
       }
       // В новом репозитории ещё нет коммитов — тогда HEAD никуда не указывает.
       if (!(await this.hasCommits(path))) {
-        return { ok: true, data: [] }
+        return { ok: true, data: { items: [], next: null, total: 0 } }
       }
       return { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
     }
   }
 
-  async github(path: string): Promise<RepositoryResult<GitHubOverview>> {
+  async moreCommits(path: string, cursor: string): Promise<RepositoryResult<Page<Commit>>> {
+    const match = COMMIT_CURSOR.exec(cursor)
+    if (!match) {
+      return { ok: false, error: { kind: 'failed', message: 'Invalid commit cursor' } }
+    }
+    const [, head = '', skipped = '0'] = match
     try {
-      return { ok: true, data: await this.queryOverview(path) }
+      return { ok: true, data: await this.commitPage(path, head, Number(skipped), COMMIT_PAGE_SIZE) }
     } catch (error) {
-      // Репозиторий может принадлежать другой учётной записи gh, чем активная. Тогда пробуем
-      // токен, с которым git этого репозитория ходит на GitHub, — у него доступ точно есть.
+      return { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
+    }
+  }
+
+  /** Первые страницы PR и issue — каждого списка не меньше, чем уже загружено. */
+  github(path: string, loaded?: GitHubCounts): Promise<RepositoryResult<GitHubOverview>> {
+    return this.withGitHubAccess(path, (token) => this.queryOverview(path, loaded, token))
+  }
+
+  moreGitHub<Kind extends GitHubKind>(
+    path: string,
+    kind: Kind,
+    state: ListState,
+    cursor: string
+  ): Promise<RepositoryResult<Page<GitHubItems[Kind]>>> {
+    return this.withGitHubAccess(path, (token) =>
+      this.githubPage(path, kind, state, cursor, GITHUB_PAGE_SIZE, token)
+    )
+  }
+
+  /**
+   * Запрос к GitHub под учётной записью gh. Репозиторий может принадлежать другой учётной
+   * записи, чем активная, — тогда повторяем с токеном, с которым git этого репозитория ходит
+   * на GitHub: у него доступ точно есть.
+   */
+  private async withGitHubAccess<Data>(
+    path: string,
+    request: (token?: string) => Promise<Data>
+  ): Promise<RepositoryResult<Data>> {
+    try {
+      return { ok: true, data: await request() }
+    } catch (error) {
       if (isInaccessibleRepository(error)) {
         const token = await this.gitCredentialToken(path)
         if (token) {
           try {
-            return { ok: true, data: await this.queryOverview(path, token) }
+            return { ok: true, data: await request(token) }
           } catch {
             // Не помог и токен git — показываем исходную ошибку.
           }
@@ -198,56 +297,139 @@ export class RepositoryReader {
     }
   }
 
-  private async queryOverview(path: string, token?: string): Promise<GitHubOverview> {
-    const output = await this.run(
-      'gh',
-      [
-        'api',
-        'graphql',
-        '-F',
-        'owner={owner}',
-        '-F',
-        'name={repo}',
-        '-F',
-        `openLimit=${OPEN_LIMIT}`,
-        '-F',
-        `closedLimit=${CLOSED_LIMIT}`,
-        '-F',
-        `labelLimit=${LABEL_LIMIT}`,
-        '-f',
-        `query=${OVERVIEW_QUERY}`
-      ],
+  private async queryOverview(
+    path: string,
+    loaded: GitHubCounts | undefined,
+    token?: string
+  ): Promise<GitHubOverview> {
+    const wanted = (kind: GitHubKind, state: ListState) =>
+      Math.max(loaded?.[kind][state] ?? 0, GITHUB_PAGE_SIZE)
+    const repository = await this.graphql<OverviewRepository>(
       path,
-      token ? { GH_TOKEN: token } : {}
+      OVERVIEW_QUERY,
+      {
+        labelLimit: LABEL_LIMIT,
+        ...Object.fromEntries(LISTS.map(([kind, state]) => [listAlias(kind, state), GITHUB_PAGE_SIZE]))
+      },
+      token
     )
-    const repository = (JSON.parse(output) as OverviewResponse).data?.repository
-    if (!repository) {
-      throw new Error('GitHub returned no repository')
+
+    // Если раньше загрузили больше первой страницы, догружаем остальное.
+    const listing = async <Kind extends GitHubKind>(
+      kind: Kind,
+      state: ListState
+    ): Promise<Listing<GitHubItems[Kind]>> => {
+      const connection = repository[listAlias(kind, state)] as Connection<GitHubNodes[Kind]>
+      const first = toListing(connection, converter(kind))
+      const missing = wanted(kind, state) - first.items.length
+      if (missing <= 0 || !first.next) {
+        return first
+      }
+      const rest = await this.githubPage(path, kind, state, first.next, missing, token)
+      return { ...first, items: [...first.items, ...rest.items], next: rest.next }
     }
+
+    const [openPullRequests, closedPullRequests, openIssues, closedIssues] = await Promise.all([
+      listing('pullRequests', 'open'),
+      listing('pullRequests', 'closed'),
+      listing('issues', 'open'),
+      listing('issues', 'closed')
+    ])
     return {
       url: repository.url,
       name: repository.nameWithOwner,
-      pullRequests: toListing(
-        repository.openPullRequests,
-        repository.closedPullRequests,
-        toPullRequest
+      pullRequests: { open: openPullRequests, closed: closedPullRequests },
+      issues: { open: openIssues, closed: closedIssues }
+    }
+  }
+
+  /** `count` элементов списка после курсора — страницами по `GITHUB_PAGE_SIZE`. */
+  private async githubPage<Kind extends GitHubKind>(
+    path: string,
+    kind: Kind,
+    state: ListState,
+    cursor: string,
+    count: number,
+    token?: string
+  ): Promise<Page<GitHubItems[Kind]>> {
+    const items: GitHubItems[Kind][] = []
+    let next: string | null = cursor
+    while (next && items.length < count) {
+      const response: { list: Connection<GitHubNodes[Kind]> } = await this.graphql(
+        path,
+        pageQuery(kind, state),
+        {
+          first: Math.min(count - items.length, GITHUB_PAGE_SIZE),
+          after: next,
+          ...(kind === 'issues' ? { labelLimit: LABEL_LIMIT } : {})
+        },
+        token
+      )
+      const page: Page<GitHubItems[Kind]> = toListing(response.list, converter(kind))
+      items.push(...page.items)
+      next = page.next
+    }
+    return { items, next }
+  }
+
+  /** Запрос GraphQL к репозиторию папки проекта; возвращает его поле `repository`. */
+  private async graphql<Repository>(
+    path: string,
+    query: string,
+    variables: Record<string, string | number>,
+    token?: string
+  ): Promise<Repository> {
+    const args = ['api', 'graphql', '-F', 'owner={owner}', '-F', 'name={repo}']
+    for (const [name, value] of Object.entries(variables)) {
+      // Строки — через `-f`: `-F` превратил бы курсор, похожий на число, в число.
+      args.push(typeof value === 'number' ? '-F' : '-f', `${name}=${value}`)
+    }
+    args.push('-f', `query=${query}`)
+    const output = await this.run('gh', args, path, token ? { GH_TOKEN: token } : {})
+    const repository = (JSON.parse(output) as { data?: { repository: Repository | null } }).data
+      ?.repository
+    if (!repository) {
+      throw new Error('GitHub returned no repository')
+    }
+    return repository
+  }
+
+  /** `limit` коммитов от `head`, пропустив первые `skipped`. */
+  private async commitPage(
+    path: string,
+    head: string,
+    skipped: number,
+    limit: number
+  ): Promise<Page<Commit>> {
+    const [log, unpushed] = await Promise.all([
+      // На один больше, чтобы знать, есть ли следующая страница.
+      this.run(
+        'git',
+        ['log', `--skip=${skipped}`, `-n${limit + 1}`, `--format=${LOG_FORMAT}`, head],
+        path
       ),
-      issues: toListing(repository.openIssues, repository.closedIssues, toIssue)
+      this.unpushedCommits(path, head, skipped + limit)
+    ])
+    const commits = parseLog(log, unpushed)
+    return {
+      items: commits.slice(0, limit),
+      next: commits.length > limit ? `${head}:${skipped + limit}` : null
     }
   }
 
   /**
-   * Коммиты, которых нет ни в одной удалённой ветке. Если удалённых репозиториев нет вовсе,
-   * отмечать нечего: иначе неотправленным оказался бы каждый коммит.
+   * Неотправленные коммиты среди первых `limit` от `head` — их нет ни в одной удалённой ветке.
+   * Если удалённых репозиториев нет вовсе, отмечать нечего: иначе неотправленным оказался бы
+   * каждый коммит.
    */
-  private async unpushedCommits(path: string): Promise<Set<string>> {
+  private async unpushedCommits(path: string, head: string, limit: number): Promise<Set<string>> {
     const remotes = await this.run('git', ['remote'], path).catch(() => '')
     if (!remotes.trim()) {
       return new Set()
     }
     const output = await this.run(
       'git',
-      ['rev-list', `-n${COMMIT_LIMIT}`, 'HEAD', '--not', '--remotes'],
+      ['rev-list', `-n${limit}`, head, '--not', '--remotes'],
       path
     ).catch(() => '')
     return new Set(output.split('\n').filter(Boolean))
@@ -346,16 +528,24 @@ function parseLog(output: string, unpushed: ReadonlySet<string>): Commit[] {
 }
 
 function toListing<Node, Item>(
-  open: Connection<Node>,
-  closed: Connection<Node>,
+  connection: Connection<Node>,
   convert: (node: Node) => Item
 ): Listing<Item> {
   return {
-    open: open.nodes.map(convert),
-    closed: closed.nodes.map(convert),
-    openCount: open.totalCount,
-    closedCount: closed.totalCount
+    items: connection.nodes.map(convert),
+    total: connection.totalCount,
+    next: connection.pageInfo.hasNextPage ? connection.pageInfo.endCursor : null
   }
+}
+
+function converter<Kind extends GitHubKind>(
+  kind: Kind
+): (node: GitHubNodes[Kind]) => GitHubItems[Kind] {
+  const converters: { [K in GitHubKind]: (node: GitHubNodes[K]) => GitHubItems[K] } = {
+    pullRequests: toPullRequest,
+    issues: toIssue
+  }
+  return converters[kind]
 }
 
 function toPullRequest(node: PullRequestNode): PullRequest {

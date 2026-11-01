@@ -8,7 +8,17 @@ import type {
   ConversationSnapshot
 } from './conversation'
 import type { Project, SpacesState, UserProfile } from './models'
-import type { Commit, GitHubOverview, RepositoryResult } from './repository'
+import type {
+  Commit,
+  GitHubCounts,
+  GitHubItems,
+  GitHubKind,
+  GitHubOverview,
+  ListState,
+  Listing,
+  Page,
+  RepositoryResult
+} from './repository'
 import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
 
@@ -129,10 +139,22 @@ export interface AtoxApi {
     subscribe(listener: (branches: GitBranches) => void): () => void
   }
   repository: {
-    /** Последние коммиты текущей ветки проекта — из локального git, без сети. */
-    commits(projectId: string): Promise<RepositoryResult<Commit[]>>
-    /** Pull request'ы и issue проекта с GitHub. */
-    github(projectId: string): Promise<RepositoryResult<GitHubOverview>>
+    /**
+     * Последние коммиты текущей ветки проекта — из локального git, без сети. `loaded` — сколько
+     * уже показано: обновление загружает не меньше, чтобы список не укоротился.
+     */
+    commits(projectId: string, loaded?: number): Promise<RepositoryResult<Listing<Commit>>>
+    /** Следующая страница коммитов после `cursor` из предыдущей. */
+    moreCommits(projectId: string, cursor: string): Promise<RepositoryResult<Page<Commit>>>
+    /** Первые страницы pull request'ов и issue проекта с GitHub. */
+    github(projectId: string, loaded?: GitHubCounts): Promise<RepositoryResult<GitHubOverview>>
+    /** Следующая страница одного из списков GitHub. */
+    moreGitHub<Kind extends GitHubKind>(
+      projectId: string,
+      kind: Kind,
+      state: ListState,
+      cursor: string
+    ): Promise<RepositoryResult<Page<GitHubItems[Kind]>>>
   }
   updates: {
     /** Версия, которая скачана и готова к установке; `null` — обновлений нет. */
@@ -205,7 +227,9 @@ export const IpcChannel = {
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
   RepositoryCommits: 'repository:commits',
+  RepositoryMoreCommits: 'repository:more-commits',
   RepositoryGitHub: 'repository:github',
+  RepositoryMoreGitHub: 'repository:more-github',
   UpdatesReadyVersion: 'updates:ready-version',
   UpdatesReady: 'updates:ready',
   UpdatesInstall: 'updates:install',
