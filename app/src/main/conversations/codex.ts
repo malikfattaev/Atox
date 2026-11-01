@@ -141,11 +141,17 @@ function toCatalog(models: CodexModel[]): AgentCatalog {
   }
 }
 
+/** Сколько раз пробовать остановить ход, который Codex ещё не успел запустить. */
+const INTERRUPT_ATTEMPTS = 20
+const INTERRUPT_RETRY_MS = 100
+
 class CodexSession implements AgentSession {
   private readonly rpc: JsonRpcProcess
   /** Тред Codex, когда он открыт: сообщения ждут его. */
   private readonly thread: Promise<string>
   private turnId: string | null = null
+  /** Ход остановили раньше, чем Codex сообщил его id: остановим, как только id придёт. */
+  private interruptRequested = false
 
   constructor(
     private readonly options: SessionOptions,
@@ -164,12 +170,14 @@ class CodexSession implements AgentSession {
       }
     })
     this.thread = this.openThread(client)
-    // Ошибку открытия сообщит первое сообщение, которое будет его ждать.
-    this.thread.catch(() => undefined)
+    // Ошибку открытия сообщит первое сообщение, которое будет его ждать. Процесс с неоткрытым
+    // разговором бесполезен: он завершается, и следующее сообщение запустит Codex заново.
+    this.thread.catch(() => this.rpc.kill())
   }
 
   send(text: string): void {
     const { selection } = this.options
+    this.interruptRequested = false
     this.thread
       .then((threadId) =>
         this.rpc.request<{ turn: Turn }>('turn/start', {
@@ -180,7 +188,7 @@ class CodexSession implements AgentSession {
         })
       )
       .then(({ turn }) => {
-        this.turnId ??= turn.id
+        this.startTurn(turn.id)
       })
       .catch((error) => {
         // Если упал сам процесс, об этом уже сообщил его выход.
@@ -194,15 +202,49 @@ class CodexSession implements AgentSession {
   interrupt(): void {
     const turnId = this.turnId
     if (!turnId) {
+      this.interruptRequested = true
       return
     }
-    void this.thread
-      .then((threadId) => this.rpc.request('turn/interrupt', { threadId, turnId }))
-      .catch((error) => console.error('Failed to interrupt Codex', error))
+    void this.interruptTurn(turnId)
   }
 
   close(): void {
     this.rpc.kill()
+  }
+
+  /**
+   * Только что начатый ход Codex ещё не считает активным и отвечает «no active turn»:
+   * остановку повторяют, пока ход не станет активным или не закончится сам.
+   */
+  private async interruptTurn(turnId: string): Promise<void> {
+    const threadId = await this.thread
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.rpc.request('turn/interrupt', { threadId, turnId })
+        return
+      } catch (error) {
+        if (this.turnId !== turnId || !this.rpc.alive) {
+          return
+        }
+        if (attempt >= INTERRUPT_ATTEMPTS) {
+          console.error('Failed to interrupt Codex', error)
+          return
+        }
+        await new Promise((resolve) => setTimeout(resolve, INTERRUPT_RETRY_MS))
+      }
+    }
+  }
+
+  /** Codex сообщил id хода — из ответа на turn/start или уведомления, что придёт раньше. */
+  private startTurn(turnId: string): void {
+    if (this.turnId) {
+      return
+    }
+    this.turnId = turnId
+    if (this.interruptRequested) {
+      this.interruptRequested = false
+      this.interrupt()
+    }
   }
 
   private async openThread(client: ClientInfo): Promise<string> {
@@ -235,7 +277,7 @@ class CodexSession implements AgentSession {
   private handleNotification(method: string, params: unknown): void {
     switch (method) {
       case 'turn/started':
-        this.turnId = (params as { turn: Turn }).turn.id
+        this.startTurn((params as { turn: Turn }).turn.id)
         break
       case 'turn/completed': {
         const { turn } = params as { turn: Turn }

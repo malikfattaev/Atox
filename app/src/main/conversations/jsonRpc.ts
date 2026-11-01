@@ -37,6 +37,8 @@ export class JsonRpcProcess {
   private nextId = 1
   private stderrTail = ''
   private exited = false
+  /** Процесс остановил сам Atox: его завершение по сигналу — не ошибка. */
+  private killed = false
 
   constructor(
     command: string,
@@ -50,10 +52,13 @@ export class JsonRpcProcess {
     this.process.stderr.on('data', (chunk: string) => {
       this.stderrTail = (this.stderrTail + chunk).slice(-STDERR_TAIL_LIMIT)
     })
+    // Процесс, упавший сразу после запуска, закрывает stdin посреди записи. Об ошибке
+    // сообщит его выход, а необработанная ошибка потока уронила бы всё приложение.
+    this.process.stdin.on('error', () => undefined)
     this.process.on('error', (error) => this.finish(error))
     this.process.on('exit', (code, signal) => {
-      const failed = code !== 0 && signal === null
-      this.finish(failed ? new Error(this.describeExit(code)) : null)
+      const failed = !this.killed && (code !== 0 || signal !== null)
+      this.finish(failed ? new Error(this.describeExit(code, signal)) : null)
     })
   }
 
@@ -79,6 +84,7 @@ export class JsonRpcProcess {
 
   kill(): void {
     if (!this.exited) {
+      this.killed = true
       this.process.kill()
     }
   }
@@ -145,8 +151,9 @@ export class JsonRpcProcess {
     this.handlers.exit(error)
   }
 
-  private describeExit(code: number | null): string {
+  private describeExit(code: number | null, signal: NodeJS.Signals | null): string {
     const details = this.stderrTail.trim().split('\n').slice(-3).join('\n')
-    return `The agent exited with code ${code ?? 'unknown'}${details ? `: ${details}` : ''}`
+    const reason = signal ? `was stopped by ${signal}` : `exited with code ${code ?? 'unknown'}`
+    return `The agent ${reason}${details ? `: ${details}` : ''}`
   }
 }
