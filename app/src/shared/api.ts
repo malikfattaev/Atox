@@ -8,6 +8,7 @@ import type {
   ConversationSnapshot
 } from './conversation'
 import type { Project, SpacesState, UserProfile } from './models'
+import type { Commit, GitHubOverview, RepositoryResult } from './repository'
 import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
 
@@ -127,6 +128,12 @@ export interface AtoxApi {
     branches(): Promise<GitBranches>
     subscribe(listener: (branches: GitBranches) => void): () => void
   }
+  repository: {
+    /** Последние коммиты текущей ветки проекта — из локального git, без сети. */
+    commits(projectId: string): Promise<RepositoryResult<Commit[]>>
+    /** Pull request'ы и issue проекта с GitHub. */
+    github(projectId: string): Promise<RepositoryResult<GitHubOverview>>
+  }
   updates: {
     /** Версия, которая скачана и готова к установке; `null` — обновлений нет. */
     readyVersion(): Promise<string | null>
@@ -197,6 +204,8 @@ export const IpcChannel = {
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
+  RepositoryCommits: 'repository:commits',
+  RepositoryGitHub: 'repository:github',
   UpdatesReadyVersion: 'updates:ready-version',
   UpdatesReady: 'updates:ready',
   UpdatesInstall: 'updates:install',

@@ -114,6 +114,10 @@ const api: AtoxApi = {
       return () => ipcRenderer.removeListener(IpcChannel.GitBranchesChanged, handler)
     }
   },
+  repository: {
+    commits: (projectId) => ipcRenderer.invoke(IpcChannel.RepositoryCommits, projectId),
+    github: (projectId) => ipcRenderer.invoke(IpcChannel.RepositoryGitHub, projectId)
+  },
   updates: {
     readyVersion: () => ipcRenderer.invoke(IpcChannel.UpdatesReadyVersion),
     subscribe: (listener) => {

@@ -31,6 +31,7 @@ import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
 import { createColorSwatch } from './menuSwatch'
 import { savePastedImage } from './pastedImages'
+import type { RepositoryReader } from './repository'
 import { getUserProfile } from './system'
 import type { AppUpdater } from './updater'
 
@@ -39,6 +40,7 @@ interface AppServices {
   settings: SettingsStore
   conversations: ConversationManager
   branches: GitBranchTracker
+  repository: RepositoryReader
   agents: AgentDetector
   /** `null` — обновления недоступны, например при запуске из исходников. */
   updater: AppUpdater | null
@@ -50,6 +52,7 @@ export function registerIpcHandlers({
   settings,
   conversations,
   branches,
+  repository,
   agents,
   updater,
   menu
@@ -285,6 +288,13 @@ export function registerIpcHandlers({
   )
 
   ipcMain.handle(IpcChannel.GitBranches, () => branches.list())
+
+  ipcMain.handle(IpcChannel.RepositoryCommits, (_event, projectId: string) =>
+    repository.commits(store.getProject(projectId).path)
+  )
+  ipcMain.handle(IpcChannel.RepositoryGitHub, (_event, projectId: string) =>
+    repository.github(store.getProject(projectId).path)
+  )
 
   ipcMain.handle(IpcChannel.UpdatesReadyVersion, () => updater?.readyVersion ?? null)
   ipcMain.on(IpcChannel.UpdatesInstall, () => updater?.installAndRelaunch())

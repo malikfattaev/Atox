@@ -19,6 +19,7 @@ import { AppMenu } from './menu'
 import { installCli, installCodexRules, installSkills } from './orchestration/install'
 import { OrchestrationServer } from './orchestration/server'
 import { setupQuitHandling } from './quit'
+import { RepositoryReader } from './repository'
 import { SettingsStore } from './settings'
 import { ShellEnvironment } from './shellEnvironment'
 import { ProjectStore } from './store'
@@ -128,7 +129,16 @@ async function bootstrap(): Promise<void> {
     )
   }
   const menu = new AppMenu(settings)
-  registerIpcHandlers({ store, settings, conversations, branches, updater, agents, menu })
+  registerIpcHandlers({
+    store,
+    settings,
+    conversations,
+    branches,
+    repository: new RepositoryReader(shell),
+    updater,
+    agents,
+    menu
+  })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshOnFocus())
   app.on('will-quit', () => branches.dispose())
