@@ -16,7 +16,7 @@ interface ChatViewProps {
 
 export function ChatView({ chatId, visible, focused }: ChatViewProps) {
   const { projects } = useProjectsContext()
-  const conversation = useConversation(chatId)
+  const conversation = useConversation(chatId, visible)
   const scrollRef = useRef<HTMLDivElement>(null)
   // Пользователь внизу ленты: новые сообщения прокручивают её; отлистал вверх — не мешаем читать.
   const stickToBottom = useRef(true)
@@ -55,6 +55,7 @@ export function ChatView({ chatId, visible, focused }: ChatViewProps) {
               running={conversation.running}
               agent={chat.agent}
               turnTokens={conversation.turnTokens ?? 0}
+              visible={visible}
             />
           ) : (
             !conversation.loading && (

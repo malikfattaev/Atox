@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   applyConversationEvent,
   EMPTY_CONVERSATION,
@@ -13,22 +13,46 @@ export interface ConversationState extends ConversationSnapshot {
   loading: boolean
 }
 
-/** Лента чата: снимок из main-процесса плюс события, которые пришли после него. */
-export function useConversation(chatId: string): ConversationState {
-  const [state, setState] = useState<ConversationState>({ ...EMPTY_CONVERSATION, loading: true })
+const LOADING_STATE: ConversationState = { ...EMPTY_CONVERSATION, loading: true }
+
+/**
+ * Лента чата: снимок из main-процесса плюс события, которые пришли после него.
+ *
+ * Агент присылает событие на каждый кусочек текста — это сотни в секунду. Лента применяет
+ * их к своей копии сразу, а перерисовывается не чаще раза за кадр и только пока чат
+ * на экране: скрытый чат догоняет ленту, когда его снова откроют.
+ */
+export function useConversation(chatId: string, visible: boolean): ConversationState {
+  const [state, setState] = useState<ConversationState>(LOADING_STATE)
+  const latestRef = useRef<ConversationState>(LOADING_STATE)
+  const visibleRef = useRef(visible)
+  const frameRef = useRef<number | null>(null)
+  visibleRef.current = visible
 
   useEffect(() => {
     let cancelled = false
     // События, пришедшие до снимка, применяются поверх него: так ничего не теряется.
     let pending: ConversationEvent[] | null = []
-    setState({ ...EMPTY_CONVERSATION, loading: true })
+    latestRef.current = LOADING_STATE
+    setState(LOADING_STATE)
+
+    const flush = () => {
+      frameRef.current = null
+      setState(latestRef.current)
+    }
+    const scheduleFlush = () => {
+      if (visibleRef.current && frameRef.current === null) {
+        frameRef.current = requestAnimationFrame(flush)
+      }
+    }
 
     const unsubscribe = atox.conversations.onEvent(chatId, (event) => {
       if (pending) {
         pending.push(event)
-      } else {
-        setState((current) => ({ ...applyConversationEvent(current, event), loading: false }))
+        return
       }
+      latestRef.current = { ...applyConversationEvent(latestRef.current, event), loading: false }
+      scheduleFlush()
     })
 
     atox.conversations
@@ -44,21 +68,34 @@ export function useConversation(chatId: string): ConversationState {
         const replayed = events
           .filter((event) => event.type !== 'delta')
           .reduce(applyConversationEvent, snapshot)
-        setState({ ...replayed, loading: false })
+        latestRef.current = { ...replayed, loading: false }
+        setState(latestRef.current)
       })
       .catch((error) => {
         console.error('Failed to load the conversation', error)
         pending = null
         if (!cancelled) {
-          setState({ ...EMPTY_CONVERSATION, loading: false })
+          latestRef.current = { ...EMPTY_CONVERSATION, loading: false }
+          setState(latestRef.current)
         }
       })
 
     return () => {
       cancelled = true
       unsubscribe()
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
+      }
     }
   }, [chatId])
+
+  // Чат снова на экране: показываем всё, что пришло, пока он был скрыт.
+  useEffect(() => {
+    if (visible) {
+      setState(latestRef.current)
+    }
+  }, [visible])
 
   return state
 }

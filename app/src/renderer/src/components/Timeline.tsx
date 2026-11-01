@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from 'react'
+import { memo, useEffect, useMemo, useState, type ComponentType } from 'react'
 import {
   Bot,
   Brain,
@@ -61,11 +61,20 @@ interface TimelineProps {
   agent: AgentId
   /** Сколько токенов агент написал, отвечая на текущее сообщение. */
   turnTokens: number
+  /** Чат на экране: секундомер скрытого чата не тикает. */
+  visible: boolean
 }
 
-export function Timeline({ items, running, agent, turnTokens }: TimelineProps) {
-  const blocks = buildBlocks(items)
+export const Timeline = memo(function Timeline({
+  items,
+  running,
+  agent,
+  turnTokens,
+  visible
+}: TimelineProps) {
+  const blocks = useMemo(() => buildBlocks(items), [items])
   const lastTurn = blocks.findLast((block) => block.type === 'turn')
+  const liveActivity = running ? lastActivity(blocks) : undefined
   return (
     <div className="timeline">
       {blocks.map((block) => {
@@ -97,11 +106,7 @@ export function Timeline({ items, running, agent, turnTokens }: TimelineProps) {
             )
           case 'activity':
             return (
-              <ActivityGroup
-                key={block.key}
-                items={block.items}
-                live={running && block === lastActivity(blocks)}
-              />
+              <ActivityGroup key={block.key} items={block.items} live={block === liveActivity} />
             )
           case 'turn':
             return (
@@ -112,13 +117,14 @@ export function Timeline({ items, running, agent, turnTokens }: TimelineProps) {
                 agent={agent}
                 tokens={turnTokens}
                 working={running && block === lastTurn && !block.user.finishedAt}
+                visible={visible}
               />
             )
         }
       })}
     </div>
   )
-}
+})
 
 /** Разбивает ленту на блоки: подряд идущие действия агента сворачиваются в одну группу. */
 function buildBlocks(items: readonly TimelineItem[]): Block[] {
@@ -273,10 +279,11 @@ interface TurnStatusProps {
   agent: AgentId
   tokens: number
   working: boolean
+  visible: boolean
 }
 
-function TurnStatus({ user, items, agent, tokens, working }: TurnStatusProps) {
-  const now = useClock(working)
+function TurnStatus({ user, items, agent, tokens, working, visible }: TurnStatusProps) {
+  const now = useClock(working && visible)
   if (working) {
     const elapsed = formatDuration(now - user.createdAt)
     return (

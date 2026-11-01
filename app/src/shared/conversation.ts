@@ -141,15 +141,14 @@ export function applyConversationEvent(
     case 'tokens':
       return { ...snapshot, turnTokens: event.turnTokens }
     case 'item': {
-      const index = snapshot.items.findIndex(({ id }) => id === event.item.id)
+      // Обновляются почти всегда последние элементы ленты: ищем с конца.
+      const index = snapshot.items.findLastIndex(({ id }) => id === event.item.id)
       const items =
-        index < 0
-          ? [...snapshot.items, event.item]
-          : snapshot.items.map((item, i) => (i === index ? event.item : item))
+        index < 0 ? [...snapshot.items, event.item] : snapshot.items.with(index, event.item)
       return { ...snapshot, items }
     }
     case 'delta': {
-      const index = snapshot.items.findIndex(({ id }) => id === event.itemId)
+      const index = snapshot.items.findLastIndex(({ id }) => id === event.itemId)
       const item = snapshot.items[index]
       if (!item) {
         return snapshot
@@ -159,7 +158,7 @@ export function applyConversationEvent(
         ? snapshot
         : {
             ...snapshot,
-            items: snapshot.items.map((other, i) => (i === index ? updated : other))
+            items: snapshot.items.with(index, updated)
           }
     }
   }
