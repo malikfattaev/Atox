@@ -10,6 +10,7 @@ import {
   type ChatConfiguration,
   type ConversationEvent,
   type ConversationSnapshot,
+  type StreamedField,
   type TimelineItem
 } from '../../shared/conversation'
 import type { AgentDetector } from '../agents'
@@ -24,6 +25,12 @@ import type { AgentDriver, AgentLaunch, AgentSession } from './types'
  */
 const PERSIST_DELAY_MS = 2000
 
+/**
+ * Как часто отправлять окну накопленный текст ответа. Агент присылает его по слову, и
+ * событие на каждое слово заставляло бы окно перерисовываться сотни раз в секунду.
+ */
+const STREAM_FLUSH_MS = 50
+
 type EventPayload = ConversationEvent extends infer Event
   ? Event extends ConversationEvent
     ? Omit<Event, 'chatId'>
@@ -35,16 +42,31 @@ interface QueuedMessage {
   text: string
 }
 
+interface PendingDelta {
+  itemId: string
+  field: StreamedField
+  delta: string
+}
+
 interface Conversation {
   snapshot: ConversationSnapshot
   session: AgentSession | null
+  /** Чат удалён или приложение закрывается: новых сессий для него не запускают. */
+  disposed: boolean
   /** Модель или эффорт сменились: сессию нужно перезапустить, как только агент освободится. */
   stale: boolean
   /** Сообщения, которые агент ещё не начал обрабатывать. */
   queue: QueuedMessage[]
   /** Сообщение, над которым агент работает сейчас. */
   turn: QueuedMessage | null
+  /** Сообщение, которое остановили, пока агент ещё запускался: отправлять его не нужно. */
+  interruptedTurn: QueuedMessage | null
   persistTimer: ReturnType<typeof setTimeout> | null
+  /** Текст ответа, который ещё не отправлен окну, по элементу и полю. */
+  pendingDeltas: Map<string, PendingDelta>
+  /** Последний счётчик токенов хода, который ещё не отправлен окну. */
+  pendingTokens: number | null
+  streamTimer: ReturnType<typeof setTimeout> | null
 }
 
 export interface ConversationServices {
@@ -70,6 +92,8 @@ export class ConversationManager {
   private readonly catalogs = new Map<AgentId, Promise<AgentCatalog>>()
   /** Команды по агенту и папке проекта: у проектов бывают свои команды и навыки. */
   private readonly commandLists = new Map<string, Promise<AgentCommand[]>>()
+  /** Приложение закрывается: агенты больше не запускаются. */
+  private closing = false
 
   constructor(private readonly services: ConversationServices) {}
 
@@ -104,6 +128,8 @@ export class ConversationManager {
     const conversation = await this.conversation(chatId)
     conversation.queue = []
     if (conversation.turn) {
+      // Пока агент запускается, сессии ещё нет: сообщение просто не уйдёт ему.
+      conversation.interruptedTurn = conversation.turn
       conversation.session?.interrupt()
     }
     this.updateRunning(chatId, conversation)
@@ -136,24 +162,26 @@ export class ConversationManager {
     this.conversations.delete(chatId)
     this.settled.delete(chatId)
     if (conversation) {
+      this.dispose(conversation)
       if (conversation.persistTimer) {
         clearTimeout(conversation.persistTimer)
       }
-      conversation.session?.close()
     }
     await this.services.transcripts.remove(chatId)
   }
 
   closeAll(): void {
-    for (const conversation of this.settled.values()) {
-      conversation.session?.close()
-      conversation.session = null
+    this.closing = true
+    for (const [chatId, conversation] of this.settled) {
+      this.flushStream(chatId, conversation)
+      this.dispose(conversation)
     }
   }
 
   /** Записывает отложенные изменения лент и дожидается записи — перед выходом из приложения. */
   flush(): Promise<void> {
     for (const [chatId, conversation] of this.settled) {
+      this.flushStream(chatId, conversation)
       if (conversation.persistTimer) {
         this.persist(chatId, conversation, { immediately: true })
       }
@@ -208,10 +236,15 @@ export class ConversationManager {
         const loaded: Conversation = {
           snapshot: { items, running: false },
           session: null,
+          disposed: false,
           stale: false,
           queue: [],
           turn: null,
-          persistTimer: null
+          interruptedTurn: null,
+          persistTimer: null,
+          pendingDeltas: new Map(),
+          pendingTokens: null,
+          streamTimer: null
         }
         this.settled.set(chatId, loaded)
         return loaded
@@ -234,8 +267,17 @@ export class ConversationManager {
       return
     }
     this.ensureSession(chatId, conversation)
-      .then((session) => session.send(next.text))
+      .then((session) => {
+        if (conversation.interruptedTurn === next) {
+          this.finishTurn(chatId, conversation)
+        } else {
+          session.send(next.text)
+        }
+      })
       .catch((error) => {
+        if (conversation.disposed) {
+          return
+        }
         this.emit(chatId, conversation, {
           type: 'item',
           item: {
@@ -254,6 +296,7 @@ export class ConversationManager {
       return
     }
     conversation.turn = null
+    conversation.interruptedTurn = null
     const item = conversation.snapshot.items.find(({ id }) => id === turn.itemId)
     if (item?.kind === 'user') {
       this.emit(chatId, conversation, {
@@ -285,6 +328,10 @@ export class ConversationManager {
     }
     const { chat, project } = location
     const launch = await this.launch(chat.agent, project.path, chatId)
+    // Чат удалили или приложение закрывается, пока агент запускался: запускать его уже незачем.
+    if (conversation.disposed || this.closing) {
+      throw new Error('The chat was closed.')
+    }
     const driver = this.services.drivers[chat.agent]
     const session: AgentSession = driver.start(
       {
@@ -342,7 +389,68 @@ export class ConversationManager {
     return this.services.drivers[agent].catalog(await this.launch(agent, homedir()))
   }
 
+  /** Останавливает агента чата и больше не даёт запустить его снова. */
+  private dispose(conversation: Conversation): void {
+    conversation.disposed = true
+    if (conversation.streamTimer) {
+      clearTimeout(conversation.streamTimer)
+      conversation.streamTimer = null
+    }
+    conversation.session?.close()
+    conversation.session = null
+  }
+
+  /**
+   * Текст ответа и счётчик токенов копятся и уходят окну пачкой; остальные события сначала
+   * отправляют накопленное, чтобы окно получало всё в том же порядке.
+   */
   private emit(chatId: string, conversation: Conversation, payload: EventPayload): void {
+    if (payload.type === 'delta') {
+      const key = `${payload.itemId}\0${payload.field}`
+      const pending = conversation.pendingDeltas.get(key)
+      if (pending) {
+        pending.delta += payload.delta
+      } else {
+        conversation.pendingDeltas.set(key, { ...payload })
+      }
+      this.scheduleStreamFlush(chatId, conversation)
+      return
+    }
+    if (payload.type === 'tokens') {
+      conversation.pendingTokens = payload.turnTokens
+      this.scheduleStreamFlush(chatId, conversation)
+      return
+    }
+    this.flushStream(chatId, conversation)
+    this.dispatch(chatId, conversation, payload)
+  }
+
+  private scheduleStreamFlush(chatId: string, conversation: Conversation): void {
+    conversation.streamTimer ??= setTimeout(
+      () => this.flushStream(chatId, conversation),
+      STREAM_FLUSH_MS
+    )
+  }
+
+  private flushStream(chatId: string, conversation: Conversation): void {
+    if (conversation.streamTimer) {
+      clearTimeout(conversation.streamTimer)
+      conversation.streamTimer = null
+    }
+    const deltas = [...conversation.pendingDeltas.values()]
+    conversation.pendingDeltas.clear()
+    for (const { itemId, field, delta } of deltas) {
+      this.dispatch(chatId, conversation, { type: 'delta', itemId, field, delta })
+    }
+    if (conversation.pendingTokens !== null) {
+      const turnTokens = conversation.pendingTokens
+      conversation.pendingTokens = null
+      this.dispatch(chatId, conversation, { type: 'tokens', turnTokens })
+    }
+  }
+
+  /** Применяет событие к ленте чата и отправляет его окну. */
+  private dispatch(chatId: string, conversation: Conversation, payload: EventPayload): void {
     const event = { chatId, ...payload } as ConversationEvent
     conversation.snapshot = applyConversationEvent(conversation.snapshot, event)
     this.services.onEvent(event)
