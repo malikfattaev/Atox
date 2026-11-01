@@ -971,6 +971,8 @@ ul {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Низ держит сама лента: подстройка браузера сдвигала бы scrollTop, как прокрутка вверх. */
+  overflow-anchor: none;
   padding: calc(var(--workspace-drag-height) + var(--chat-gutter)) var(--chat-gutter) var(--chat-gutter);
 }
 
