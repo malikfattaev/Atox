@@ -82,11 +82,9 @@ function describeUsage({ context, limits }: ConversationUsage): ContextMenuItem<
   }
   for (const limit of limits) {
     const resets = limit.resetsAt ? ` · resets ${formatResetTime(limit.resetsAt)}` : ''
-    items.push({
-      action: 'info',
-      label: `${limit.label}: ${Math.round(limit.usedPercent)}% used${resets}`,
-      enabled: false
-    })
+    const used =
+      limit.usedPercent === null ? 'not reported' : `${Math.round(limit.usedPercent)}% used`
+    items.push({ action: 'info', label: `${limit.label}: ${used}${resets}`, enabled: false })
   }
   return items
 }

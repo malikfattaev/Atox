@@ -342,9 +342,11 @@ interface RateLimitWindow {
   resets_at: string | null
 }
 
+const SESSION_WINDOW_LABEL = 'Session (5 hours)'
+
 /** Окна лимитов подписки Claude в том порядке и с теми названиями, что у `/usage`. */
 const RATE_LIMIT_WINDOWS = [
-  ['five_hour', 'Session (5 hours)'],
+  ['five_hour', SESSION_WINDOW_LABEL],
   ['seven_day', 'Week (all models)'],
   ['seven_day_opus', 'Week (Opus)'],
   ['seven_day_sonnet', 'Week (Sonnet)']
@@ -364,9 +366,10 @@ function toUsageLimits(limits: RateLimits): UsageLimit[] {
       window
     ])
   ]
-  return windows.flatMap(([label, window]) => {
+  return windows.flatMap(([label, window]): UsageLimit[] => {
+    // Окно сессии показывается всегда: пользователю важно видеть, что Claude его не сообщил.
     if (!window || window.utilization === null) {
-      return []
+      return label === SESSION_WINDOW_LABEL ? [{ label, usedPercent: null }] : []
     }
     const resetsAt = window.resets_at ? Date.parse(window.resets_at) : NaN
     return [

@@ -24,8 +24,8 @@ export interface AgentCatalog {
 /** Лимит подписки агента, например недельный. */
 export interface UsageLimit {
   label: string
-  /** Сколько лимита израсходовано, в процентах. */
-  usedPercent: number
+  /** Сколько лимита израсходовано, в процентах; `null` — агент не сообщил это окно. */
+  usedPercent: number | null
   /** Когда лимит обновится, в миллисекундах Unix; нет — агент не сообщил. */
   resetsAt?: number
 }
