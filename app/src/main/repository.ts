@@ -155,6 +155,16 @@ query($owner: String!, $name: String!, $first: Int!, $after: String!${labelVaria
 ${FRAGMENTS[kind].text}`
 }
 
+/** Хост GitHub, токен которого gh берёт из `GH_TOKEN`. */
+const GITHUB_HOST = 'github.com'
+
+/** Учётная запись из `gh auth status --json hosts`. */
+interface GitHubAccount {
+  login: string
+  active: boolean
+  state: string
+}
+
 /** Автор удалённой учётной записи GitHub — вместо него GitHub отдаёт `null`. */
 const GHOST_AUTHOR = 'ghost'
 
@@ -214,10 +224,13 @@ class CommandError extends Error {
 
 /**
  * Коммиты, pull request'ы и issue репозитория в папке проекта. Коммиты читаются локально
- * из git, а PR и issue — с GitHub через `gh`, под той учётной записью, что у пользователя
- * в терминале.
+ * из git, а PR и issue — с GitHub через `gh`: под активной учётной записью, а если у неё нет
+ * доступа к репозиторию — под той из остальных, у которой он есть.
  */
 export class RepositoryReader {
+  /** Токен учётной записи gh, у которой есть доступ к репозиторию папки, если это не активная. */
+  private readonly accessTokens = new Map<string, string>()
+
   constructor(private readonly shell: ShellEnvironment) {}
 
   /** Коммиты текущей ветки — не меньше `loaded`, чтобы обновление не укоротило список. */
@@ -272,28 +285,83 @@ export class RepositoryReader {
   }
 
   /**
-   * Запрос к GitHub под учётной записью gh. Репозиторий может принадлежать другой учётной
-   * записи, чем активная, — тогда повторяем с токеном, с которым git этого репозитория ходит
-   * на GitHub: у него доступ точно есть.
+   * Запрос к GitHub под учётной записью gh. Репозиторий может быть доступен не активной
+   * учётной записи, а другой — например, рабочий при активной личной. Тогда пробуем токен,
+   * с которым git этого репозитория ходит на GitHub, и токены остальных учётных записей gh,
+   * а подошедший запоминаем для папки, чтобы следующие запросы шли сразу с ним.
    */
   private async withGitHubAccess<Data>(
     path: string,
     request: (token?: string) => Promise<Data>
   ): Promise<RepositoryResult<Data>> {
+    const remembered = this.accessTokens.get(path)
     try {
-      return { ok: true, data: await request() }
+      return { ok: true, data: await request(remembered) }
     } catch (error) {
-      if (isInaccessibleRepository(error)) {
-        const token = await this.gitCredentialToken(path)
-        if (token) {
-          try {
-            return { ok: true, data: await request(token) }
-          } catch {
-            // Не помог и токен git — показываем исходную ошибку.
+      if (!isInaccessibleRepository(error)) {
+        return { ok: false, error: classifyGitHubError(error) }
+      }
+      this.accessTokens.delete(path)
+      const tried = new Set(remembered ? [remembered] : [])
+      for await (const token of this.alternativeTokens(path, remembered === undefined)) {
+        if (tried.has(token)) {
+          continue
+        }
+        tried.add(token)
+        try {
+          const data = await request(token)
+          this.accessTokens.set(path, token)
+          return { ok: true, data }
+        } catch (retryError) {
+          if (!isInaccessibleRepository(retryError)) {
+            return { ok: false, error: classifyGitHubError(retryError) }
           }
         }
       }
+      // Доступа нет ни у одной учётной записи — показываем исходную ошибку.
       return { ok: false, error: classifyGitHubError(error) }
+    }
+  }
+
+  /**
+   * Токены, с которыми ещё можно попробовать запрос: сначала токен git этого репозитория,
+   * затем токены учётных записей gh. Активную пропускаем, если запрос с ней уже не удался.
+   */
+  private async *alternativeTokens(path: string, skipActive: boolean): AsyncGenerator<string> {
+    const gitToken = await this.gitCredentialToken(path)
+    if (gitToken) {
+      yield gitToken
+    }
+    for (const account of await this.githubAccounts(path)) {
+      if (skipActive && account.active) {
+        continue
+      }
+      const token = await this.run(
+        'gh',
+        ['auth', 'token', '--hostname', GITHUB_HOST, '--user', account.login],
+        path
+      ).then(
+        (output) => output.trim(),
+        () => ''
+      )
+      if (token) {
+        yield token
+      }
+    }
+  }
+
+  /** Учётные записи github.com, в которые выполнен вход в gh; пусто, если gh их не сообщил. */
+  private async githubAccounts(path: string): Promise<GitHubAccount[]> {
+    try {
+      const output = await this.run(
+        'gh',
+        ['auth', 'status', '--hostname', GITHUB_HOST, '--json', 'hosts'],
+        path
+      )
+      const { hosts } = JSON.parse(output) as { hosts?: Record<string, GitHubAccount[]> }
+      return (hosts?.[GITHUB_HOST] ?? []).filter((account) => account.state === 'success')
+    } catch {
+      return []
     }
   }
 
