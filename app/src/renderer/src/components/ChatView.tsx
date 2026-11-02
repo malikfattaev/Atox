@@ -110,6 +110,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
         <div ref={columnRef} className="chat-view__column">
           {started ? (
             <Timeline
+              chatId={chat.id}
               items={conversation.items}
               running={conversation.running}
               agent={chat.agent}

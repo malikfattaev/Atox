@@ -283,6 +283,11 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.ConversationsInterrupt, (_event, chatId: string) =>
     conversations.interrupt(chatId)
   )
+  ipcMain.handle(
+    IpcChannel.ConversationsAnswerApproval,
+    (_event, chatId: string, approvalId: unknown, allow: unknown) =>
+      conversations.answerApproval(chatId, String(approvalId), allow === true)
+  )
 
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
     savePastedImage(data, type)

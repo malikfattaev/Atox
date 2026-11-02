@@ -25,6 +25,7 @@ import {
 } from '../lib/conversationText'
 import { imagePreview } from '../lib/attachments'
 import { AgentIcon } from './AgentIcon'
+import { ApprovalCard } from './ApprovalCard'
 import { Markdown } from './Markdown'
 
 type UserItem = Extract<TimelineItem, { kind: 'user' }>
@@ -34,6 +35,7 @@ type Block =
   | { type: 'user'; item: UserItem }
   | { type: 'assistant'; item: Extract<TimelineItem, { kind: 'assistant' }> }
   | { type: 'error'; item: Extract<TimelineItem, { kind: 'error' }> }
+  | { type: 'approval'; item: Extract<TimelineItem, { kind: 'approval' }> }
   | { type: 'activity'; key: string; items: ActivityItem[] }
   /** Конец ответа на сообщение: сколько агент работал или что он работает сейчас. */
   | { type: 'turn'; key: string; user: UserItem; items: TimelineItem[] }
@@ -58,6 +60,7 @@ const FRESH_MESSAGE_MS = 2000
 const CLOCK_INTERVAL_MS = 1000
 
 interface TimelineProps {
+  chatId: string
   items: readonly TimelineItem[]
   running: boolean
   agent: AgentId
@@ -68,6 +71,7 @@ interface TimelineProps {
 }
 
 export const Timeline = memo(function Timeline({
+  chatId,
   items,
   running,
   agent,
@@ -107,6 +111,8 @@ export const Timeline = memo(function Timeline({
                 <span>{block.item.message}</span>
               </div>
             )
+          case 'approval':
+            return <ApprovalCard key={block.item.id} chatId={chatId} item={block.item} />
           case 'activity':
             return (
               <ActivityGroup key={block.key} items={block.items} live={block === liveActivity} />
@@ -194,6 +200,10 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
       case 'error':
         flushActivity()
         blocks.push({ type: 'error', item })
+        break
+      case 'approval':
+        flushActivity()
+        blocks.push({ type: 'approval', item })
         break
     }
   }

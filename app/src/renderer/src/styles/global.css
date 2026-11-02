@@ -1563,6 +1563,103 @@ ul {
   margin-top: 3px;
 }
 
+/* Запрос разрешения: агент ждёт, пока пользователь ответит */
+
+.approval {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--composer-radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-composer);
+}
+
+.approval:not([data-status='pending']) {
+  box-shadow: none;
+  color: var(--color-text-muted);
+}
+
+.approval__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.approval__header .icon {
+  margin-top: 1px;
+}
+
+.approval__description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.approval__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--color-code);
+}
+
+.approval__field {
+  display: grid;
+  grid-template-columns: minmax(80px, 30%) 1fr;
+  gap: 12px;
+}
+
+.approval__field dt {
+  color: var(--color-text-muted);
+}
+
+.approval__field dd {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.approval__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.approval__button {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  background: var(--color-active);
+}
+
+.approval__button:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.approval__button--allow {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.approval__button:disabled {
+  opacity: 0.5;
+}
+
+.approval__status {
+  font-size: var(--font-size-small);
+}
+
 /* Ответ агента */
 
 .markdown {

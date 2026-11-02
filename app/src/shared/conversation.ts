@@ -56,6 +56,15 @@ export type ToolKind = 'command' | 'read' | 'edit' | 'search' | 'web' | 'agent' 
 
 export type ToolStatus = 'running' | 'done' | 'failed'
 
+/** Ответ пользователя на запрос разрешения; `cancelled` — агента остановили раньше. */
+export type ApprovalStatus = 'pending' | 'allowed' | 'denied' | 'cancelled'
+
+/** Поле вызова, о котором агент спрашивает разрешения: имя параметра и его значение. */
+export interface ApprovalField {
+  name: string
+  value: string
+}
+
 export type TimelineItem =
   | {
       kind: 'user'
@@ -85,6 +94,18 @@ export type TimelineItem =
       title: string
       output?: string
       status: ToolStatus
+    }
+  | {
+      /** Агент ждёт, пока пользователь разрешит или отклонит вызов инструмента. */
+      kind: 'approval'
+      id: string
+      /** Вопрос, например «Allow Claude to use sql write (granite-prod)?». */
+      title: string
+      /** Пояснение агента: что получит инструмент или почему он спрашивает. */
+      description?: string
+      /** Что агент передаёт инструменту. */
+      fields: ApprovalField[]
+      status: ApprovalStatus
     }
   | { kind: 'error'; id: string; message: string }
 

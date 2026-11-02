@@ -136,6 +136,11 @@ export class ConversationManager {
     this.updateRunning(chatId, conversation)
   }
 
+  /** Ответ пользователя на запрос разрешения от агента чата. */
+  async answerApproval(chatId: string, approvalId: string, allow: boolean): Promise<void> {
+    this.conversation(chatId).session?.answerApproval(approvalId, allow)
+  }
+
   /** Меняет агента, модель или эффорт чата; новая модель вступает в силу со следующего сообщения. */
   async configure(chatId: string, configuration: ChatConfiguration): Promise<void> {
     const conversation = this.conversation(chatId)

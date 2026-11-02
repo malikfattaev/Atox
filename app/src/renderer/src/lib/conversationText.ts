@@ -128,14 +128,19 @@ const WORKING_VERBS = [
  * на весь ответ. Какую команду он выполняет, видно в группе действий над подписью.
  */
 export function workingLabel(items: readonly TimelineItem[], seed: string): string {
-  switch (items.at(-1)?.kind) {
+  const last = items.at(-1)
+  switch (last?.kind) {
+    case 'approval':
+      if (last.status === 'pending') {
+        return 'Waiting for approval'
+      }
+      break
     case 'reasoning':
       return 'Thinking'
     case 'assistant':
       return 'Writing'
-    default:
-      return WORKING_VERBS[hashString(seed) % WORKING_VERBS.length]!
   }
+  return WORKING_VERBS[hashString(seed) % WORKING_VERBS.length]!
 }
 
 /** Простой устойчивый хеш строки: один и тот же ответ всегда получает один и тот же глагол. */

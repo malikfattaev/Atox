@@ -49,6 +49,8 @@ export interface AgentSession {
   send(text: string, images: readonly string[]): void
   /** Просит агента остановить текущую работу; закончит он её событием `turnFinished`. */
   interrupt(): void
+  /** Ответ пользователя на запрос разрешения — элемент ленты `approval` с этим `id`. */
+  answerApproval(approvalId: string, allow: boolean): void
   close(): void
 }
 

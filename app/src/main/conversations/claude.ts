@@ -3,9 +3,11 @@ import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import {
   query,
+  type CanUseTool,
   type EffortLevel,
   type ModelInfo,
   type Options,
+  type PermissionResult,
   type Query,
   type SDKMessage,
   type SDKUserMessage
@@ -13,6 +15,8 @@ import {
 import {
   limitOutput,
   type AgentCatalog,
+  type ApprovalField,
+  type ApprovalStatus,
   type AgentCommand,
   type AgentModel,
   type TimelineItem,
@@ -23,6 +27,14 @@ import { displayPath, errorMessage } from './display'
 import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
+
+type ApprovalItem = Extract<TimelineItem, { kind: 'approval' }>
+
+type ApprovalRequest = Parameters<CanUseTool>[2]
+
+/** Что Claude узнаёт, когда пользователь отклонил вызов. */
+const DENIED_MESSAGE =
+  'The user declined this tool call. Do not retry it; ask the user how to proceed.'
 
 type StreamedKind = 'assistant' | 'reasoning'
 
@@ -134,6 +146,8 @@ class ClaudeSession implements AgentSession {
   private readonly session: Query
   /** Вызовы инструментов по `tool_use_id`: их результат приходит отдельным сообщением. */
   private readonly tools = new Map<string, ToolItem>()
+  /** Запросы разрешения, на которые пользователь ещё не ответил: по `id` элемента ленты. */
+  private readonly approvals = new Map<string, (status: ApprovalStatus) => void>()
   /**
    * Блоки текста и рассуждений, которые уже появились в ленте, пока модель их печатала, —
    * по сообщениям модели, в порядке появления. Готовое сообщение Claude Code присылает по
@@ -162,7 +176,11 @@ class ClaudeSession implements AgentSession {
         // Режим «полный доступ», как у агента в терминале с пропуском разрешений.
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
-        includePartialMessages: true
+        includePartialMessages: true,
+        // Даже в режиме полного доступа инструмент может требовать подтверждения: например,
+        // запись в боевую базу через MCP. Без этого обработчика Claude Code отклоняет такой
+        // вызов сам, не спросив пользователя.
+        canUseTool: (toolName, input, request) => this.requestApproval(toolName, input, request)
       }
     })
     void this.consume()
@@ -195,12 +213,63 @@ class ClaudeSession implements AgentSession {
 
   interrupt(): void {
     this.interrupted = true
+    this.cancelApprovals()
     this.session.interrupt().catch((error) => console.error('Failed to interrupt Claude', error))
   }
 
+  answerApproval(approvalId: string, allow: boolean): void {
+    this.approvals.get(approvalId)?.(allow ? 'allowed' : 'denied')
+  }
+
   close(): void {
+    this.cancelApprovals()
     this.input.end()
     this.session.close()
+  }
+
+  /** Показывает запрос разрешения в ленте и ждёт ответа пользователя. */
+  private requestApproval(
+    toolName: string,
+    input: Record<string, unknown>,
+    { signal, title, displayName, description }: ApprovalRequest
+  ): Promise<PermissionResult> {
+    const item: ApprovalItem = {
+      kind: 'approval',
+      id: randomUUID(),
+      title: title ?? `Allow Claude to use ${displayName ?? toolLabel(toolName)}?`,
+      ...(description && { description }),
+      fields: approvalFields(input),
+      status: 'pending'
+    }
+    this.events.item(item)
+    return new Promise((resolve) => {
+      const finish = (status: ApprovalStatus) => {
+        if (!this.approvals.delete(item.id)) {
+          return
+        }
+        signal.removeEventListener('abort', cancel)
+        this.events.item({ ...item, status })
+        resolve(
+          status === 'allowed'
+            ? { behavior: 'allow', updatedInput: input }
+            : { behavior: 'deny', message: DENIED_MESSAGE }
+        )
+      }
+      const cancel = () => finish('cancelled')
+      this.approvals.set(item.id, finish)
+      if (signal.aborted) {
+        cancel()
+      } else {
+        signal.addEventListener('abort', cancel, { once: true })
+      }
+    })
+  }
+
+  /** Агента остановили или он завершился: ждать ответа на его запросы больше незачем. */
+  private cancelApprovals(): void {
+    for (const finish of [...this.approvals.values()]) {
+      finish('cancelled')
+    }
   }
 
   private async consume(): Promise<void> {
@@ -215,6 +284,7 @@ class ClaudeSession implements AgentSession {
         message: errorMessage(error)
       })
     } finally {
+      this.cancelApprovals()
       this.events.closed()
     }
   }
@@ -501,10 +571,30 @@ function describeTool(
   }
 }
 
-/** Инструменты MCP называются `mcp__сервер__инструмент` — показываем «сервер · инструмент». */
-function describeMcpTool(name: string): string {
+/** Инструменты MCP называются `mcp__сервер__инструмент`. */
+function parseMcpTool(name: string): { server: string; tool: string } | null {
   const [prefix, server, ...tool] = name.split('__')
-  return prefix === 'mcp' && server && tool.length > 0 ? `${server} · ${tool.join('__')}` : name
+  return prefix === 'mcp' && server && tool.length > 0 ? { server, tool: tool.join('__') } : null
+}
+
+/** Вызов MCP в ленте — «сервер · инструмент». */
+function describeMcpTool(name: string): string {
+  const mcp = parseMcpTool(name)
+  return mcp ? `${mcp.server} · ${mcp.tool}` : name
+}
+
+/** Инструмент в вопросе о разрешении: «sql write (granite-prod)». */
+function toolLabel(name: string): string {
+  const mcp = parseMcpTool(name)
+  return mcp ? `${mcp.tool.replaceAll('_', ' ')} (${mcp.server})` : name
+}
+
+/** Параметры вызова для карточки разрешения: строки как есть, остальное — JSON. */
+function approvalFields(input: Record<string, unknown>): ApprovalField[] {
+  return Object.entries(input).flatMap(([name, value]) => {
+    const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+    return text === undefined ? [] : [{ name, value: text }]
+  })
 }
 
 /** Форматы картинок, которые Claude принимает прямо в сообщении. */

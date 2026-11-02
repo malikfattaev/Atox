@@ -211,6 +211,9 @@ class CodexSession implements AgentSession {
     void this.interruptTurn(turnId)
   }
 
+  /** Codex работает без подтверждений: запросов разрешения у него не бывает. */
+  answerApproval(): void {}
+
   close(): void {
     this.rpc.kill()
   }
