@@ -4,6 +4,7 @@ import type {
   AgentCommand,
   ConversationUsage,
   ModelSelection,
+  RequestAnswer,
   StreamedField,
   TimelineItem
 } from '../../shared/conversation'
@@ -49,8 +50,8 @@ export interface AgentSession {
   send(text: string, images: readonly string[]): void
   /** Просит агента остановить текущую работу; закончит он её событием `turnFinished`. */
   interrupt(): void
-  /** Ответ пользователя на запрос разрешения — элемент ленты `approval` с этим `id`. */
-  answerApproval(approvalId: string, allow: boolean): void
+  /** Ответ пользователя на запрос агента — элемент ленты `approval` или `question` с этим `id`. */
+  answer(itemId: string, answer: RequestAnswer): void
   close(): void
 }
 

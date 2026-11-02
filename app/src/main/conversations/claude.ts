@@ -5,6 +5,8 @@ import {
   query,
   type CanUseTool,
   type EffortLevel,
+  type ElicitationRequest,
+  type ElicitationResult,
   type ModelInfo,
   type Options,
   type PermissionResult,
@@ -16,7 +18,8 @@ import {
   limitOutput,
   type AgentCatalog,
   type ApprovalField,
-  type ApprovalStatus,
+  type InputField,
+  type RequestAnswer,
   type AgentCommand,
   type AgentModel,
   type TimelineItem,
@@ -24,17 +27,29 @@ import {
 } from '../../shared/conversation'
 import { AsyncQueue } from './asyncQueue'
 import { displayPath, errorMessage } from './display'
+import { elicitationContent, elicitationFields } from './elicitation'
+import { UserRequests } from './userRequests'
 import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
-
-type ApprovalItem = Extract<TimelineItem, { kind: 'approval' }>
 
 type ApprovalRequest = Parameters<CanUseTool>[2]
 
 /** Что Claude узнаёт, когда пользователь отклонил вызов. */
 const DENIED_MESSAGE =
   'The user declined this tool call. Do not retry it; ask the user how to proceed.'
+
+/** Что Claude узнаёт, когда пользователь не стал отвечать на вопросы. */
+const DISMISSED_MESSAGE = 'The user dismissed the questions without answering.'
+
+/** Инструмент, которым Claude задаёт пользователю вопросы с вариантами ответа. */
+const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'
+
+/** Инструмент, которым Claude просит одобрить план. */
+const EXIT_PLAN_MODE_TOOL = 'ExitPlanMode'
+
+/** Ответы на несколько вариантов Claude Code ждёт одной строкой через запятую. */
+const MULTIPLE_ANSWERS_SEPARATOR = ', '
 
 type StreamedKind = 'assistant' | 'reasoning'
 
@@ -146,8 +161,8 @@ class ClaudeSession implements AgentSession {
   private readonly session: Query
   /** Вызовы инструментов по `tool_use_id`: их результат приходит отдельным сообщением. */
   private readonly tools = new Map<string, ToolItem>()
-  /** Запросы разрешения, на которые пользователь ещё не ответил: по `id` элемента ленты. */
-  private readonly approvals = new Map<string, (status: ApprovalStatus) => void>()
+  /** Разрешения, вопросы и формы, на которые пользователь ещё не ответил. */
+  private readonly requests: UserRequests
   /**
    * Блоки текста и рассуждений, которые уже появились в ленте, пока модель их печатала, —
    * по сообщениям модели, в порядке появления. Готовое сообщение Claude Code присылает по
@@ -166,6 +181,7 @@ class ClaudeSession implements AgentSession {
     private readonly events: SessionEvents
   ) {
     const { sessionId, selection } = options
+    this.requests = new UserRequests(events)
     this.session = query({
       prompt: this.input,
       options: {
@@ -180,7 +196,9 @@ class ClaudeSession implements AgentSession {
         // Даже в режиме полного доступа инструмент может требовать подтверждения: например,
         // запись в боевую базу через MCP. Без этого обработчика Claude Code отклоняет такой
         // вызов сам, не спросив пользователя.
-        canUseTool: (toolName, input, request) => this.requestApproval(toolName, input, request)
+        canUseTool: (toolName, input, request) => this.canUseTool(toolName, input, request),
+        // Без этого обработчика Claude Code отклоняет формы и ссылки MCP-серверов сам.
+        onElicitation: (request, { signal }) => this.elicit(request, signal)
       }
     })
     void this.consume()
@@ -213,63 +231,104 @@ class ClaudeSession implements AgentSession {
 
   interrupt(): void {
     this.interrupted = true
-    this.cancelApprovals()
+    this.requests.cancelAll()
     this.session.interrupt().catch((error) => console.error('Failed to interrupt Claude', error))
   }
 
-  answerApproval(approvalId: string, allow: boolean): void {
-    this.approvals.get(approvalId)?.(allow ? 'allowed' : 'denied')
+  answer(itemId: string, answer: RequestAnswer): void {
+    this.requests.answer(itemId, answer)
   }
 
   close(): void {
-    this.cancelApprovals()
+    this.requests.cancelAll()
     this.input.end()
     this.session.close()
   }
 
-  /** Показывает запрос разрешения в ленте и ждёт ответа пользователя. */
-  private requestApproval(
+  /** Вызов, о котором Claude Code спрашивает пользователя: вопросы, план или разрешение. */
+  private async canUseTool(
     toolName: string,
     input: Record<string, unknown>,
     { signal, title, displayName, description }: ApprovalRequest
   ): Promise<PermissionResult> {
-    const item: ApprovalItem = {
-      kind: 'approval',
-      id: randomUUID(),
-      title: title ?? `Allow Claude to use ${displayName ?? toolLabel(toolName)}?`,
-      ...(description && { description }),
-      fields: approvalFields(input),
-      status: 'pending'
+    if (toolName === ASK_USER_QUESTION_TOOL) {
+      return this.askQuestions(input, signal)
     }
-    this.events.item(item)
-    return new Promise((resolve) => {
-      const finish = (status: ApprovalStatus) => {
-        if (!this.approvals.delete(item.id)) {
-          return
-        }
-        signal.removeEventListener('abort', cancel)
-        this.events.item({ ...item, status })
-        resolve(
-          status === 'allowed'
-            ? { behavior: 'allow', updatedInput: input }
-            : { behavior: 'deny', message: DENIED_MESSAGE }
-        )
-      }
-      const cancel = () => finish('cancelled')
-      this.approvals.set(item.id, finish)
-      if (signal.aborted) {
-        cancel()
-      } else {
-        signal.addEventListener('abort', cancel, { once: true })
-      }
-    })
+    const answer = await this.requests.ask(
+      {
+        kind: 'approval',
+        title:
+          title ??
+          (toolName === EXIT_PLAN_MODE_TOOL
+            ? 'Approve the plan and let Claude start working?'
+            : `Allow Claude to use ${displayName ?? toolLabel(toolName)}?`),
+        ...(description && { description }),
+        fields: approvalFields(input)
+      },
+      signal
+    )
+    return answer?.accepted
+      ? { behavior: 'allow', updatedInput: input }
+      : { behavior: 'deny', message: DENIED_MESSAGE }
   }
 
-  /** Агента остановили или он завершился: ждать ответа на его запросы больше незачем. */
-  private cancelApprovals(): void {
-    for (const finish of [...this.approvals.values()]) {
-      finish('cancelled')
+  /** Вопросы `AskUserQuestion`: ответы уходят Claude в поле `answers`, по тексту вопроса. */
+  private async askQuestions(
+    input: Record<string, unknown>,
+    signal: AbortSignal
+  ): Promise<PermissionResult> {
+    const fields = questionFields(input)
+    const answer = await this.requests.ask(
+      { kind: 'question', title: 'Claude has a question', fields },
+      signal
+    )
+    if (!answer?.accepted) {
+      return { behavior: 'deny', message: DISMISSED_MESSAGE }
     }
+    const answers = Object.fromEntries(
+      fields.flatMap(({ id }) => {
+        const value = answer.values?.[id]
+        const text = Array.isArray(value) ? value.join(MULTIPLE_ANSWERS_SEPARATOR) : value
+        return text === undefined || text === '' ? [] : [[id, String(text)]]
+      })
+    )
+    return { behavior: 'allow', updatedInput: { ...input, answers } }
+  }
+
+  /** Форма или ссылка от MCP-сервера. */
+  private async elicit(
+    request: ElicitationRequest,
+    signal: AbortSignal
+  ): Promise<ElicitationResult> {
+    const fields = request.mode === 'url' ? [] : elicitationFields(request.requestedSchema)
+    const source = `From the ${request.serverName} MCP server`
+    // Сервер просит только подтверждения — это разрешение, а не форма.
+    const answer = await this.requests.ask(
+      request.mode !== 'url' && fields.length === 0
+        ? {
+            kind: 'approval',
+            title: request.title ?? request.message,
+            description: request.description ?? (request.title ? request.message : source),
+            fields: []
+          }
+        : {
+            kind: 'question',
+            title: request.message,
+            description: source,
+            ...(request.mode === 'url' && request.url && { url: request.url }),
+            fields
+          },
+      signal
+    )
+    if (!answer) {
+      return { action: 'cancel' }
+    }
+    if (!answer.accepted) {
+      return { action: 'decline' }
+    }
+    return request.mode === 'url'
+      ? { action: 'accept' }
+      : { action: 'accept', content: elicitationContent(answer.values) }
   }
 
   private async consume(): Promise<void> {
@@ -284,7 +343,7 @@ class ClaudeSession implements AgentSession {
         message: errorMessage(error)
       })
     } finally {
-      this.cancelApprovals()
+      this.requests.cancelAll()
       this.events.closed()
     }
   }
@@ -587,6 +646,35 @@ function describeMcpTool(name: string): string {
 function toolLabel(name: string): string {
   const mcp = parseMcpTool(name)
   return mcp ? `${mcp.tool.replaceAll('_', ' ')} (${mcp.server})` : name
+}
+
+/** Вопросы `AskUserQuestion` как поля карточки; ответ Claude ждёт по тексту вопроса. */
+function questionFields(input: Record<string, unknown>): InputField[] {
+  const questions = Array.isArray(input['questions']) ? input['questions'] : []
+  return questions.flatMap((question: unknown): InputField[] => {
+    const text = stringField(question, 'question')
+    if (!text) {
+      return []
+    }
+    const record = question as Record<string, unknown>
+    const options = Array.isArray(record['options']) ? record['options'] : []
+    return [
+      {
+        id: text,
+        label: stringField(question, 'header') ?? text,
+        description: text,
+        type: 'choice',
+        options: options.flatMap((option: unknown) => {
+          const label = stringField(option, 'label')
+          const description = stringField(option, 'description')
+          return label ? [{ value: label, label, ...(description && { description }) }] : []
+        }),
+        multiple: record['multiSelect'] === true,
+        allowOther: true,
+        required: true
+      }
+    ]
+  })
 }
 
 /** Параметры вызова для карточки разрешения: строки как есть, остальное — JSON. */

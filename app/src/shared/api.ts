@@ -5,7 +5,8 @@ import type {
   AgentCommand,
   ChatConfiguration,
   ConversationEvent,
-  ConversationSnapshot
+  ConversationSnapshot,
+  RequestAnswer
 } from './conversation'
 import type { Project, SpacesState, UserProfile } from './models'
 import type {
@@ -123,8 +124,8 @@ export interface AtoxApi {
     commands(chatId: string): Promise<AgentCommand[]>
     /** Останавливает ответ агента и отменяет сообщения, ждущие очереди. */
     interrupt(chatId: string): Promise<void>
-    /** Разрешает или отклоняет вызов, о котором агент спросил элементом ленты `approval`. */
-    answerApproval(chatId: string, approvalId: string, allow: boolean): Promise<void>
+    /** Ответ на разрешение, вопросы или форму агента — элемент ленты `approval` или `question`. */
+    answerRequest(chatId: string, itemId: string, answer: RequestAnswer): Promise<void>
     /** События ленты одного чата. */
     onEvent(chatId: string, listener: (event: ConversationEvent) => void): () => void
     /** Агент какого-либо чата начал или закончил работу. */
@@ -223,7 +224,7 @@ export const IpcChannel = {
   ConversationsSnapshot: 'conversations:snapshot',
   ConversationsSend: 'conversations:send',
   ConversationsInterrupt: 'conversations:interrupt',
-  ConversationsAnswerApproval: 'conversations:answer-approval',
+  ConversationsAnswerRequest: 'conversations:answer-request',
   ConversationsCommands: 'conversations:commands',
   ConversationsEvent: 'conversations:event',
   FilesSavePastedImage: 'files:save-pasted-image',

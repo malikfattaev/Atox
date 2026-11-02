@@ -17,7 +17,7 @@ interface PendingRequest {
 export interface JsonRpcHandlers {
   notification(method: string, params: unknown): void
   /** Запрос от сервера к клиенту, например подтверждение действия; ответ — его результат. */
-  request(method: string, params: unknown): Promise<unknown>
+  request(method: string, params: unknown, id: number | string): Promise<unknown>
   exit(error: Error | null): void
 }
 
@@ -126,7 +126,7 @@ export class JsonRpcProcess {
 
   private async answer(id: number | string, method: string, params: unknown): Promise<void> {
     try {
-      this.write({ id, result: await this.handlers.request(method, params) })
+      this.write({ id, result: await this.handlers.request(method, params, id) })
     } catch (error) {
       this.write({
         id,

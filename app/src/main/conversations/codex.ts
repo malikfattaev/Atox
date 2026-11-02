@@ -2,12 +2,17 @@ import { randomUUID } from 'node:crypto'
 import {
   limitOutput,
   type AgentCatalog,
+  type ApprovalField,
+  type InputField,
+  type RequestAnswer,
   type TimelineItem,
   type ToolStatus
 } from '../../shared/conversation'
 import { displayPath, errorMessage } from './display'
+import { elicitationContent, elicitationFields } from './elicitation'
 import { JsonRpcProcess } from './jsonRpc'
 import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
+import { UserRequests, type NewRequest } from './userRequests'
 
 /*
  * Протокол `codex app-server`: JSON-RPC по строкам stdin/stdout. Здесь описана только та его
@@ -75,14 +80,39 @@ type CodexItem =
 /** Остальные виды элементов (план, сжатие контекста и т. п.) в ленту не попадают. */
 type AnyCodexItem = CodexItem | { type: string; id: string }
 
+interface ElicitationParams {
+  serverName: string
+  mode: string
+  message: string
+  url?: string
+  requestedSchema?: unknown
+  _meta?: { codex_approval_kind?: string } | null
+}
+
+interface UserInputQuestion {
+  id: string
+  header: string
+  question: string
+  isOther: boolean
+  isSecret: boolean
+  options: { label: string; description: string }[] | null
+}
+
 /**
- * Режим «полный доступ», как у агента в терминале без подтверждений: Codex не спрашивает
- * разрешений и не ограничен песочницей.
+ * Полный доступ без песочницы, как у агента в терминале. Подтверждения не отключены
+ * совсем (`never`): тогда Codex сам отклоняет формы MCP-серверов, не спросив пользователя.
+ * С `on-request` они приходят Atox, а команды при полном доступе подтверждения не требуют.
  */
 const FULL_ACCESS = {
-  approvalPolicy: 'never',
+  approvalPolicy: 'on-request',
   sandbox: 'danger-full-access'
 } as const
+
+/**
+ * Так Codex помечает свой вопрос «разрешить ли вызов инструмента MCP». При полном доступе
+ * Atox разрешает такие вызовы сам — как Codex в режиме без подтверждений.
+ */
+const MCP_TOOL_CALL_APPROVAL = 'mcp_tool_call'
 
 /** Команды Codex приходят обёрнутыми в оболочку: `/bin/zsh -lc 'git status'`. */
 const SHELL_WRAPPER = /^\S*\b(?:ba|z)?sh\s+-l?c\s+(['"])([\s\S]*)\1$/
@@ -152,20 +182,25 @@ class CodexSession implements AgentSession {
   private turnId: string | null = null
   /** Ход остановили раньше, чем Codex сообщил его id: остановим, как только id придёт. */
   private interruptRequested = false
+  /** Вопросы и разрешения, которых Codex ждёт от пользователя. */
+  private readonly requests: UserRequests
+  /** Ожидающие ответа запросы Codex по их id: Codex может отозвать запрос сам. */
+  private readonly requestSignals = new Map<number | string, AbortController>()
 
   constructor(
     private readonly options: SessionOptions,
     private readonly events: SessionEvents,
     client: ClientInfo
   ) {
+    this.requests = new UserRequests(events)
     this.rpc = startAppServer(options, {
       notification: (method, params) => this.handleNotification(method, params),
-      // Codex работает без подтверждений, другие запросы Atox не поддерживает.
-      request: (method) => Promise.reject(new Error(`Atox does not handle ${method}`)),
+      request: (method, params, id) => this.handleRequest(method, params, id),
       exit: (error) => {
         if (error) {
           this.reportError(errorMessage(error))
         }
+        this.requests.cancelAll()
         events.closed()
       }
     })
@@ -211,11 +246,128 @@ class CodexSession implements AgentSession {
     void this.interruptTurn(turnId)
   }
 
-  /** Codex работает без подтверждений: запросов разрешения у него не бывает. */
-  answerApproval(): void {}
+  answer(itemId: string, answer: RequestAnswer): void {
+    this.requests.answer(itemId, answer)
+  }
 
   close(): void {
+    this.requests.cancelAll()
     this.rpc.kill()
+  }
+
+  /** Запрос Codex к пользователю: разрешение, вопросы или форма MCP-сервера. */
+  private async handleRequest(method: string, params: unknown, id: number | string) {
+    const controller = new AbortController()
+    this.requestSignals.set(id, controller)
+    try {
+      return await this.answerRequest(method, params, controller.signal)
+    } finally {
+      this.requestSignals.delete(id)
+    }
+  }
+
+  private async answerRequest(method: string, params: unknown, signal: AbortSignal) {
+    const ask = (request: NewRequest) => this.requests.ask(request, signal)
+    switch (method) {
+      case 'item/commandExecution/requestApproval': {
+        const answer = await ask({
+          kind: 'approval',
+          title: 'Allow Codex to run this command?',
+          fields: fieldsOf(params, ['command', 'cwd', 'reason'])
+        })
+        return { decision: decision(answer) }
+      }
+      case 'item/fileChange/requestApproval': {
+        const answer = await ask({
+          kind: 'approval',
+          title: 'Allow Codex to change files?',
+          fields: fieldsOf(params, ['reason', 'grantRoot'])
+        })
+        return { decision: decision(answer) }
+      }
+      case 'item/permissions/requestApproval': {
+        const { permissions } = params as {
+          permissions: Record<string, unknown>
+        }
+        const answer = await ask({
+          kind: 'approval',
+          title: 'Allow Codex extra permissions?',
+          fields: fieldsOf(params, ['reason', 'cwd', 'permissions'])
+        })
+        return {
+          permissions: answer?.accepted ? permissions : {},
+          scope: 'turn'
+        }
+      }
+      case 'item/tool/requestUserInput': {
+        const { questions } = params as { questions: UserInputQuestion[] }
+        const answer = await ask({
+          kind: 'question',
+          title: 'Codex has a question',
+          fields: questions.map(questionField)
+        })
+        if (!answer?.accepted) {
+          return { answers: {} }
+        }
+        return {
+          answers: Object.fromEntries(
+            questions.map(({ id }) => {
+              const value = answer.values?.[id]
+              const answers = Array.isArray(value)
+                ? value
+                : value === undefined
+                  ? []
+                  : [String(value)]
+              return [id, { answers }]
+            })
+          )
+        }
+      }
+      case 'mcpServer/elicitation/request':
+        return this.elicit(params as ElicitationParams, ask)
+      default:
+        throw new Error(`Atox does not handle ${method}`)
+    }
+  }
+
+  /** Форма или ссылка от MCP-сервера. */
+  private async elicit(
+    params: ElicitationParams,
+    ask: (request: NewRequest) => Promise<RequestAnswer | null>
+  ) {
+    if (params._meta?.codex_approval_kind === MCP_TOOL_CALL_APPROVAL) {
+      return { action: 'accept', content: {}, _meta: null }
+    }
+    const url = params.mode === 'url' ? params.url : undefined
+    const fields = url ? [] : elicitationFields(params.requestedSchema)
+    const source = `From the ${params.serverName} MCP server`
+    const answer = await ask(
+      !url && fields.length === 0
+        ? {
+            kind: 'approval',
+            title: params.message,
+            description: source,
+            fields: []
+          }
+        : {
+            kind: 'question',
+            title: params.message,
+            description: source,
+            ...(url && { url }),
+            fields
+          }
+    )
+    if (!answer) {
+      return { action: 'cancel', content: null, _meta: null }
+    }
+    if (!answer.accepted) {
+      return { action: 'decline', content: null, _meta: null }
+    }
+    return {
+      action: 'accept',
+      content: url ? null : elicitationContent(answer.values),
+      _meta: null
+    }
   }
 
   /**
@@ -281,6 +433,12 @@ class CodexSession implements AgentSession {
   }
 
   private handleNotification(method: string, params: unknown): void {
+    if (method === 'serverRequest/resolved') {
+      // Codex больше не ждёт ответа — например, ход остановили: карточка закрывается.
+      const { requestId } = params as { requestId: number | string }
+      this.requestSignals.get(requestId)?.abort()
+      return
+    }
     switch (method) {
       case 'turn/started':
         this.startTurn((params as { turn: Turn }).turn.id)
@@ -403,4 +561,48 @@ function toolStatus(status: ItemStatus, exitCode: number | null): ToolStatus {
 function unwrapShellCommand(command: string): string {
   const match = SHELL_WRAPPER.exec(command.trim())
   return match?.[2] ?? command
+}
+
+/** Ответ на разрешение команды или правки: `cancel` — ответа не будет, агента остановили. */
+function decision(answer: RequestAnswer | null): 'accept' | 'decline' | 'cancel' {
+  return !answer ? 'cancel' : answer.accepted ? 'accept' : 'decline'
+}
+
+/** Заполненные поля запроса Codex для карточки разрешения. */
+function fieldsOf(params: unknown, keys: readonly string[]): ApprovalField[] {
+  const record = (params ?? {}) as Record<string, unknown>
+  return keys.flatMap((name) => {
+    const value = record[name]
+    if (value === null || value === undefined || value === '') {
+      return []
+    }
+    return [
+      {
+        name,
+        value: typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+      }
+    ]
+  })
+}
+
+function questionField(question: UserInputQuestion): InputField {
+  const options = question.options ?? []
+  return {
+    id: question.id,
+    label: question.header || question.question,
+    description: question.question,
+    ...(options.length > 0
+      ? {
+          type: 'choice',
+          options: options.map(({ label, description }) => ({
+            value: label,
+            label,
+            ...(description && { description })
+          })),
+          allowOther: question.isOther
+        }
+      : { type: 'text' }),
+    ...(question.isSecret && { secret: true }),
+    required: true
+  }
 }

@@ -59,6 +59,44 @@ export type ToolStatus = 'running' | 'done' | 'failed'
 /** Ответ пользователя на запрос разрешения; `cancelled` — агента остановили раньше. */
 export type ApprovalStatus = 'pending' | 'allowed' | 'denied' | 'cancelled'
 
+/** Ответ на вопросы агента; `cancelled` — агента остановили раньше. */
+export type QuestionStatus = 'pending' | 'answered' | 'declined' | 'cancelled'
+
+/** Значение поля, которое заполнил пользователь. */
+export type InputValue = string | number | boolean | string[]
+
+export interface InputOption {
+  /** Что получит агент. */
+  value: string
+  label: string
+  description?: string
+}
+
+/** Вопрос агента или поле формы MCP-сервера. */
+export interface InputField {
+  id: string
+  label: string
+  /** Сам вопрос или пояснение к полю. */
+  description?: string
+  type: 'choice' | 'text' | 'number' | 'boolean'
+  /** Варианты ответа для `choice`. */
+  options?: InputOption[]
+  /** Можно выбрать несколько вариантов. */
+  multiple?: boolean
+  /** Кроме вариантов можно написать свой ответ. */
+  allowOther?: boolean
+  /** Ответ не показывать на экране: пароль, токен. */
+  secret?: boolean
+  /** Только целые числа для `number`. */
+  integer?: boolean
+  required: boolean
+  defaultValue?: InputValue
+}
+
+/** Ответ пользователя на запрос агента: разрешение, отказ или заполненные поля. */
+export type RequestAnswer =
+  { accepted: false } | { accepted: true; values?: Record<string, InputValue> }
+
 /** Поле вызова, о котором агент спрашивает разрешения: имя параметра и его значение. */
 export interface ApprovalField {
   name: string
@@ -106,6 +144,19 @@ export type TimelineItem =
       /** Что агент передаёт инструменту. */
       fields: ApprovalField[]
       status: ApprovalStatus
+    }
+  | {
+      /** Агент или MCP-сервер ждёт ответа на вопросы или заполненную форму. */
+      kind: 'question'
+      id: string
+      title: string
+      description?: string
+      /** Ссылку нужно открыть в браузере, например чтобы войти в сервис. */
+      url?: string
+      fields: InputField[]
+      status: QuestionStatus
+      /** Что ответил пользователь — видно и после ответа. */
+      answers?: Record<string, InputValue>
     }
   | { kind: 'error'; id: string; message: string }
 

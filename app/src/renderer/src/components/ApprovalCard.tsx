@@ -21,7 +21,9 @@ export function ApprovalCard({ chatId, item }: ApprovalCardProps) {
   const [answered, setAnswered] = useState(false)
   const answer = (allow: boolean) => {
     setAnswered(true)
-    void window.atox.conversations.answerApproval(chatId, item.id, allow)
+    void window.atox.conversations.answerRequest(chatId, item.id, {
+      accepted: allow
+    })
   }
 
   return (

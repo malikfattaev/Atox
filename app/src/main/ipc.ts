@@ -16,7 +16,12 @@ import {
   type MenuPosition,
   type GitBranches
 } from '../shared/api'
-import type { ChatConfiguration, ConversationEvent } from '../shared/conversation'
+import type {
+  ChatConfiguration,
+  ConversationEvent,
+  InputValue,
+  RequestAnswer
+} from '../shared/conversation'
 import type { Project } from '../shared/models'
 import { IS_MAC } from '../shared/platform'
 import { isProjectColor } from '../shared/projectColors'
@@ -284,9 +289,9 @@ export function registerIpcHandlers({
     conversations.interrupt(chatId)
   )
   ipcMain.handle(
-    IpcChannel.ConversationsAnswerApproval,
-    (_event, chatId: string, approvalId: unknown, allow: unknown) =>
-      conversations.answerApproval(chatId, String(approvalId), allow === true)
+    IpcChannel.ConversationsAnswerRequest,
+    (_event, chatId: string, itemId: unknown, answer: unknown) =>
+      conversations.answerRequest(chatId, String(itemId), parseRequestAnswer(answer))
   )
 
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
@@ -419,6 +424,31 @@ export function broadcastProjectsChanged(projects: Project[]): void {
 
 export function broadcastGitBranches(branches: GitBranches): void {
   broadcast(IpcChannel.GitBranchesChanged, branches)
+}
+
+/** Ответ окна на запрос агента: всё, кроме явного согласия, — отказ. */
+function parseRequestAnswer(answer: unknown): RequestAnswer {
+  const record = typeof answer === 'object' && answer !== null ? answer : {}
+  if (!('accepted' in record) || record.accepted !== true) {
+    return { accepted: false }
+  }
+  const values = 'values' in record ? record.values : undefined
+  if (typeof values !== 'object' || values === null || Array.isArray(values)) {
+    return { accepted: true }
+  }
+  return {
+    accepted: true,
+    values: Object.fromEntries(Object.entries(values).filter(([, value]) => isInputValue(value)))
+  }
+}
+
+function isInputValue(value: unknown): value is InputValue {
+  return (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+  )
 }
 
 export function broadcastConversationEvent(event: ConversationEvent): void {

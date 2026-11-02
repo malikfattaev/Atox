@@ -135,6 +135,11 @@ export function workingLabel(items: readonly TimelineItem[], seed: string): stri
         return 'Waiting for approval'
       }
       break
+    case 'question':
+      if (last.status === 'pending') {
+        return 'Waiting for your answer'
+      }
+      break
     case 'reasoning':
       return 'Thinking'
     case 'assistant':
