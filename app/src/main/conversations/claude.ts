@@ -10,6 +10,7 @@ import {
   type ModelInfo,
   type Options,
   type PermissionResult,
+  type SDKControlGetUsageResponse,
   type Query,
   type SDKMessage,
   type SDKUserMessage
@@ -22,6 +23,8 @@ import {
   type RequestAnswer,
   type AgentCommand,
   type AgentModel,
+  type ContextReport,
+  type PlanLimit,
   type TimelineItem,
   type ToolKind
 } from '../../shared/conversation'
@@ -106,6 +109,76 @@ export const claudeDriver: AgentDriver = {
 
   start(options, events) {
     return new ClaudeSession(options, events)
+  },
+
+  limits(launch) {
+    return withIdleSession(launch, readLimits)
+  },
+
+  context(launch, sessionId) {
+    return withIdleSession(launch, readContext, sessionId)
+  }
+}
+
+type RateLimits = NonNullable<SDKControlGetUsageResponse['rate_limits']>
+
+type RateLimitWindow = { utilization: number | null; resets_at: string | null }
+
+/** Окна лимитов в том порядке и с теми названиями, что у `/usage` в Claude Code. */
+const LIMIT_WINDOWS: readonly { key: keyof RateLimits; label: string }[] = [
+  { key: 'five_hour', label: 'Current session' },
+  { key: 'seven_day', label: 'Current week (all models)' },
+  { key: 'seven_day_opus', label: 'Current week (Opus)' },
+  { key: 'seven_day_sonnet', label: 'Current week (Sonnet)' }
+]
+
+/**
+ * Лимиты подписки из тех же данных, что показывает `/usage` в Claude Code. Метод в SDK помечен
+ * экспериментальным; разбор локальной истории (`behaviors`) не нужен и пропускается.
+ */
+async function readLimits(session: Query): Promise<PlanLimit[]> {
+  const usage = await session.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
+    skipBehaviors: true
+  })
+  const limits = usage.rate_limits_available ? usage.rate_limits : null
+  if (!limits) {
+    return []
+  }
+  const windows: [string, RateLimitWindow | null | undefined][] = [
+    ...LIMIT_WINDOWS.map(({ key, label }): [string, RateLimitWindow | null | undefined] => [
+      label,
+      limits[key] as RateLimitWindow | null | undefined
+    ]),
+    ...(limits.model_scoped ?? []).map((window): [string, RateLimitWindow] => [
+      `Current week (${window.display_name})`,
+      window
+    ])
+  ]
+  return windows.flatMap(([label, window]) => {
+    if (!window || window.utilization === null) {
+      return []
+    }
+    const resetsAt = window.resets_at ? Date.parse(window.resets_at) : Number.NaN
+    return [
+      {
+        label,
+        percent: window.utilization,
+        ...(Number.isFinite(resetsAt) && { resetsAt })
+      }
+    ]
+  })
+}
+
+/** Контекст по частям — без отчёта `/context` в виде таблиц для терминала. */
+async function readContext(session: Query): Promise<ContextReport> {
+  const context = await session.getContextUsage({ detail: 'summary' })
+  return {
+    used: context.totalTokens,
+    limit: context.maxTokens,
+    categories: context.categories
+      .filter(({ kind, tokens }) => kind === 'used' && tokens > 0)
+      .sort((a, b) => b.tokens - a.tokens)
+      .map(({ name, tokens }) => ({ name, tokens }))
   }
 }
 
@@ -115,10 +188,14 @@ export const claudeDriver: AgentDriver = {
  */
 async function withIdleSession<T>(
   launch: AgentLaunch,
-  read: (session: Query) => Promise<T>
+  read: (session: Query) => Promise<T>,
+  sessionId?: string
 ): Promise<T> {
   const input = new AsyncQueue<SDKUserMessage>()
-  const session = query({ prompt: input, options: launchOptions(launch) })
+  const session = query({
+    prompt: input,
+    options: { ...launchOptions(launch), ...(sessionId && { resume: sessionId }) }
+  })
   try {
     return await read(session)
   } finally {
@@ -237,6 +314,14 @@ class ClaudeSession implements AgentSession {
 
   answer(itemId: string, answer: RequestAnswer): void {
     this.requests.answer(itemId, answer)
+  }
+
+  limits(): Promise<PlanLimit[]> {
+    return readLimits(this.session)
+  }
+
+  context(): Promise<ContextReport> {
+    return readContext(this.session)
   }
 
   close(): void {

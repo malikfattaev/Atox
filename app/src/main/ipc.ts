@@ -17,11 +17,12 @@ import {
   type GitBranches,
   type TerminalSize
 } from '../shared/api'
-import type {
-  ChatConfiguration,
-  ConversationEvent,
-  InputValue,
-  RequestAnswer
+import {
+  isChatCommand,
+  type ChatConfiguration,
+  type ConversationEvent,
+  type InputValue,
+  type RequestAnswer
 } from '../shared/conversation'
 import type { Project } from '../shared/models'
 import { IS_MAC } from '../shared/platform'
@@ -290,6 +291,12 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.ConversationsCommands, (_event, chatId: string) =>
     conversations.commands(chatId)
   )
+  ipcMain.handle(IpcChannel.ConversationsRunCommand, (_event, chatId: string, command: unknown) => {
+    if (!isChatCommand(command)) {
+      throw new Error(`Unknown command: ${String(command)}`)
+    }
+    return conversations.runCommand(chatId, command)
+  })
   ipcMain.handle(IpcChannel.ConversationsInterrupt, (_event, chatId: string) =>
     conversations.interrupt(chatId)
   )

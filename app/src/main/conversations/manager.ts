@@ -7,6 +7,7 @@ import {
   titleFromMessage,
   type AgentCatalog,
   type AgentCommand,
+  type ChatCommand,
   type ChatConfiguration,
   type ConversationEvent,
   type ConversationSnapshot,
@@ -137,6 +138,37 @@ export class ConversationManager {
     this.updateRunning(chatId, conversation)
   }
 
+  /**
+   * Команда, которую Atox выполняет сам: `/usage` и `/context` показывают карточку в ленте,
+   * `/clear` начинает разговор заново.
+   */
+  async runCommand(chatId: string, command: ChatCommand): Promise<void> {
+    const conversation = this.conversation(chatId)
+    if (command === 'clear') {
+      this.clear(chatId, conversation)
+      return
+    }
+    const id = randomUUID()
+    let item: TimelineItem
+    try {
+      item =
+        command === 'usage'
+          ? { kind: 'limits', id, limits: await this.readLimits(chatId, conversation) }
+          : { kind: 'context', id, context: await this.readContext(chatId, conversation) }
+    } catch (error) {
+      const subject = command === 'usage' ? 'usage limits' : 'context usage'
+      item = { kind: 'error', id, message: `Could not read ${subject}. ${errorMessage(error)}` }
+    }
+    if (conversation.disposed) {
+      return
+    }
+    this.emit(chatId, conversation, { type: 'item', item })
+    if (item.kind === 'context') {
+      const { used, limit } = item.context
+      this.emit(chatId, conversation, { type: 'usage', usage: { context: { used, limit } } })
+    }
+  }
+
   /** Ответ пользователя на разрешение, вопросы или форму от агента чата. */
   async answerRequest(chatId: string, itemId: string, answer: RequestAnswer): Promise<void> {
     this.conversation(chatId).session?.answer(itemId, answer)
@@ -215,6 +247,47 @@ export class ConversationManager {
       console.error(`Failed to list ${agent} models`, error)
       return null
     })
+  }
+
+  /** Без запущенной сессии лимиты и контекст читает отдельный процесс агента. */
+  private async readLimits(chatId: string, conversation: Conversation) {
+    if (conversation.session) {
+      return conversation.session.limits()
+    }
+    const { chat, project } = this.findChat(chatId)
+    return this.services.drivers[chat.agent].limits(await this.launch(chat.agent, project.path))
+  }
+
+  private async readContext(chatId: string, conversation: Conversation) {
+    if (conversation.session) {
+      return conversation.session.context()
+    }
+    const { chat, project } = this.findChat(chatId)
+    const launch = await this.launch(chat.agent, project.path)
+    return this.services.drivers[chat.agent].context(launch, conversation.sessionId ?? undefined)
+  }
+
+  /** Останавливает агента и забывает разговор: следующее сообщение начнёт новый. */
+  private clear(chatId: string, conversation: Conversation): void {
+    conversation.queue = []
+    conversation.turn = null
+    conversation.interruptedTurn = null
+    conversation.session?.close()
+    conversation.session = null
+    conversation.sessionId = null
+    conversation.stale = false
+    conversation.pendingDeltas.clear()
+    conversation.pendingTokens = null
+    this.emit(chatId, conversation, { type: 'reset' })
+    this.updateRunning(chatId, conversation)
+  }
+
+  private findChat(chatId: string) {
+    const location = this.services.store.findChat(chatId)
+    if (!location) {
+      throw new Error('The chat was deleted.')
+    }
+    return location
   }
 
   private conversation(chatId: string): Conversation {

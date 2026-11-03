@@ -28,6 +28,7 @@ import { AgentIcon } from './AgentIcon'
 import { ApprovalCard } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
 import { Markdown } from './Markdown'
+import { ContextCard, LimitsCard } from './UsageCards'
 
 type UserItem = Extract<TimelineItem, { kind: 'user' }>
 type ActivityItem = Extract<TimelineItem, { kind: 'tool' | 'reasoning' }>
@@ -38,6 +39,8 @@ type Block =
   | { type: 'error'; item: Extract<TimelineItem, { kind: 'error' }> }
   | { type: 'approval'; item: Extract<TimelineItem, { kind: 'approval' }> }
   | { type: 'question'; item: Extract<TimelineItem, { kind: 'question' }> }
+  | { type: 'limits'; item: Extract<TimelineItem, { kind: 'limits' }> }
+  | { type: 'context'; item: Extract<TimelineItem, { kind: 'context' }> }
   | { type: 'activity'; key: string; items: ActivityItem[] }
   /** Конец ответа на сообщение: сколько агент работал или что он работает сейчас. */
   | { type: 'turn'; key: string; user: UserItem; items: TimelineItem[] }
@@ -117,6 +120,10 @@ export const Timeline = memo(function Timeline({
             return <ApprovalCard key={block.item.id} chatId={chatId} item={block.item} />
           case 'question':
             return <QuestionCard key={block.item.id} chatId={chatId} item={block.item} />
+          case 'limits':
+            return <LimitsCard key={block.item.id} limits={block.item.limits} />
+          case 'context':
+            return <ContextCard key={block.item.id} context={block.item.context} />
           case 'activity':
             return (
               <ActivityGroup key={block.key} items={block.items} live={block === liveActivity} />
@@ -212,6 +219,14 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
       case 'question':
         flushActivity()
         blocks.push({ type: 'question', item })
+        break
+      case 'limits':
+        flushActivity()
+        blocks.push({ type: 'limits', item })
+        break
+      case 'context':
+        flushActivity()
+        blocks.push({ type: 'context', item })
         break
     }
   }

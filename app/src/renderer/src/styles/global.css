@@ -2430,3 +2430,70 @@ ul {
   width: 14px;
   height: 14px;
 }
+
+/* Карточки команд /usage и /context: полосы вместо текстовых таблиц для терминала. */
+
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--composer-radius);
+  background: var(--color-group);
+}
+
+.usage-card__title {
+  margin: 0;
+  font-size: var(--font-size);
+  font-weight: 600;
+}
+
+.usage-card__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.usage-card__rows--compact {
+  gap: 6px;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.usage-card__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usage-card__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.usage-card__value {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-card__note {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.usage-card__meter {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(var(--color-accent), var(--color-accent)) no-repeat 0 0 /
+    var(--meter-fill) 100%;
+  background-color: var(--color-active);
+}
+
+.usage-card__meter[data-warning='true'] {
+  background-image: linear-gradient(var(--color-danger), var(--color-danger));
+}

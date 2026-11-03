@@ -4,11 +4,25 @@ import type { AgentCommand } from '../../../shared/conversation'
 
 const { atox } = window
 
-/** Команды, которые Atox выполняет сам: они меняют настройки чата, а не пишут агенту. */
+/**
+ * Команды, которые Atox выполняет сам, а не пишет агенту: меняют настройки чата, показывают
+ * лимиты и контекст карточкой, начинают разговор заново или закрывают чат.
+ */
 export const LOCAL_COMMANDS: readonly AgentCommand[] = [
   { name: 'model', description: 'Choose the model for this chat', argumentHint: '[model]' },
-  { name: 'effort', description: 'Choose how hard the model thinks', argumentHint: '[level]' }
+  { name: 'effort', description: 'Choose how hard the model thinks', argumentHint: '[level]' },
+  { name: 'usage', description: 'Show plan usage limits' },
+  { name: 'context', description: 'Show what fills the context window' },
+  { name: 'clear', description: 'Start a new conversation in this chat' },
+  { name: 'exit', description: 'Close this chat' }
 ]
+
+/** Другие имена команд Atox — как в Claude Code. В подсказках их нет. */
+export const LOCAL_COMMAND_ALIASES: Readonly<Record<string, string>> = {
+  quit: 'exit',
+  reset: 'clear',
+  new: 'clear'
+}
 
 /**
  * Команды для подсказок после «/»: свои команды Atox и команды агента. Агента спрашивают,
@@ -39,6 +53,9 @@ export function useAgentCommands(
     }
   }, [chatId, key, requested])
 
-  const local = new Set(LOCAL_COMMANDS.map(({ name }) => name))
+  const local = new Set([
+    ...LOCAL_COMMANDS.map(({ name }) => name),
+    ...Object.keys(LOCAL_COMMAND_ALIASES)
+  ])
   return [...LOCAL_COMMANDS, ...(agentCommands ?? []).filter(({ name }) => !local.has(name))]
 }

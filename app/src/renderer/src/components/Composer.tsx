@@ -1,11 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowUp, Square, X } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
-import type { AgentCommand, ConversationUsage } from '../../../shared/conversation'
+import {
+  isChatCommand,
+  type AgentCommand,
+  type ConversationUsage
+} from '../../../shared/conversation'
 import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
-import { useAgentCommands } from '../hooks/useAgentCommands'
+import { LOCAL_COMMAND_ALIASES, useAgentCommands } from '../hooks/useAgentCommands'
 import { attachImage, isAttachableImage, type Attachment } from '../lib/attachments'
 import {
   currentModel,
@@ -37,7 +41,7 @@ interface ComposerProps {
 }
 
 export function Composer({ chat, running, started, focused, usage }: ComposerProps) {
-  const { configureChat } = useProjectsContext()
+  const { configureChat, removeChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -118,7 +122,16 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
 
   /** `true` — Atox выполнил команду сам и писать агенту ничего не нужно. */
   const runLocalCommand = (message: string): boolean => {
-    const [, name, argument = ''] = COMMAND_LINE.exec(message) ?? []
+    const [, typed, argument = ''] = COMMAND_LINE.exec(message) ?? []
+    const name = typed && (LOCAL_COMMAND_ALIASES[typed] ?? typed)
+    if (name === 'exit') {
+      void removeChat(chat.id)
+      return true
+    }
+    if (isChatCommand(name)) {
+      void atox.conversations.runCommand(chat.id, name)
+      return true
+    }
     if (name !== 'model' && name !== 'effort') {
       return false
     }

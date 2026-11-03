@@ -120,6 +120,8 @@ const api: AtoxApi = {
     send: (chatId, text, images = []) =>
       ipcRenderer.invoke(IpcChannel.ConversationsSend, chatId, text, images),
     commands: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsCommands, chatId),
+    runCommand: (chatId, command) =>
+      ipcRenderer.invoke(IpcChannel.ConversationsRunCommand, chatId, command),
     interrupt: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsInterrupt, chatId),
     answerRequest: (chatId, itemId, answer) =>
       ipcRenderer.invoke(IpcChannel.ConversationsAnswerRequest, chatId, itemId, answer),

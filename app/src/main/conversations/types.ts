@@ -2,8 +2,10 @@ import type { AgentId } from '../../shared/agents'
 import type {
   AgentCatalog,
   AgentCommand,
+  ContextReport,
   ConversationUsage,
   ModelSelection,
+  PlanLimit,
   RequestAnswer,
   StreamedField,
   TimelineItem
@@ -52,6 +54,10 @@ export interface AgentSession {
   interrupt(): void
   /** Ответ пользователя на запрос агента — элемент ленты `approval` или `question` с этим `id`. */
   answer(itemId: string, answer: RequestAnswer): void
+  /** Лимиты подписки; пустой список — агент работает не по подписке. */
+  limits(): Promise<PlanLimit[]>
+  /** Из чего сейчас состоит контекст разговора. */
+  context(): Promise<ContextReport>
   close(): void
 }
 
@@ -63,4 +69,8 @@ export interface AgentDriver {
   /** Команды, которые агент выполняет из сообщения вида `/команда`, — в папке проекта. */
   commands(launch: AgentLaunch): Promise<AgentCommand[]>
   start(options: SessionOptions, events: SessionEvents): AgentSession
+  /** Лимиты подписки, когда в чате ещё нет запущенной сессии. */
+  limits(launch: AgentLaunch): Promise<PlanLimit[]>
+  /** Контекст разговора `sessionId` (нет — нового), когда его сессия не запущена. */
+  context(launch: AgentLaunch, sessionId?: string): Promise<ContextReport>
 }

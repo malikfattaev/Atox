@@ -3,6 +3,7 @@ import type { AppCommand } from './commands'
 import type {
   AgentCatalog,
   AgentCommand,
+  ChatCommand,
   ChatConfiguration,
   ConversationEvent,
   ConversationSnapshot,
@@ -128,6 +129,8 @@ export interface AtoxApi {
     send(chatId: string, text: string, images?: readonly string[]): Promise<void>
     /** Команды агента чата для подсказок после «/». */
     commands(chatId: string): Promise<AgentCommand[]>
+    /** Выполняет команду Atox (`/usage`, `/context`, `/clear`), не отправляя её агенту. */
+    runCommand(chatId: string, command: ChatCommand): Promise<void>
     /** Останавливает ответ агента и отменяет сообщения, ждущие очереди. */
     interrupt(chatId: string): Promise<void>
     /** Ответ на разрешение, вопросы или форму агента — элемент ленты `approval` или `question`. */
@@ -242,6 +245,7 @@ export const IpcChannel = {
   ConversationsInterrupt: 'conversations:interrupt',
   ConversationsAnswerRequest: 'conversations:answer-request',
   ConversationsCommands: 'conversations:commands',
+  ConversationsRunCommand: 'conversations:run-command',
   ConversationsEvent: 'conversations:event',
   TerminalsAttach: 'terminals:attach',
   TerminalsWrite: 'terminals:write',

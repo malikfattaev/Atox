@@ -38,6 +38,36 @@ export interface ConversationUsage {
   context: { used: number; limit: number }
 }
 
+/** Окно лимита подписки Claude: сколько из него израсходовано и когда оно начнётся заново. */
+export interface PlanLimit {
+  /** Например «Current session» (5 часов) или «Current week (all models)». */
+  label: string
+  /** Израсходовано, 0–100. */
+  percent: number
+  /** Когда окно сбросится, мс с начала эпохи; нет — агент не сообщил. */
+  resetsAt?: number
+}
+
+/** Из чего сейчас состоит контекст разговора. */
+export interface ContextReport {
+  used: number
+  limit: number
+  /** Занятые части контекста, крупные сверху; пустые не входят. */
+  categories: { name: string; tokens: number }[]
+}
+
+/**
+ * Команды, которые Atox выполняет сам, а не пересылает агенту: агент отвечал бы на них
+ * простынёй текста для терминала или не выполнил бы вовсе.
+ */
+export const CHAT_COMMANDS = ['usage', 'context', 'clear'] as const
+
+export type ChatCommand = (typeof CHAT_COMMANDS)[number]
+
+export function isChatCommand(value: unknown): value is ChatCommand {
+  return CHAT_COMMANDS.some((command) => command === value)
+}
+
 /** Модель и эффорт, выбранные для чата. */
 export interface ModelSelection {
   model: string
@@ -158,6 +188,13 @@ export type TimelineItem =
       /** Что ответил пользователь — видно и после ответа. */
       answers?: Record<string, InputValue>
     }
+  | {
+      /** Лимиты подписки по команде `/usage`; пустой список — Claude работает не по подписке. */
+      kind: 'limits'
+      id: string
+      limits: PlanLimit[]
+    }
+  | { kind: 'context'; id: string; context: ContextReport }
   | { kind: 'error'; id: string; message: string }
 
 export type TimelineItemKind = TimelineItem['kind']
@@ -190,6 +227,8 @@ export type ConversationEvent =
   | { chatId: string; type: 'running'; running: boolean }
   | { chatId: string; type: 'usage'; usage: ConversationUsage }
   | { chatId: string; type: 'tokens'; turnTokens: number }
+  /** Разговор начался заново (`/clear`): лента пуста, агент не помнит прошлого. */
+  | { chatId: string; type: 'reset' }
 
 export const EMPTY_CONVERSATION: ConversationSnapshot = {
   items: [],
@@ -214,6 +253,8 @@ export function applyConversationEvent(
       return { ...snapshot, usage: event.usage }
     case 'tokens':
       return { ...snapshot, turnTokens: event.turnTokens }
+    case 'reset':
+      return { items: [], running: snapshot.running }
     case 'item': {
       // Обновляются почти всегда последние элементы ленты: ищем с конца.
       const index = snapshot.items.findLastIndex(({ id }) => id === event.item.id)

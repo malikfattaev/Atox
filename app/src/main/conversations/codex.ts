@@ -3,6 +3,8 @@ import {
   limitOutput,
   type AgentCatalog,
   type ApprovalField,
+  type ContextReport,
+  type PlanLimit,
   type InputField,
   type RequestAnswer,
   type TimelineItem,
@@ -141,9 +143,14 @@ export function createCodexDriver(client: ClientInfo): AgentDriver {
 
     start(options, events) {
       return new CodexSession(options, events, client)
-    }
+    },
+
+    limits: () => Promise.reject(new Error(UNSUPPORTED_COMMAND)),
+    context: () => Promise.reject(new Error(UNSUPPORTED_COMMAND))
   }
 }
+
+const UNSUPPORTED_COMMAND = 'Codex does not report this.'
 
 function startAppServer(
   { executable, cwd, env }: AgentLaunch,
@@ -248,6 +255,14 @@ class CodexSession implements AgentSession {
 
   answer(itemId: string, answer: RequestAnswer): void {
     this.requests.answer(itemId, answer)
+  }
+
+  limits(): Promise<PlanLimit[]> {
+    return Promise.reject(new Error(UNSUPPORTED_COMMAND))
+  }
+
+  context(): Promise<ContextReport> {
+    return Promise.reject(new Error(UNSUPPORTED_COMMAND))
   }
 
   close(): void {
