@@ -46,7 +46,7 @@ async function main(args: string[]): Promise<string> {
       const { values, positional } = parseFlags(rest, ['title'])
       const [agent, ...taskWords] = positional
       if (!agent) {
-        throw new UsageError('Specify the agent, for example: atox start codex "<task>"')
+        throw new UsageError('Specify the agent, for example: atox start claude "<task>"')
       }
       const task = await readText(taskWords, 'task')
       const worker = await call('start', { agent, task, title: values['title'] })

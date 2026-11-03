@@ -194,7 +194,7 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
         blocks.push({ type: 'user', item })
         continue
       case 'reasoning':
-        // Codex создаёт рассуждение раньше, чем пишет в него текст.
+        // Пустое рассуждение в ленту не идёт.
         if (item.text.trim()) {
           activity.push(item)
         }

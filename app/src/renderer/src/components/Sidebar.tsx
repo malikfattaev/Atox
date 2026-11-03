@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { FolderPlus, GitPullRequest, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
-import { useAgentPicker } from '../hooks/useAgentPicker'
 import { useGitBranches } from '../hooks/useGitBranches'
 import { useSettings } from '../hooks/SettingsContext'
 import { ProfileBar } from './ProfileBar'
@@ -26,10 +25,17 @@ export function Sidebar({
   onToggleRepository,
   onOpenRepository
 }: SidebarProps) {
-  const { spaces, activeSpaceId, spaceProjects, currentProjectId, addProject, moveProject } =
+  const {
+    spaces,
+    activeSpaceId,
+    spaceProjects,
+    currentProjectId,
+    addProject,
+    moveProject,
+    createChat
+  } =
     useProjectsContext()
   const activeSpace = spaces.find(({ id }) => id === activeSpaceId)
-  const pickAgentAndCreateChat = useAgentPicker()
   const { sidebarWidth } = useSettings()
   const branches = useGitBranches()
   // Пока тянут край, ширина живёт здесь; в настройки попадает только итоговая.
@@ -45,7 +51,7 @@ export function Sidebar({
           icon={SquarePen}
           label="New chat"
           disabled={!currentProjectId}
-          onClick={() => currentProjectId && void pickAgentAndCreateChat(currentProjectId)}
+          onClick={() => currentProjectId && void createChat(currentProjectId)}
         />
         <SidebarButton icon={FolderPlus} label="New project" onClick={() => void addProject()} />
         <SidebarButton

@@ -48,7 +48,7 @@ interface Conversation {
   snapshot: ConversationSnapshot
   session: AgentSession | null
   /**
-   * Разговор на стороне агента (сессия Claude, тред Codex): по нему сессия, перезапущенная
+   * Разговор на стороне агента (сессия Claude): по нему сессия, перезапущенная
    * ради новой модели, продолжает тот же разговор. Живёт до выхода из Atox.
    */
   sessionId: string | null

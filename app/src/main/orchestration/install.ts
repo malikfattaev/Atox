@@ -28,18 +28,18 @@ ELECTRON_RUN_AS_NODE=1 exec ${quoteShell(executablePath)} ${quoteShell(scriptPat
 
 const SKILL = `---
 name: atox
-description: Delegate work to other coding agents (Claude Code, Codex) that run in parallel Atox chats, and talk to them. Use inside Atox (the ATOX_CHAT_ID environment variable is set) when the user asks to hand a task to another agent, run agents in parallel, or get a second opinion from Codex or Claude; also use it when you are an Atox worker that must report back.
+description: Delegate work to other Claude Code agents that run in parallel Atox chats, and talk to them. Use inside Atox (the ATOX_CHAT_ID environment variable is set) when the user asks to hand a task to another agent, run agents in parallel, or get a second opinion; also use it when you are an Atox worker that must report back.
 ---
 
 # Atox agents
 
-Inside Atox every chat is a conversation with a coding agent (Claude Code or Codex). The \`atox\` command starts another agent in a new chat in the same folder; the user sees it nested under your chat. Its report comes back to your chat as a new message starting with "[Atox] Worker".
+Inside Atox every chat is a conversation with Claude Code. The \`atox\` command starts another agent in a new chat in the same folder; the user sees it nested under your chat. Its report comes back to your chat as a new message starting with "[Atox] Worker".
 
 ## Commands
 
 \`\`\`sh
 atox agents                                  # installed agents; start only these
-atox start codex --title "Fix checkout" "<task>"
+atox start claude --title "Fix checkout" "<task>"
 atox workers                                 # your workers, oldest first: id, agent, state, age, title
 atox send <worker-chat-id> "<message>"       # follow-up or answer to a worker's question
 atox remove <worker-chat-id> [...]           # stop workers and remove their chats
@@ -96,25 +96,4 @@ export async function installSkills(): Promise<void> {
       }
     )
   )
-}
-
-/**
- * Правило Codex: `atox` запускается без вопроса и вне песочницы — иначе песочница не даёт
- * подключиться к сокету приложения, и каждую команду помощника пришлось бы одобрять вручную.
- * Codex читает все файлы правил из ~/.codex/rules.
- */
-const CODEX_RULES = `prefix_rule(pattern=["atox"], decision="allow")
-`
-
-export async function installCodexRules(): Promise<void> {
-  const codexHome = join(homedir(), '.codex')
-  if (!existsSync(codexHome)) {
-    return
-  }
-  const directory = join(codexHome, 'rules')
-  const file = join(directory, 'atox.rules')
-  if ((await readFile(file, 'utf8').catch(() => null)) !== CODEX_RULES) {
-    await mkdir(directory, { recursive: true })
-    await writeFile(file, CODEX_RULES)
-  }
 }

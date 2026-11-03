@@ -5,7 +5,6 @@ import type { Project } from '../../../shared/models'
 import { IS_MAC } from '../../../shared/platform'
 import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
-import { useAgentPicker } from '../hooks/useAgentPicker'
 import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
@@ -47,7 +46,6 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
   const FolderIcon = expanded ? FolderOpen : Folder
   const chatsId = useId()
 
-  const pickAgentAndCreateChat = useAgentPicker()
 
   // Чат, открытый с клавиатуры или из уведомления, должен быть виден в сайдбаре.
   const containsActiveChat = project.chats.some(({ id }) => id === activeChatId)
@@ -65,7 +63,7 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
 
   const pickAgentForProjectChat = () => {
     setExpanded(true)
-    void pickAgentAndCreateChat(project.id)
+    void createChat(project.id)
   }
 
   const otherSpaces = spaces.filter(({ id }) => id !== project.spaceId)
