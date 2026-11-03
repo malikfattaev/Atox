@@ -6,6 +6,7 @@ import { ChatActivityProvider, useChatsCovered } from './hooks/ChatActivityConte
 import { ProjectsProvider, useProjectsContext } from './hooks/ProjectsContext'
 import { SettingsProvider } from './hooks/SettingsContext'
 import { useAppCommands } from './hooks/useAppCommands'
+import { useTerminalPanel } from './hooks/useTerminalPanel'
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ function Layout() {
   const [page, setPage] = useState<WorkspacePage | null>(null)
   // Раздел страницы репозитория не сбрасывается, когда её закрывают и открывают снова.
   const [repositorySection, setRepositorySection] = useState<RepositorySection>('commits')
+  const terminals = useTerminalPanel()
   const { currentProjectId } = projects
 
   const toggleSidebar = useCallback(() => setSidebarVisible((visible) => !visible), [])
@@ -43,10 +45,18 @@ function Layout() {
     )
   }, [currentProjectId])
 
+  // Терминал открывается у текущего проекта; поверх страницы его не видно — страница закрывается.
+  const toggleTerminal = useCallback(() => {
+    if (currentProjectId) {
+      setPage(null)
+      terminals.toggle(currentProjectId)
+    }
+  }, [currentProjectId, terminals.toggle])
+
   // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает страницу поверх чатов.
   useEffect(closePage, [projects.activeChatId, closePage])
 
-  useAppCommands({ projects, toggleSidebar, openSettings, toggleRepository })
+  useAppCommands({ projects, toggleSidebar, toggleTerminal, openSettings, toggleRepository })
   useChatsCovered(page !== null)
 
   return (
@@ -64,6 +74,10 @@ function Layout() {
         repositorySection={repositorySection}
         onRepositorySectionChange={setRepositorySection}
         onClosePage={closePage}
+        terminals={terminals}
+        sidebarVisible={sidebarVisible}
+        onToggleSidebar={toggleSidebar}
+        onToggleTerminal={toggleTerminal}
       />
     </div>
   )

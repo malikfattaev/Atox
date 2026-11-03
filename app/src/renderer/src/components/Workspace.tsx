@@ -3,10 +3,13 @@ import { X } from 'lucide-react'
 import { DEFAULT_SPLIT_POSITION } from '../../../shared/split'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
+import type { TerminalPanelState } from '../hooks/useTerminalPanel'
 import { ChatView } from './ChatView'
 import { RepositoryView, type RepositorySection } from './RepositoryView'
 import { SettingsView } from './SettingsView'
 import { SplitResizer } from './SplitResizer'
+import { TerminalPanel } from './TerminalPanel'
+import { WorkspaceToolbar } from './WorkspaceToolbar'
 
 /** Страница, открытая поверх чатов. */
 export type WorkspacePage = { kind: 'settings' } | { kind: 'repository'; projectId: string }
@@ -16,13 +19,21 @@ interface WorkspaceProps {
   repositorySection: RepositorySection
   onRepositorySectionChange(section: RepositorySection): void
   onClosePage(): void
+  terminals: TerminalPanelState
+  sidebarVisible: boolean
+  onToggleSidebar(): void
+  onToggleTerminal(): void
 }
 
 export function Workspace({
   page,
   repositorySection,
   onRepositorySectionChange,
-  onClosePage
+  onClosePage,
+  terminals,
+  sidebarVisible,
+  onToggleSidebar,
+  onToggleTerminal
 }: WorkspaceProps) {
   const {
     projects,
@@ -35,7 +46,7 @@ export function Workspace({
     setSplitPosition
   } = useProjectsContext()
   const branches = useGitBranches()
-  const workspaceRef = useRef<HTMLElement>(null)
+  const chatsRef = useRef<HTMLDivElement>(null)
   // Пока тянут разделитель, положение живёт здесь; у проекта сохраняется только итоговое.
   const [draftPosition, setDraftPosition] = useState<number | null>(null)
   const currentProject = projects.find(({ id }) => id === currentProjectId)
@@ -45,57 +56,84 @@ export function Workspace({
     page?.kind === 'repository' ? projects.find(({ id }) => id === page.projectId) : undefined
   const pageOpen = page?.kind === 'settings' || Boolean(repositoryProject)
   const isSplit = !pageOpen && visibleChatIds.length > 1
+  // Терминалы убранных проектов main-процесс уже остановил.
+  const terminalProjectIds = terminals.openProjectIds.filter((id) =>
+    projects.some((project) => project.id === id)
+  )
+  const terminalOpen = Boolean(currentProjectId && terminalProjectIds.includes(currentProjectId))
   const chatTitles = new Map(
     projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
   )
 
   return (
-    <main
-      ref={workspaceRef}
-      className="workspace"
-      data-split={isSplit}
-      style={{ '--split-position': `${splitPosition * 100}%` } as CSSProperties}
-    >
-      {openedChatIds.map((chatId) => {
-        const pane = visibleChatIds.indexOf(chatId)
-        const visible = !pageOpen && pane >= 0
-        const focused = visible && chatId === activeChatId
-        return (
-          // Открытые чаты остаются смонтированными: скрытый чат не теряет черновик и прокрутку.
-          <section
-            key={chatId}
-            className="chat-pane"
-            data-pane={pane}
-            data-focused={focused}
-            hidden={!visible}
-            onFocus={() => selectChat(chatId)}
-          >
-            {isSplit && (
-              <header className="chat-pane__header">
-                <span className="chat-pane__title">{chatTitles.get(chatId)}</span>
-                <button
-                  type="button"
-                  className="chat-pane__close"
-                  aria-label="Close"
-                  title="Close"
-                  onClick={() => closeChatPane(chatId)}
-                >
-                  <X className="icon" />
-                </button>
-              </header>
-            )}
-            <ChatView chatId={chatId} visible={visible} focused={focused} />
-          </section>
-        )
-      })}
-      {isSplit && currentProjectId && (
-        <SplitResizer
-          position={splitPosition}
-          containerRef={workspaceRef}
-          onDrag={setDraftPosition}
-          onCommit={(position) => void setSplitPosition(currentProjectId, position)}
+    <main className="workspace">
+      <header className="workspace__header">
+        <WorkspaceToolbar
+          terminalOpen={terminalOpen}
+          terminalAvailable={Boolean(currentProjectId)}
+          sidebarVisible={sidebarVisible}
+          onToggleTerminal={onToggleTerminal}
+          onToggleSidebar={onToggleSidebar}
         />
-      )}
+      </header>
+      <div className="workspace__body">
+        <div
+          ref={chatsRef}
+          className="workspace__chats"
+          data-split={isSplit}
+          style={{ '--split-position': `${splitPosition * 100}%` } as CSSProperties}
+        >
+          {openedChatIds.map((chatId) => {
+            const pane = visibleChatIds.indexOf(chatId)
+            const visible = !pageOpen && pane >= 0
+            const focused = visible && chatId === activeChatId
+            return (
+              // Открытые чаты остаются смонтированными: скрытый чат не теряет черновик и прокрутку.
+              <section
+                key={chatId}
+                className="chat-pane"
+                data-pane={pane}
+                data-focused={focused}
+                hidden={!visible}
+                onFocus={() => selectChat(chatId)}
+              >
+                {isSplit && (
+                  <header className="chat-pane__header">
+                    <span className="chat-pane__title">{chatTitles.get(chatId)}</span>
+                    <button
+                      type="button"
+                      className="chat-pane__close"
+                      aria-label="Close"
+                      title="Close"
+                      onClick={() => closeChatPane(chatId)}
+                    >
+                      <X className="icon" />
+                    </button>
+                  </header>
+                )}
+                <ChatView chatId={chatId} visible={visible} focused={focused} />
+              </section>
+            )
+          })}
+          {isSplit && currentProjectId && (
+            <SplitResizer
+              position={splitPosition}
+              containerRef={chatsRef}
+              onDrag={setDraftPosition}
+              onCommit={(position) => void setSplitPosition(currentProjectId, position)}
+            />
+          )}
+          {!pageOpen && !activeChatId && (
+            <p className="workspace__empty">Select a chat or create a new one</p>
+          )}
+        </div>
+        <TerminalPanel
+          projectIds={terminalProjectIds}
+          shownProjectId={!pageOpen && terminalOpen ? currentProjectId : null}
+          focusRequest={terminals.focusRequest}
+          onClose={terminals.close}
+        />
+      </div>
       {page?.kind === 'settings' && <SettingsView onClose={onClosePage} />}
       {repositoryProject && (
         <RepositoryView
@@ -107,9 +145,6 @@ export function Workspace({
           onSectionChange={onRepositorySectionChange}
           onClose={onClosePage}
         />
-      )}
-      {!pageOpen && !activeChatId && (
-        <p className="workspace__empty">Select a chat or create a new one</p>
       )}
     </main>
   )

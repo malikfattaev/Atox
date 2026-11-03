@@ -13,6 +13,7 @@ const NUMBER_KEY_CODE = /^Digit([1-9])$/
 interface AppCommandHandlers {
   projects: ProjectsState
   toggleSidebar(): void
+  toggleTerminal(): void
   openSettings(): void
   toggleRepository(): void
 }
@@ -52,6 +53,9 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
           break
         case 'toggle-sidebar':
           handlersRef.current.toggleSidebar()
+          break
+        case 'toggle-terminal':
+          handlersRef.current.toggleTerminal()
           break
         case 'previous-chat':
           selectRelative(-1)

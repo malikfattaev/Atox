@@ -1,5 +1,11 @@
 import { AGENTS, DEFAULT_AGENT_ID, isAgentId } from '../shared/agents'
-import { clampSidebarWidth, DEFAULT_SETTINGS, type Settings } from '../shared/settings'
+import {
+  clampWidth,
+  DEFAULT_SETTINGS,
+  SIDEBAR_WIDTH,
+  TERMINAL_WIDTH,
+  type Settings
+} from '../shared/settings'
 import {
   canonicalAccelerator,
   findShortcutConflict,
@@ -61,7 +67,8 @@ function normalize(settings: Settings): Settings {
   return {
     defaultAgent: isAgentId(settings.defaultAgent) ? settings.defaultAgent : DEFAULT_AGENT_ID,
     agentModels: normalizeAgentModels(settings.agentModels),
-    sidebarWidth: clampSidebarWidth(settings.sidebarWidth),
+    sidebarWidth: clampWidth(settings.sidebarWidth, SIDEBAR_WIDTH),
+    terminalWidth: clampWidth(settings.terminalWidth, TERMINAL_WIDTH),
     shortcuts: normalizeShortcuts(settings.shortcuts)
   }
 }

@@ -36,6 +36,7 @@ export const SHORTCUTS = {
     label: 'Show or hide sidebar',
     accelerator: byPlatform('CmdOrCtrl+B', 'Ctrl+Shift+B')
   },
+  toggleTerminal: { label: 'Show or hide terminal', accelerator: 'Ctrl+`' },
   toggleRepository: {
     label: 'Commits, pull requests and issues',
     accelerator: byPlatform('CmdOrCtrl+Shift+G', 'Ctrl+Shift+G')
@@ -69,7 +70,13 @@ export const SHORTCUT_GROUPS: ReadonlyArray<{ title: string; shortcuts: readonly
   },
   {
     title: 'Window',
-    shortcuts: ['spaceByNumber', 'toggleSidebar', 'toggleRepository', 'openSettings']
+    shortcuts: [
+      'spaceByNumber',
+      'toggleSidebar',
+      'toggleTerminal',
+      'toggleRepository',
+      'openSettings'
+    ]
   }
 ]
 

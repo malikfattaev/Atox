@@ -6,8 +6,9 @@ import { useGitBranches } from '../hooks/useGitBranches'
 import { useSettings } from '../hooks/SettingsContext'
 import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
+import { SIDEBAR_WIDTH } from '../../../shared/settings'
+import { PanelResizer } from './PanelResizer'
 import { SidebarButton } from './SidebarButton'
-import { SidebarResizer } from './SidebarResizer'
 import { SortableList } from './SortableList'
 import { SpacePicker } from './SpacePicker'
 
@@ -83,8 +84,11 @@ export function Sidebar({
 
       <ProfileBar onOpenSettings={onOpenSettings} />
 
-      <SidebarResizer
+      <PanelResizer
         width={width}
+        bounds={SIDEBAR_WIDTH}
+        edge="right"
+        label="Resize sidebar"
         onDrag={setDraftWidth}
         onCommit={(next) => void window.atox.settings.update({ sidebarWidth: next })}
       />

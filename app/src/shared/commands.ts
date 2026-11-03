@@ -4,6 +4,7 @@ export type AppCommand =
   | { type: 'open-project' }
   | { type: 'close-chat' }
   | { type: 'toggle-sidebar' }
+  | { type: 'toggle-terminal' }
   | { type: 'previous-chat' }
   | { type: 'next-chat' }
   | { type: 'find' }

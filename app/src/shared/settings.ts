@@ -9,6 +9,8 @@ export interface Settings {
   agentModels: Partial<Record<AgentId, Partial<ModelSelection>>>
   /** Ширина сайдбара в пикселях; меняется перетаскиванием его края. */
   sidebarWidth: number
+  /** Ширина панели терминала в пикселях; меняется перетаскиванием её края. */
+  terminalWidth: number
   /** Свои горячие клавиши вместо стандартных. */
   shortcuts: ShortcutOverrides
 }
@@ -20,17 +22,32 @@ export const SIDEBAR_WIDTH = {
   max: 480
 } as const
 
+/** Ширина панели терминала: в узком окне её дополнительно ужимает раскладка, оставляя место чату. */
+export const TERMINAL_WIDTH = {
+  default: 480,
+  min: 320,
+  max: 1200
+} as const
+
+/** Пределы ширины панели, которую тянут за край. */
+export interface WidthBounds {
+  default: number
+  min: number
+  max: number
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   defaultAgent: DEFAULT_AGENT_ID,
   agentModels: {},
   sidebarWidth: SIDEBAR_WIDTH.default,
+  terminalWidth: TERMINAL_WIDTH.default,
   shortcuts: {}
 }
 
-/** Приводит ширину сайдбара к целому числу пикселей в допустимых пределах. */
-export function clampSidebarWidth(width: number): number {
+/** Приводит ширину панели к целому числу пикселей в её пределах. */
+export function clampWidth(width: number, bounds: WidthBounds): number {
   if (!Number.isFinite(width)) {
-    return SIDEBAR_WIDTH.default
+    return bounds.default
   }
-  return Math.min(SIDEBAR_WIDTH.max, Math.max(SIDEBAR_WIDTH.min, Math.round(width)))
+  return Math.min(bounds.max, Math.max(bounds.min, Math.round(width)))
 }
