@@ -33,8 +33,7 @@ export function Sidebar({
     addProject,
     moveProject,
     createChat
-  } =
-    useProjectsContext()
+  } = useProjectsContext()
   const activeSpace = spaces.find(({ id }) => id === activeSpaceId)
   const { sidebarWidth } = useSettings()
   const branches = useGitBranches()
