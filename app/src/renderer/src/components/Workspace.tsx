@@ -9,6 +9,7 @@ import { RepositoryView, type RepositorySection } from './RepositoryView'
 import { SettingsView } from './SettingsView'
 import { SplitResizer } from './SplitResizer'
 import { TerminalPanel } from './TerminalPanel'
+import { WorkspaceTitle } from './WorkspaceTitle'
 import { WorkspaceToolbar } from './WorkspaceToolbar'
 
 /** Страница, открытая поверх чатов. */
@@ -64,19 +65,29 @@ export function Workspace({
   const chatTitles = new Map(
     projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
   )
+  const activeChatProject = activeChatId
+    ? projects.find((project) => project.chats.some((chat) => chat.id === activeChatId))
+    : undefined
 
   return (
     <main className="workspace">
-      <header className="workspace__header">
-        <WorkspaceToolbar
-          terminalOpen={terminalOpen}
-          terminalAvailable={Boolean(currentProjectId)}
-          sidebarVisible={sidebarVisible}
-          onToggleTerminal={onToggleTerminal}
-          onToggleSidebar={onToggleSidebar}
-        />
-      </header>
-      <div className="workspace__body">
+      <div className="workspace__main">
+        <header className="workspace__header">
+          {/* У страниц настроек и репозитория свои заголовки. */}
+          {!pageOpen && activeChatId && activeChatProject && (
+            <WorkspaceTitle
+              chatTitle={chatTitles.get(activeChatId) ?? ''}
+              projectName={activeChatProject.name}
+            />
+          )}
+          <WorkspaceToolbar
+            terminalOpen={terminalOpen}
+            terminalAvailable={Boolean(currentProjectId)}
+            sidebarVisible={sidebarVisible}
+            onToggleTerminal={onToggleTerminal}
+            onToggleSidebar={onToggleSidebar}
+          />
+        </header>
         <div
           ref={chatsRef}
           className="workspace__chats"
@@ -127,13 +138,13 @@ export function Workspace({
             <p className="workspace__empty">Select a chat or create a new one</p>
           )}
         </div>
-        <TerminalPanel
-          projectIds={terminalProjectIds}
-          shownProjectId={!pageOpen && terminalOpen ? currentProjectId : null}
-          focusRequest={terminals.focusRequest}
-          onClose={terminals.close}
-        />
       </div>
+      <TerminalPanel
+        projectIds={terminalProjectIds}
+        shownProjectId={!pageOpen && terminalOpen ? currentProjectId : null}
+        focusRequest={terminals.focusRequest}
+        onClose={terminals.close}
+      />
       {page?.kind === 'settings' && <SettingsView onClose={onClosePage} />}
       {repositoryProject && (
         <RepositoryView

@@ -6,12 +6,19 @@
   /* Шапка рабочей области: за неё перетаскивают окно, справа в ней кнопки панелей. */
   --workspace-header-height: var(--titlebar-height);
   --workspace-header-padding: 8px;
-  --toolbar-button-size: 28px;
-  --toolbar-gap: 2px;
+  --workspace-title-inset: 16px;
+  --workspace-title-gap: 10px;
+  /* Сколько места слева от шапки занимают кнопки светофора, когда сайдбар скрыт. */
+  --traffic-lights-width: 76px;
+  /* Высота, на которой лента чата растворяется под шапкой вместо разделительной линии. */
+  --header-fade-height: 20px;
+  --toolbar-button-size: 32px;
+  --toolbar-icon-size: 18px;
+  --toolbar-gap: 4px;
   /* Терминалу не отдаётся место, без которого чату было бы тесно. */
   --terminal-chat-min-width: 360px;
-  --terminal-font-size: 12px;
-  --terminal-padding: 8px;
+  --terminal-font-size: 12.5px;
+  --terminal-padding: 14px;
   --row-height: 34px;
   /* Зазор между строками сайдбара: выделенные соседние строки не слипаются. */
   --row-spacing: 3px;
@@ -181,6 +188,7 @@ body {
   --titlebar-height: 12px;
   /* Кнопок окна нет, но кнопкам панелей шапка всё равно нужна. */
   --workspace-header-height: 40px;
+  --traffic-lights-width: 0px;
 }
 
 :root[data-platform='linux'] body {
@@ -1323,37 +1331,83 @@ ul {
 .workspace {
   position: relative;
   display: flex;
-  flex-direction: column;
   flex: 1;
   min-width: 0;
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
 }
 
+/* Чаты со своей шапкой; терминал стоит рядом во всю высоту окна. */
+.workspace__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
 /*
- * Шапка над чатами и терминалом: за неё окно можно перетаскивать с любого места сверху.
- * Она поверх страниц настроек и репозитория — кнопки панелей доступны и там.
+ * Шапка над чатами: слева название чата, справа кнопки панелей. За неё окно можно
+ * перетаскивать с любого места сверху. Она поверх страниц настроек и репозитория — кнопки
+ * панелей доступны и там. Линии под шапкой нет: лента растворяется под ней (см. chat-view).
  */
 .workspace__header {
   position: relative;
   z-index: 3;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: var(--workspace-title-gap);
   flex-shrink: 0;
   height: var(--workspace-header-height);
-  padding: 0 var(--workspace-header-padding);
+  padding: 0 var(--workspace-header-padding) 0 var(--workspace-title-inset);
   -webkit-app-region: drag;
 }
 
-/* Без сайдбара шапка уступает место кнопкам окна. */
 .app[data-sidebar='hidden'] .workspace {
   border-left: none;
+}
+
+/* Без сайдбара название уступает место кнопкам окна. */
+.app[data-sidebar='hidden'] .workspace__header {
+  padding-left: calc(var(--traffic-lights-width) + var(--workspace-title-inset));
+}
+
+.workspace-title {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-title-gap);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.workspace-title__chat {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+}
+
+.workspace-title__separator {
+  flex-shrink: 0;
+  width: 1px;
+  height: 14px;
+  background: var(--color-text-muted);
+  opacity: 0.4;
+}
+
+.workspace-title__project {
+  /* Название проекта всегда целиком: место уступает название чата. */
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-weight: 400;
 }
 
 .workspace-toolbar {
   display: flex;
   gap: var(--toolbar-gap);
+  margin-left: auto;
   -webkit-app-region: no-drag;
 }
 
@@ -1362,8 +1416,14 @@ ul {
   place-items: center;
   width: var(--toolbar-button-size);
   height: var(--toolbar-button-size);
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: var(--radius);
   color: var(--color-text-muted);
+  -webkit-app-region: no-drag;
+}
+
+.workspace-toolbar__button .icon {
+  width: var(--toolbar-icon-size);
+  height: var(--toolbar-icon-size);
 }
 
 .workspace-toolbar__button:hover:not(:disabled) {
@@ -1380,16 +1440,10 @@ ul {
   opacity: 0.4;
 }
 
-.workspace__body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
 .workspace__chats {
   position: relative;
   flex: 1;
-  min-width: 0;
+  min-height: 0;
 }
 
 .workspace__empty {
@@ -1496,42 +1550,14 @@ ul {
   display: none;
 }
 
-/* Граница панели продолжается через шапку до верха окна, как у сайдбара. */
-.terminal-panel::before {
-  content: '';
-  position: absolute;
-  bottom: 100%;
-  left: -1px;
-  height: var(--workspace-header-height);
-  border-left: 1px solid var(--color-border);
-}
-
-.terminal-panel__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  height: var(--chat-pane-header-height);
-  padding: 0 8px 0 var(--terminal-padding);
-  color: var(--color-text-muted);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.terminal-panel__icon {
-  width: var(--chat-pane-close-icon-size);
-  height: var(--chat-pane-close-icon-size);
-}
-
-.terminal-panel__title {
-  flex: 1;
-  font-size: var(--font-size-small);
-  font-weight: 500;
-}
-
+/*
+ * Терминал начинается от самого верха окна, без шапки: закрывают его кнопкой в шапке чата.
+ * Справа место под полосу прокрутки xterm, снизу — чтобы последняя строка не липла к краю.
+ */
 .terminal-view {
   flex: 1;
   min-height: 0;
-  padding: var(--terminal-padding) 0 0 var(--terminal-padding);
+  padding: var(--terminal-padding) 4px var(--terminal-padding) var(--terminal-padding);
 }
 
 .terminal-view[hidden] {
@@ -1559,7 +1585,15 @@ ul {
   overflow-y: auto;
   /* Низ держит сама лента: подстройка браузера сдвигала бы scrollTop, как прокрутка вверх. */
   overflow-anchor: none;
-  padding: 0 var(--chat-gutter) var(--chat-gutter);
+  padding: var(--header-fade-height) var(--chat-gutter) var(--chat-gutter);
+}
+
+/*
+ * Вместо линии под шапкой лента плавно растворяется, уходя под неё. Отступ сверху равен
+ * высоте затухания, поэтому в начале ленты ничего не приглушено.
+ */
+.chat-view:not([data-empty='true']) .chat-view__scroll {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--header-fade-height));
 }
 
 .chat-view__column,

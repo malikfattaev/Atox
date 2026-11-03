@@ -1,5 +1,4 @@
 import { useState, type CSSProperties } from 'react'
-import { SquareTerminal, X } from 'lucide-react'
 import { TERMINAL_WIDTH } from '../../../shared/settings'
 import { useSettings } from '../hooks/SettingsContext'
 import { PanelResizer } from './PanelResizer'
@@ -36,21 +35,6 @@ export function TerminalPanel({
       hidden={shownProjectId === null}
       style={{ '--terminal-width': `${width}px` } as CSSProperties}
     >
-      <header className="terminal-panel__header">
-        <SquareTerminal className="icon terminal-panel__icon" />
-        <span className="terminal-panel__title">Terminal</span>
-        {shownProjectId && (
-          <button
-            type="button"
-            className="chat-pane__close"
-            aria-label="Hide terminal"
-            title="Hide terminal"
-            onClick={() => onClose(shownProjectId)}
-          >
-            <X className="icon" />
-          </button>
-        )}
-      </header>
       {projectIds.map((projectId) => (
         <TerminalView
           key={projectId}
