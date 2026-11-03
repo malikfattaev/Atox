@@ -71,6 +71,7 @@ jobs:
       - if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libarchive-tools
 
+      # На Linux node-pty собирается из исходников: готовых сборок под него в пакете нет.
       - run: npm ci
 
       - run: npm run typecheck

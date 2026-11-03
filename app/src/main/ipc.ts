@@ -14,7 +14,8 @@ import {
   IpcChannel,
   type ContextMenuItem,
   type MenuPosition,
-  type GitBranches
+  type GitBranches,
+  type TerminalSize
 } from '../shared/api'
 import type {
   ChatConfiguration,
@@ -39,12 +40,14 @@ import { createColorSwatch } from './menuSwatch'
 import { savePastedImage } from './pastedImages'
 import type { RepositoryReader } from './repository'
 import { getUserProfile } from './system'
+import type { TerminalManager } from './terminals'
 import type { AppUpdater } from './updater'
 
 interface AppServices {
   store: ProjectStore
   settings: SettingsStore
   conversations: ConversationManager
+  terminals: TerminalManager
   branches: GitBranchTracker
   repository: RepositoryReader
   agents: AgentDetector
@@ -57,6 +60,7 @@ export function registerIpcHandlers({
   store,
   settings,
   conversations,
+  terminals,
   branches,
   repository,
   agents,
@@ -100,6 +104,7 @@ export function registerIpcHandlers({
       }))
     if (confirmed) {
       store.removeProject(projectId)
+      terminals.kill(projectId)
       await Promise.all(project.chats.map((chat) => conversations.remove(chat.id)))
       trackProjectBranches()
     }
@@ -294,6 +299,18 @@ export function registerIpcHandlers({
       conversations.answerRequest(chatId, String(itemId), parseRequestAnswer(answer))
   )
 
+  ipcMain.handle(IpcChannel.TerminalsAttach, (_event, projectId: string, size: unknown) =>
+    terminals.attach(projectId, store.getProject(projectId).path, parseTerminalSize(size))
+  )
+  ipcMain.on(IpcChannel.TerminalsWrite, (_event, projectId: string, data: unknown) => {
+    if (typeof data === 'string') {
+      terminals.write(projectId, data)
+    }
+  })
+  ipcMain.on(IpcChannel.TerminalsResize, (_event, projectId: string, size: unknown) =>
+    terminals.resize(projectId, parseTerminalSize(size))
+  )
+
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
     savePastedImage(data, type)
   )
@@ -359,6 +376,15 @@ function parseConfiguration(value: unknown): ChatConfiguration {
     ...(model !== undefined && { model }),
     ...(effort !== undefined && { effort })
   }
+}
+
+/** Размер терминала из окна: целое число символов, не меньше одного. */
+function parseTerminalSize(value: unknown): TerminalSize {
+  const source =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const dimension = (field: unknown) =>
+    typeof field === 'number' && Number.isFinite(field) ? Math.max(1, Math.floor(field)) : 1
+  return { cols: dimension(source['cols']), rows: dimension(source['rows']) }
 }
 
 function showContextMenu(
@@ -451,12 +477,20 @@ function isInputValue(value: unknown): value is InputValue {
   )
 }
 
+export function broadcastTerminalData(projectId: string, data: string): void {
+  broadcast(IpcChannel.TerminalsData, projectId, data)
+}
+
+export function broadcastTerminalExit(projectId: string): void {
+  broadcast(IpcChannel.TerminalsExit, projectId)
+}
+
 export function broadcastConversationEvent(event: ConversationEvent): void {
   broadcast(IpcChannel.ConversationsEvent, event)
 }
 
-function broadcast(channel: string, payload: unknown): void {
+function broadcast(channel: string, ...payload: unknown[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload)
+    window.webContents.send(channel, ...payload)
   }
 }

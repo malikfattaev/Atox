@@ -154,7 +154,8 @@ function killGroup(pid: number | undefined): void {
   }
 }
 
-function sessionEnvironment(): Record<string, string> {
+/** Базовое окружение сеанса без профиля пользователя: с ним стартует оболочка входа. */
+export function sessionEnvironment(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const key of SESSION_ENV_KEYS) {
     const value = process.env[key]

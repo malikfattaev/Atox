@@ -46,6 +46,30 @@ function createConversationEventHub() {
 
 const conversationEvents = createConversationEventHub()
 
+/** Как и события разговоров: один IPC-слушатель на канал, раздающий события по терминалам. */
+function createKeyedHub<Payload>(channel: string) {
+  const listeners = new Map<string, Set<Listener<Payload>>>()
+
+  ipcRenderer.on(channel, (_event, key: string, payload: Payload) => {
+    listeners.get(key)?.forEach((listener) => listener(payload))
+  })
+
+  return (key: string, listener: Listener<Payload>) => {
+    const keyListeners = listeners.get(key) ?? new Set()
+    keyListeners.add(listener)
+    listeners.set(key, keyListeners)
+    return () => {
+      keyListeners.delete(listener)
+      if (keyListeners.size === 0) {
+        listeners.delete(key)
+      }
+    }
+  }
+}
+
+const onTerminalData = createKeyedHub<string>(IpcChannel.TerminalsData)
+const onTerminalExit = createKeyedHub<void>(IpcChannel.TerminalsExit)
+
 /** Подписка на событие main-процесса; возвращает отписку. */
 function subscribe<Payload>(channel: string, listener: Listener<Payload>): () => void {
   const handler = (_event: Electron.IpcRendererEvent, payload: Payload) => listener(payload)
@@ -101,6 +125,13 @@ const api: AtoxApi = {
       ipcRenderer.invoke(IpcChannel.ConversationsAnswerRequest, chatId, itemId, answer),
     onEvent: conversationEvents.onEvent,
     onRunningChange: conversationEvents.onRunningChange
+  },
+  terminals: {
+    attach: (projectId, size) => ipcRenderer.invoke(IpcChannel.TerminalsAttach, projectId, size),
+    write: (projectId, data) => ipcRenderer.send(IpcChannel.TerminalsWrite, projectId, data),
+    resize: (projectId, size) => ipcRenderer.send(IpcChannel.TerminalsResize, projectId, size),
+    onData: onTerminalData,
+    onExit: (projectId, listener) => onTerminalExit(projectId, () => listener())
   },
   files: {
     getPath: (file) => webUtils.getPathForFile(file),

@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import type { ConversationManager } from './conversations/manager'
 import { confirm, describeWorkingAgents } from './dialogs'
+import type { TerminalManager } from './terminals'
 
 interface Flushable {
   flush(): Promise<void>
@@ -13,15 +14,20 @@ export interface QuitHandling {
 
 interface QuitHandlingOptions {
   conversations: ConversationManager
+  terminals: TerminalManager
   /** Хранилища, чьи записи на диск нужно дождаться перед выходом. */
   stores: Flushable[]
 }
 
 /**
- * Выход из приложения: подтверждение, если в чатах работают агенты, их остановка
- * и ожидание записи данных на диск.
+ * Выход из приложения: подтверждение, если в чатах работают агенты, их остановка вместе
+ * с оболочками терминалов и ожидание записи данных на диск.
  */
-export function setupQuitHandling({ conversations, stores }: QuitHandlingOptions): QuitHandling {
+export function setupQuitHandling({
+  conversations,
+  terminals,
+  stores
+}: QuitHandlingOptions): QuitHandling {
   let quitConfirmed = false
   let storesFlushed = false
   const cancelListeners = new Set<() => void>()
@@ -44,6 +50,7 @@ export function setupQuitHandling({ conversations, stores }: QuitHandlingOptions
       quitConfirmed = true
     }
     conversations.closeAll()
+    terminals.killAll()
   })
 
   // Выход откладывается, пока не допишутся изменения: последние из них приходят из окна,

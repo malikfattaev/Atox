@@ -53,6 +53,12 @@ export interface MenuPosition {
   y: number
 }
 
+/** Размер терминала в символах. */
+export interface TerminalSize {
+  cols: number
+  rows: number
+}
+
 /** Текущая ветка git по пути папки проекта; `null` — папка не репозиторий git. */
 export type GitBranches = Record<string, string | null>
 
@@ -130,6 +136,16 @@ export interface AtoxApi {
     onEvent(chatId: string, listener: (event: ConversationEvent) => void): () => void
     /** Агент какого-либо чата начал или закончил работу. */
     onRunningChange(listener: (chatId: string, running: boolean) => void): () => void
+  }
+  /** Терминал проекта в панели справа от чатов: оболочка в папке проекта. */
+  terminals: {
+    /** Запускает оболочку проекта, если она не запущена, и возвращает её накопленный вывод. */
+    attach(projectId: string, size: TerminalSize): Promise<string>
+    write(projectId: string, data: string): void
+    resize(projectId: string, size: TerminalSize): void
+    onData(projectId: string, listener: (data: string) => void): () => void
+    /** Оболочка завершилась, например по `exit`. */
+    onExit(projectId: string, listener: () => void): () => void
   }
   files: {
     /** Путь на диске к файлу, перетащенному в окно. */
@@ -227,6 +243,11 @@ export const IpcChannel = {
   ConversationsAnswerRequest: 'conversations:answer-request',
   ConversationsCommands: 'conversations:commands',
   ConversationsEvent: 'conversations:event',
+  TerminalsAttach: 'terminals:attach',
+  TerminalsWrite: 'terminals:write',
+  TerminalsResize: 'terminals:resize',
+  TerminalsData: 'terminals:data',
+  TerminalsExit: 'terminals:exit',
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',

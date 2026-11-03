@@ -15,9 +15,12 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p src/main && tsc -p src/cli && tsc -p src/preload && tsc -p src/renderer",
-    "postinstall": "install-electron --no",
+    "postinstall": "install-electron --no && chmod +x node_modules/node-pty/prebuilds/*/spawn-helper",
     "package": "electron-vite build && electron-builder",
     "release:manifest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/release-manifest.ts"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.316",
@@ -29,6 +32,10 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
@@ -51,6 +58,9 @@
     "files": [
       "out/**/*"
     ],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
     "npmRebuild": false,
     "electronLanguages": [
       "en",
@@ -63,7 +73,12 @@
         "zip"
       ],
       "identity": "-",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "files": [
+        "out/**/*",
+        "!node_modules/node-pty/build/**",
+        "!node_modules/node-pty/prebuilds/win32-*/**"
+      ]
     },
     "linux": {
       "target": [
@@ -74,7 +89,15 @@
       "executableName": "atox",
       "syncDesktopName": true,
       "maintainer": "Malik Fattaev",
-      "synopsis": "Projects and chats with coding agents"
+      "synopsis": "Projects and chats with coding agents",
+      "files": [
+        "out/**/*",
+        "!node_modules/node-pty/prebuilds/**",
+        "!node_modules/node-pty/build/Release/obj.target/**",
+        "!node_modules/node-pty/build/Release/.deps/**",
+        "!node_modules/node-pty/build/**/*.{mk,Makefile,gypi}",
+        "!node_modules/node-pty/build/{Makefile,config.gypi,node_gyp_bins}"
+      ]
     },
     "pacman": {
       "depends": [

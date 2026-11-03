@@ -12,6 +12,8 @@ import {
   broadcastGitBranches,
   broadcastConversationEvent,
   broadcastProjectsChanged,
+  broadcastTerminalData,
+  broadcastTerminalExit,
   broadcastUpdateReady,
   registerIpcHandlers
 } from './ipc'
@@ -23,6 +25,7 @@ import { RepositoryReader } from './repository'
 import { SettingsStore } from './settings'
 import { ShellEnvironment } from './shellEnvironment'
 import { ProjectStore } from './store'
+import { TerminalManager } from './terminals'
 import { createUpdateInstaller } from './updateInstallers'
 import { AppUpdater } from './updater'
 import { createMainWindow } from './window'
@@ -92,6 +95,10 @@ async function bootstrap(): Promise<void> {
     onEvent: broadcastConversationEvent,
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
   })
+  const terminals = new TerminalManager(app.getName(), {
+    onData: broadcastTerminalData,
+    onExit: broadcastTerminalExit
+  })
   const branches = new GitBranchTracker(broadcastGitBranches)
   // Обновляется только собранное приложение; адрес релизов можно подменить для проверки обновлений.
   const updateInstaller = app.isPackaged ? createUpdateInstaller() : null
@@ -133,6 +140,7 @@ async function bootstrap(): Promise<void> {
     store,
     settings,
     conversations,
+    terminals,
     branches,
     repository: new RepositoryReader(shell),
     updater,
@@ -146,6 +154,7 @@ async function bootstrap(): Promise<void> {
 
   const quitHandling = setupQuitHandling({
     conversations,
+    terminals,
     stores: [store, settings]
   })
   if (updater) {
