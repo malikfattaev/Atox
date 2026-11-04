@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
-import { findAgent } from '../../../shared/agents'
 import {
   isChatCommand,
   type AgentCommand,
@@ -262,8 +261,6 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     }
   }, [focused])
 
-  const agentName = findAgent(chat.agent)?.name ?? chat.agent
-
   const removeAttachment = (path: string) =>
     setAttachments((current) => current.filter((attachment) => attachment.path !== path))
 
@@ -337,7 +334,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
             className="composer__input"
             rows={1}
             value={text}
-            placeholder={running ? `Send a follow-up to ${agentName}` : `Ask ${agentName} anything`}
+            placeholder={running ? 'Send a follow-up' : 'Ask me anything'}
             spellCheck={false}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={handleKeyDown}
