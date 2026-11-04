@@ -129,8 +129,8 @@ const api: AtoxApi = {
   conversations: {
     snapshot: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsSnapshot, chatId),
     summaries: () => ipcRenderer.invoke(IpcChannel.ConversationsSummaries),
-    send: (chatId, text, images = []) =>
-      ipcRenderer.invoke(IpcChannel.ConversationsSend, chatId, text, images),
+    send: (chatId, text, attachments = {}) =>
+      ipcRenderer.invoke(IpcChannel.ConversationsSend, chatId, text, attachments),
     commands: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsCommands, chatId),
     runCommand: (chatId, command) =>
       ipcRenderer.invoke(IpcChannel.ConversationsRunCommand, chatId, command),
@@ -151,6 +151,7 @@ const api: AtoxApi = {
   },
   files: {
     getPath: (file) => webUtils.getPathForFile(file),
+    pick: () => ipcRenderer.invoke(IpcChannel.FilesPick),
     savePastedImage: async (image) =>
       ipcRenderer.invoke(IpcChannel.FilesSavePastedImage, await image.arrayBuffer(), image.type)
   },

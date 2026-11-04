@@ -1,4 +1,5 @@
 import type { AgentId } from './agents'
+import type { MessageAttachments, PickedFile } from './attachments'
 import type { ChangesResult, FileDiff } from './changes'
 import type { AppCommand } from './commands'
 import type {
@@ -130,8 +131,8 @@ export interface AtoxApi {
     snapshot(chatId: string): Promise<ConversationSnapshot>
     /** Сводки всех начатых разговоров — для обзора агентов. */
     summaries(): Promise<ConversationSummary[]>
-    /** `images` — пути к картинкам, которые агент получит вместе с текстом. */
-    send(chatId: string, text: string, images?: readonly string[]): Promise<void>
+    /** `attachments` — пути к картинкам и файлам, которые агент получит вместе с текстом. */
+    send(chatId: string, text: string, attachments?: MessageAttachments): Promise<void>
     /** Команды агента чата для подсказок после «/». */
     commands(chatId: string): Promise<AgentCommand[]>
     /** Выполняет команду Atox (`/usage`, `/context`, `/clear`), не отправляя её агенту. */
@@ -164,6 +165,8 @@ export interface AtoxApi {
   files: {
     /** Путь на диске к файлу, перетащенному в окно. */
     getPath(file: File): string
+    /** Системный диалог выбора файлов для сообщения; пустой список — пользователь передумал. */
+    pick(): Promise<PickedFile[]>
     /** Сохраняет вставленную картинку во временный файл и возвращает путь к нему. */
     savePastedImage(image: File): Promise<string>
   }
@@ -275,6 +278,7 @@ export const IpcChannel = {
   TerminalsData: 'terminals:data',
   TerminalsExit: 'terminals:exit',
   FilesSavePastedImage: 'files:save-pasted-image',
+  FilesPick: 'files:pick',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
   ChangesList: 'changes:list',

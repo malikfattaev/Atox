@@ -41,6 +41,7 @@ import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
 import { createColorSwatch } from './menuSwatch'
 import { savePastedImage } from './pastedImages'
+import { pickFiles } from './pickedFiles'
 import type { RepositoryReader } from './repository'
 import { getUserProfile } from './system'
 import type { TerminalManager } from './terminals'
@@ -287,12 +288,13 @@ export function registerIpcHandlers({
   )
   ipcMain.handle(
     IpcChannel.ConversationsSend,
-    (_event, chatId: string, text: unknown, images: unknown) =>
-      conversations.send(
-        chatId,
-        String(text),
-        Array.isArray(images) ? images.filter((path) => typeof path === 'string') : []
-      )
+    (_event, chatId: string, text: unknown, attachments: unknown) => {
+      const record = typeof attachments === 'object' && attachments !== null ? attachments : {}
+      return conversations.send(chatId, String(text), {
+        images: 'images' in record ? stringList(record.images) : [],
+        files: 'files' in record ? stringList(record.files) : []
+      })
+    }
   )
   ipcMain.handle(IpcChannel.ConversationsCommands, (_event, chatId: string) =>
     conversations.commands(chatId)
@@ -324,6 +326,9 @@ export function registerIpcHandlers({
     terminals.resize(projectId, parseTerminalSize(size))
   )
 
+  ipcMain.handle(IpcChannel.FilesPick, (event) =>
+    pickFiles(BrowserWindow.fromWebContents(event.sender))
+  )
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
     savePastedImage(data, type)
   )
@@ -495,6 +500,11 @@ export function broadcastProjectsChanged(projects: Project[]): void {
 
 export function broadcastGitBranches(branches: GitBranches): void {
   broadcast(IpcChannel.GitBranchesChanged, branches)
+}
+
+/** Строки из списка, который прислало окно; всё остальное отбрасывается. */
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
 }
 
 /** Ответ окна на запрос агента: всё, кроме явного согласия, — отказ. */

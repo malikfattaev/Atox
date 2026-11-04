@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { findAgent, type AgentId } from '../../shared/agents'
+import type { MessageAttachments } from '../../shared/attachments'
 import {
   applyConversationEvent,
   pendingRequest,
@@ -103,9 +104,13 @@ export class ConversationManager {
     return this.conversation(chatId).snapshot
   }
 
-  async send(chatId: string, text: string, images: readonly string[] = []): Promise<void> {
+  async send(
+    chatId: string,
+    text: string,
+    { images = [], files = [] }: MessageAttachments = {}
+  ): Promise<void> {
     const message = text.trim()
-    if (!message && images.length === 0) {
+    if (!message && images.length === 0 && files.length === 0) {
       return
     }
     const conversation = this.conversation(chatId)
@@ -115,6 +120,7 @@ export class ConversationManager {
       id: randomUUID(),
       text: message,
       ...(images.length > 0 && { images: [...images] }),
+      ...(files.length > 0 && { files: [...files] }),
       createdAt: Date.now()
     }
     this.emit(chatId, conversation, { type: 'item', item })
@@ -125,7 +131,7 @@ export class ConversationManager {
     ) {
       this.services.onProjectsChanged()
     }
-    conversation.queue.push({ itemId: item.id, text: message, images })
+    conversation.queue.push({ itemId: item.id, text: withAttachedFiles(message, files), images })
     this.pump(chatId, conversation)
   }
 
@@ -544,4 +550,13 @@ export class ConversationManager {
       this.emit(chatId, conversation, { type: 'running', running })
     }
   }
+}
+
+/** Пути приложенных файлов агент получает в конце сообщения и открывает их сам. */
+function withAttachedFiles(text: string, files: readonly string[]): string {
+  if (files.length === 0) {
+    return text
+  }
+  const list = files.map((path) => `- ${path}`).join('\n')
+  return [text, `Attached files:\n${list}`].filter(Boolean).join('\n\n')
 }
