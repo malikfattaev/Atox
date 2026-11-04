@@ -38,8 +38,6 @@
   --icon-size: 17px;
   --avatar-size: 26px;
   --profile-actions-gap: 6px;
-  --update-button-height: 24px;
-  --update-button-padding: 12px;
   --status-dot-size: 8px;
   --status-gap: 8px;
   --chat-row-padding: 7px;
@@ -765,19 +763,13 @@ ul {
   flex-shrink: 0;
 }
 
-/* Кнопка появляется, когда новая версия скачана и проверена: по клику приложение перезапускается. */
-.update-button {
-  height: var(--update-button-height);
-  padding: 0 var(--update-button-padding);
-  border-radius: calc(var(--update-button-height) / 2);
-  font-size: var(--font-size-small);
-  font-weight: 500;
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-}
-
+/*
+ * Кнопка появляется, когда новая версия скачана и проверена: по клику приложение перезапускается.
+ * Такая же, как кнопка настроек рядом, только синяя.
+ */
+.update-button,
 .update-button:hover {
-  filter: brightness(1.08);
+  color: var(--color-accent);
 }
 
 .profile-bar__name {

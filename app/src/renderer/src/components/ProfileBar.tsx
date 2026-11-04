@@ -1,4 +1,4 @@
-import { Settings } from 'lucide-react'
+import { CircleArrowDown, Settings } from 'lucide-react'
 import { useReadyUpdate } from '../hooks/useReadyUpdate'
 import { useUserProfile } from '../hooks/useUserProfile'
 
@@ -23,11 +23,12 @@ export function ProfileBar({ onOpenSettings }: ProfileBarProps) {
         {updateVersion && (
           <button
             type="button"
-            className="update-button"
+            className="icon-button update-button"
+            aria-label={`Restart to update to Atox ${updateVersion}`}
             title={`Restart to update to Atox ${updateVersion}`}
             onClick={() => window.atox.updates.install()}
           >
-            Update
+            <CircleArrowDown className="icon" />
           </button>
         )}
         <button
