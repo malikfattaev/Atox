@@ -1,23 +1,18 @@
 import { useState, type CSSProperties, type MouseEvent } from 'react'
-import { ChevronDown } from 'lucide-react'
-import type { ContextMenuItem, MenuPosition } from '../../../shared/api'
+import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { Space } from '../../../shared/models'
 import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
 import { colorSchemeQuery } from '../lib/colorScheme'
+import { showMenu, type MenuAnchor, type MenuItem } from '../lib/menu'
 import { InlineRename } from './InlineRename'
-
-const { atox } = window
 
 /** Пункт списка пространств: `space:<id>`. */
 const SPACE_ACTION_PREFIX = 'space:'
 
 /** Сколько пространств доступно по ⌃1…⌃9. */
 const NUMBERED_SPACES = 9
-
-/** Зазор между строкой и меню, которое открывается под ней. */
-const MENU_OFFSET = 4
 
 /**
  * Текущее пространство — заголовок над списком проектов, как разделы в Finder. Клик открывает меню со всеми пространствами
@@ -40,9 +35,9 @@ export function SpacePicker() {
     return null
   }
 
-  const openMenu = async (position?: MenuPosition) => {
+  const openMenu = async (anchor: MenuAnchor) => {
     const isDark = colorSchemeQuery.matches
-    const items: ContextMenuItem<string>[] = [
+    const items: MenuItem<string>[] = [
       ...spaces.map((other, index) => ({
         action: `${SPACE_ACTION_PREFIX}${other.id}`,
         label: other.name,
@@ -51,15 +46,22 @@ export function SpacePicker() {
         accelerator: index < NUMBERED_SPACES ? `Ctrl+${index + 1}` : undefined
       })),
       { type: 'separator' },
-      { action: 'create', label: 'New Space', symbol: 'plus' },
+      { action: 'create', label: 'New Space', icon: <Plus /> },
       { type: 'separator' },
-      { action: 'rename', label: 'Rename Space', symbol: 'pencil' },
+      { action: 'rename', label: 'Rename Space', icon: <Pencil /> },
       colorSubmenu(space.color),
       ...(spaces.length > 1
-        ? [{ action: 'remove', label: 'Delete Space', symbol: 'trash' } as const]
+        ? [
+            {
+              action: 'remove',
+              label: 'Delete Space',
+              icon: <Trash2 />,
+              destructive: true
+            } as const
+          ]
         : [])
     ]
-    const action = await atox.showContextMenu(items, position)
+    const action = await showMenu(items, anchor)
     handleAction(space, action)
   }
 
@@ -79,13 +81,12 @@ export function SpacePicker() {
   }
 
   const openBelow = (event: MouseEvent<HTMLElement>) => {
-    const { left, bottom } = event.currentTarget.getBoundingClientRect()
-    void openMenu({ x: left, y: bottom + MENU_OFFSET })
+    void openMenu(event.currentTarget)
   }
 
   const openAtCursor = (event: MouseEvent) => {
     event.preventDefault()
-    void openMenu()
+    void openMenu(event)
   }
 
   const color = findProjectColor(space.color)

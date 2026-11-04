@@ -1,16 +1,25 @@
 import { useEffect, useId, useState, type CSSProperties, type MouseEvent } from 'react'
-import { Folder, FolderOpen, Plus } from 'lucide-react'
+import {
+  Copy,
+  Folder,
+  FolderMinus,
+  FolderOpen,
+  GitPullRequest,
+  Layers,
+  Pencil,
+  Plus,
+  SquarePen
+} from 'lucide-react'
 import { topLevelChats, workerChats } from '../../../shared/chats'
 import type { Project } from '../../../shared/models'
 import { IS_MAC } from '../../../shared/platform'
 import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
+import { showMenu } from '../lib/menu'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
-
-const { atox } = window
 
 /** Папка открывается в файловом менеджере системы: на macOS это Finder. */
 const REVEAL_LABEL = IS_MAC ? 'Open in Finder' : 'Open in File Manager'
@@ -70,38 +79,41 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
-    const action = await atox.showContextMenu([
-      { action: 'create-chat', label: 'New chat', symbol: 'square.and.pencil' },
-      ...(branch
-        ? [
-            {
-              action: 'repository',
-              label: 'Commits, PRs and Issues',
-              symbol: 'arrow.triangle.pull'
-            }
-          ]
-        : []),
-      { type: 'separator' },
-      { action: 'rename', label: 'Rename', symbol: 'pencil' },
-      colorSubmenu(project.color),
-      ...(otherSpaces.length > 0
-        ? [
-            {
-              type: 'submenu' as const,
-              label: 'Move to Space',
-              symbol: 'rectangle.stack',
-              items: otherSpaces.map((space) => ({
-                action: `${SPACE_ACTION_PREFIX}${space.id}`,
-                label: space.name
-              }))
-            }
-          ]
-        : []),
-      { action: 'reveal', label: REVEAL_LABEL, symbol: 'folder' },
-      { action: 'copy-path', label: 'Copy path', symbol: 'doc.on.doc' },
-      { type: 'separator' },
-      { action: 'remove', label: 'Remove from list', symbol: 'folder.badge.minus' }
-    ])
+    const action = await showMenu(
+      [
+        { action: 'create-chat', label: 'New chat', icon: <SquarePen /> },
+        ...(branch
+          ? [
+              {
+                action: 'repository',
+                label: 'Commits, PRs and Issues',
+                icon: <GitPullRequest />
+              }
+            ]
+          : []),
+        { type: 'separator' },
+        { action: 'rename', label: 'Rename', icon: <Pencil /> },
+        colorSubmenu(project.color),
+        ...(otherSpaces.length > 0
+          ? [
+              {
+                type: 'submenu' as const,
+                label: 'Move to Space',
+                icon: <Layers />,
+                items: otherSpaces.map((space) => ({
+                  action: `${SPACE_ACTION_PREFIX}${space.id}`,
+                  label: space.name
+                }))
+              }
+            ]
+          : []),
+        { action: 'reveal', label: REVEAL_LABEL, icon: <Folder /> },
+        { action: 'copy-path', label: 'Copy path', icon: <Copy /> },
+        { type: 'separator' },
+        { action: 'remove', label: 'Remove from list', icon: <FolderMinus /> }
+      ],
+      event
+    )
     const color = parseColorAction(action)
     if (color !== undefined) {
       void setProjectColor(project.id, color)

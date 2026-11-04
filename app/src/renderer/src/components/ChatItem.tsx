@@ -1,16 +1,15 @@
 import { useId, useMemo, useState, type MouseEvent } from 'react'
-import { ChevronDown, GitBranch } from 'lucide-react'
+import { ChevronDown, Columns2, GitBranch, Pencil, Trash2 } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
 import { isCommandClick } from '../../../shared/shortcuts'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useProjectsContext } from '../hooks/ProjectsContext'
+import { showMenu } from '../lib/menu'
 import { AgentIcon } from './AgentIcon'
 import { ChatStatus } from './ChatStatus'
 import { InlineRename } from './InlineRename'
 import { useSortableItem } from './SortableList'
-
-const { atox } = window
 
 interface ChatItemProps {
   chat: Chat
@@ -130,21 +129,24 @@ function ChatRow({
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
-    const action = await atox.showContextMenu([
-      ...(canOpenBeside
-        ? [
-            {
-              action: 'open-beside' as const,
-              label: 'Open to the Side',
-              symbol: 'rectangle.split.2x1'
-            },
-            { type: 'separator' as const }
-          ]
-        : []),
-      { action: 'rename', label: 'Rename', symbol: 'pencil' },
-      { type: 'separator' },
-      { action: 'remove', label: 'Delete chat', symbol: 'trash' }
-    ])
+    const action = await showMenu(
+      [
+        ...(canOpenBeside
+          ? [
+              {
+                action: 'open-beside' as const,
+                label: 'Open to the Side',
+                icon: <Columns2 />
+              },
+              { type: 'separator' as const }
+            ]
+          : []),
+        { action: 'rename', label: 'Rename', icon: <Pencil /> },
+        { type: 'separator' },
+        { action: 'remove', label: 'Delete chat', icon: <Trash2 />, destructive: true }
+      ],
+      event
+    )
     if (action === 'open-beside') {
       openChatBeside(chat.id)
     } else if (action === 'rename') {

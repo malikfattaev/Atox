@@ -4,20 +4,9 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  Menu,
-  nativeImage,
-  shell,
-  type IpcMainInvokeEvent,
-  type MenuItemConstructorOptions,
-  type NativeImage
+  shell
 } from 'electron'
-import {
-  IpcChannel,
-  type ContextMenuItem,
-  type MenuPosition,
-  type GitBranches,
-  type TerminalSize
-} from '../shared/api'
+import { IpcChannel, type GitBranches, type TerminalSize } from '../shared/api'
 import {
   isChatCommand,
   type ChatConfiguration,
@@ -26,7 +15,6 @@ import {
   type RequestAnswer
 } from '../shared/conversation'
 import type { Project } from '../shared/models'
-import { IS_MAC } from '../shared/platform'
 import { isProjectColor } from '../shared/projectColors'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
@@ -40,7 +28,6 @@ import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
-import { createColorSwatch } from './menuSwatch'
 import { savePastedImage } from './pastedImages'
 import { pickFiles } from './pickedFiles'
 import type { RepositoryReader } from './repository'
@@ -406,7 +393,6 @@ export function registerIpcHandlers({
     menu.setRecordingShortcut(recording === true)
   )
 
-  ipcMain.handle(IpcChannel.ContextMenu, showContextMenu)
 }
 
 /** Настройки чата из окна: берутся только известные поля нужных типов. */
@@ -431,59 +417,6 @@ function parseTerminalSize(value: unknown): TerminalSize {
   const dimension = (field: unknown) =>
     typeof field === 'number' && Number.isFinite(field) ? Math.max(1, Math.floor(field)) : 1
   return { cols: dimension(source['cols']), rows: dimension(source['rows']) }
-}
-
-function showContextMenu(
-  event: IpcMainInvokeEvent,
-  items: ContextMenuItem<string>[],
-  position?: MenuPosition
-): Promise<string | null> {
-  return new Promise((resolve) => {
-    const menu = Menu.buildFromTemplate(buildMenuTemplate(items, resolve))
-    menu.popup({
-      window: BrowserWindow.fromWebContents(event.sender) ?? undefined,
-      // Меню принимает только целые координаты.
-      ...(position && { x: Math.round(position.x), y: Math.round(position.y) }),
-      // На macOS закрытие меню приходит раньше клика по пункту, поэтому «ничего не выбрано»
-      // фиксируем в следующем тике: если клик был, промис к этому моменту уже разрешён.
-      callback: () => setTimeout(() => resolve(null))
-    })
-  })
-}
-
-/** Значок пункта меню из SF Symbols; на Linux пункты меню без значков. */
-function menuSymbol(symbol: string | undefined): NativeImage | undefined {
-  return symbol && IS_MAC ? nativeImage.createMenuSymbol(symbol) : undefined
-}
-
-function buildMenuTemplate(
-  items: ContextMenuItem<string>[],
-  onSelect: (action: string) => void
-): MenuItemConstructorOptions[] {
-  return items.map((item) => {
-    switch (item.type) {
-      case 'separator':
-        return { type: 'separator' }
-      case 'submenu':
-        return {
-          label: item.label,
-          icon: menuSymbol(item.symbol),
-          submenu: buildMenuTemplate(item.items, onSelect)
-        }
-      default:
-        return {
-          label: item.label,
-          icon: item.swatch ? createColorSwatch(item.swatch) : menuSymbol(item.symbol),
-          type: item.checked === undefined ? 'normal' : 'checkbox',
-          checked: item.checked,
-          enabled: item.enabled ?? true,
-          accelerator: item.accelerator,
-          // Сочетание только подписано у пункта: срабатывать оно должно у главного меню и окна.
-          registerAccelerator: false,
-          click: () => onSelect(item.action)
-        }
-    }
-  })
 }
 
 export function broadcastUpdateState(state: UpdateState): void {

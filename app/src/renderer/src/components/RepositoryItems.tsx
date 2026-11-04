@@ -5,15 +5,19 @@ import {
   CircleDot,
   CircleSlash,
   CircleX,
+  Copy,
+  ExternalLink,
   GitCommitHorizontal,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
   GitPullRequestDraft,
+  Hash,
+  Link,
   MessageSquare,
+  SquarePen,
   type LucideIcon
 } from 'lucide-react'
-import type { ContextMenuItem } from '../../../shared/api'
 import type {
   CheckStatus,
   Commit,
@@ -23,9 +27,8 @@ import type {
   PullRequestState,
   ReviewDecision
 } from '../../../shared/repository'
+import { showMenu, type MenuItem } from '../lib/menu'
 import { RepositoryRow } from './RepositoryRow'
-
-const { atox } = window
 
 type RowTone = 'open' | 'merged' | 'closed' | 'muted'
 
@@ -57,16 +60,16 @@ const REVIEW_LABEL: Record<NonNullable<ReviewDecision>, string> = {
 /** Пункты контекстного меню строк. */
 type ItemAction = 'open' | 'copy-link' | 'copy-id' | 'copy-title' | 'agent'
 
-const openItem = { action: 'open', label: 'Open on GitHub', symbol: 'safari' } as const
-const copyLinkItem = { action: 'copy-link', label: 'Copy link', symbol: 'link' } as const
+const openItem = { action: 'open', label: 'Open on GitHub', icon: <ExternalLink /> } as const
+const copyLinkItem = { action: 'copy-link', label: 'Copy link', icon: <Link /> } as const
 
 async function showItemMenu(
   event: MouseEvent,
-  items: ContextMenuItem<ItemAction>[],
+  items: MenuItem<ItemAction>[],
   handlers: Partial<Record<ItemAction, () => void>>
 ): Promise<void> {
   event.preventDefault()
-  const action = await atox.showContextMenu(items)
+  const action = await showMenu(items, event)
   if (action) {
     handlers[action]?.()
   }
@@ -111,8 +114,8 @@ export function CommitItem({ commit, repositoryUrl }: CommitItemProps) {
           event,
           [
             ...(url ? [openItem, copyLinkItem, { type: 'separator' as const }] : []),
-            { action: 'copy-id', label: 'Copy hash', symbol: 'number' },
-            { action: 'copy-title', label: 'Copy message', symbol: 'doc.on.doc' }
+            { action: 'copy-id', label: 'Copy hash', icon: <Hash /> },
+            { action: 'copy-title', label: 'Copy message', icon: <Copy /> }
           ],
           {
             open: () => url && openUrl(url),
@@ -176,9 +179,9 @@ export function PullRequestItem({ pullRequest, onReview }: PullRequestItemProps)
           [
             openItem,
             copyLinkItem,
-            { action: 'copy-id', label: 'Copy number', symbol: 'number' },
+            { action: 'copy-id', label: 'Copy number', icon: <Hash /> },
             { type: 'separator' },
-            { action: 'agent', label: 'Review in new chat', symbol: 'square.and.pencil' }
+            { action: 'agent', label: 'Review in new chat', icon: <SquarePen /> }
           ],
           {
             open: () => openUrl(pullRequest.url),
@@ -227,9 +230,9 @@ export function IssueItem({ issue, onFix }: IssueItemProps) {
           [
             openItem,
             copyLinkItem,
-            { action: 'copy-id', label: 'Copy number', symbol: 'number' },
+            { action: 'copy-id', label: 'Copy number', icon: <Hash /> },
             { type: 'separator' },
-            { action: 'agent', label: 'Fix in new chat', symbol: 'square.and.pencil' }
+            { action: 'agent', label: 'Fix in new chat', icon: <SquarePen /> }
           ],
           {
             open: () => openUrl(issue.url),

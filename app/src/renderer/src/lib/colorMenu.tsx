@@ -1,17 +1,18 @@
-import type { ContextMenuItem } from '../../../shared/api'
+import { Palette } from 'lucide-react'
 import { isProjectColor, PROJECT_COLORS, type ProjectColor } from '../../../shared/projectColors'
 import { colorSchemeQuery } from './colorScheme'
+import type { MenuItem } from './menu'
 
 /** Пункт меню цвета: `color:red`, `color:none` и т. д. */
 const COLOR_ACTION_PREFIX = 'color:'
 const NO_COLOR = 'none'
 
 /** Подменю «Color» с цветными кружками; галочка — на текущем цвете. */
-export function colorSubmenu(selected: ProjectColor | undefined): ContextMenuItem<string> {
+export function colorSubmenu(selected: ProjectColor | undefined): MenuItem<string> {
   return {
     type: 'submenu',
     label: 'Color',
-    symbol: 'paintpalette',
+    icon: <Palette />,
     items: [
       { action: `${COLOR_ACTION_PREFIX}${NO_COLOR}`, label: 'None', checked: !selected },
       { type: 'separator' },

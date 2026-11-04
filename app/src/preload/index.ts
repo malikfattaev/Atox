@@ -211,8 +211,7 @@ const api: AtoxApi = {
       ipcRenderer.on(IpcChannel.AppCommand, handler)
       return () => ipcRenderer.removeListener(IpcChannel.AppCommand, handler)
     }
-  },
-  showContextMenu: (items, position) => ipcRenderer.invoke(IpcChannel.ContextMenu, items, position)
+  }
 }
 
 contextBridge.exposeInMainWorld('atox', api)

@@ -29,36 +29,6 @@ import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
 import type { UpdateState } from './update'
 
-export type ContextMenuItem<Action extends string> =
-  | {
-      type?: 'action'
-      action: Action
-      label: string
-      /** Имя SF Symbol — иконка пункта в системном меню macOS. */
-      symbol?: string
-      /** Цвет в формате #RRGGBB — вместо иконки у пункта цветной кружок. */
-      swatch?: string
-      /** Пункт отмечен галочкой, например текущий выбор. */
-      checked?: boolean
-      /** Сочетание клавиш, которое показывается справа от пункта (само меню его не перехватывает). */
-      accelerator?: string
-      /** `false` — пункт виден, но выбрать его нельзя, например пояснение «Loading…». */
-      enabled?: boolean
-    }
-  | {
-      type: 'submenu'
-      label: string
-      symbol?: string
-      items: ContextMenuItem<Action>[]
-    }
-  | { type: 'separator' }
-
-/** Точка в окне в CSS-пикселях. */
-export interface MenuPosition {
-  x: number
-  y: number
-}
-
 /** Размер терминала в символах. */
 export interface TerminalSize {
   cols: number
@@ -230,14 +200,6 @@ export interface AtoxApi {
   commands: {
     subscribe(listener: (command: AppCommand) => void): () => void
   }
-  /**
-   * Системное меню; `position` — точка в окне, где открыть его (например, под кнопкой),
-   * без неё меню открывается у курсора.
-   */
-  showContextMenu<Action extends string>(
-    items: ContextMenuItem<Action>[],
-    position?: MenuPosition
-  ): Promise<Action | null>
 }
 
 export const IpcChannel = {
@@ -299,6 +261,5 @@ export const IpcChannel = {
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',
   SettingsChanged: 'settings:changed',
-  ShortcutsRecording: 'shortcuts:recording',
-  ContextMenu: 'context-menu'
+  ShortcutsRecording: 'shortcuts:recording'
 } as const

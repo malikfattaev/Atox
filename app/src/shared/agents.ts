@@ -4,18 +4,11 @@ export interface Agent {
   name: string
   /** Программа агента, которую ищем на компьютере пользователя. */
   program: string
-  /** Имя SF Symbol для пункта меню. */
-  symbol: string
 }
 
 export const AGENTS = [
-  { id: 'claude', name: 'Claude', program: 'claude', symbol: 'sparkle' },
-  {
-    id: 'codex',
-    name: 'Codex',
-    program: 'codex',
-    symbol: 'chevron.left.forwardslash.chevron.right'
-  }
+  { id: 'claude', name: 'Claude', program: 'claude' },
+  { id: 'codex', name: 'Codex', program: 'codex' }
 ] as const satisfies readonly Agent[]
 
 export type AgentId = (typeof AGENTS)[number]['id']

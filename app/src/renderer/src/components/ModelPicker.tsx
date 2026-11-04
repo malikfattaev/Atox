@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Gauge } from 'lucide-react'
 import { AGENTS, findAgent, isAgentId } from '../../../shared/agents'
-import type { ContextMenuItem } from '../../../shared/api'
 import type { AgentCatalog, AgentModel } from '../../../shared/conversation'
 import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { effortLabel } from '../lib/conversationText'
+import { showMenu, type MenuItem } from '../lib/menu'
 import { currentModel, modelConfiguration } from '../lib/modelSelection'
 import { AgentIcon } from './AgentIcon'
 
@@ -21,7 +21,7 @@ interface ModelPickerProps {
   openRequest: number
 }
 
-/** Кнопка «Opus 5.5 High» в поле ввода: системное меню с агентом, моделью и эффортом. */
+/** Кнопка «Opus 5.5 High» в поле ввода: меню с агентом, моделью и эффортом. */
 export function ModelPicker({ chat, openRequest }: ModelPickerProps) {
   const { configureChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
@@ -30,13 +30,13 @@ export function ModelPicker({ chat, openRequest }: ModelPickerProps) {
   const effort = chat.effort ?? model?.defaultEffort
 
   const openMenu = async () => {
-    const rect = buttonRef.current?.getBoundingClientRect()
+    const button = buttonRef.current
+    if (!button) {
+      return
+    }
     // Агента можно сменить в любой момент: новый продолжит разговор с того же места.
     const agents = await atox.agents.available()
-    const action = await atox.showContextMenu<PickerAction>(
-      buildMenu({ chat, catalog, model, agents }),
-      rect && { x: rect.left, y: rect.bottom }
-    )
+    const action = await showMenu(buildMenu({ chat, catalog, model, agents }), button)
     if (!action) {
       return
     }
@@ -93,15 +93,15 @@ interface MenuSource {
   agents: string[]
 }
 
-function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuItem<PickerAction>[] {
-  const items: ContextMenuItem<PickerAction>[] = []
+function buildMenu({ chat, catalog, model, agents }: MenuSource): MenuItem<PickerAction>[] {
+  const items: MenuItem<PickerAction>[] = []
   const installed = AGENTS.filter(({ id }) => agents.includes(id))
   if (installed.length > 1) {
     items.push(
-      ...installed.map((agent): ContextMenuItem<PickerAction> => ({
+      ...installed.map((agent): MenuItem<PickerAction> => ({
         action: `agent:${agent.id}`,
         label: agent.name,
-        symbol: agent.symbol,
+        icon: <AgentIcon agent={agent.id} />,
         checked: agent.id === chat.agent
       })),
       { type: 'separator' }
@@ -117,7 +117,7 @@ function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuIte
     return items
   }
 
-  const modelItem = (option: AgentModel): ContextMenuItem<PickerAction> => ({
+  const modelItem = (option: AgentModel): MenuItem<PickerAction> => ({
     action: `model:${option.id}`,
     label: option.name,
     checked: option.id === model?.id
@@ -141,7 +141,7 @@ function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuIte
       {
         type: 'submenu',
         label: 'Effort',
-        symbol: 'gauge.with.dots.needle.67percent',
+        icon: <Gauge />,
         items: [
           {
             action: 'effort:',
@@ -149,7 +149,7 @@ function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuIte
             checked: chat.effort === undefined
           },
           { type: 'separator' },
-          ...model.efforts.map((level): ContextMenuItem<PickerAction> => ({
+          ...model.efforts.map((level): MenuItem<PickerAction> => ({
             action: `effort:${level}`,
             label: effortLabel(level),
             checked: level === chat.effort
