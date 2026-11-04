@@ -141,6 +141,12 @@ export interface AtoxApi {
     /** Сохраняет вставленную картинку во временный файл и возвращает путь к нему. */
     savePastedImage(image: File): Promise<string>
   }
+  images: {
+    /** Картинка с диска как data URL; `null` — файла нет, он слишком большой или это не картинка. */
+    read(path: string): Promise<string | null>
+    /** Диалог «Сохранить как» для картинки; `false` — пользователь передумал. */
+    saveAs(path: string): Promise<boolean>
+  }
   git: {
     branches(): Promise<GitBranches>
     subscribe(listener: (branches: GitBranches) => void): () => void
@@ -242,6 +248,8 @@ export const IpcChannel = {
   TerminalsExit: 'terminals:exit',
   FilesSavePastedImage: 'files:save-pasted-image',
   FilesPick: 'files:pick',
+  ImagesRead: 'images:read',
+  ImagesSaveAs: 'images:save-as',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
   ChangesList: 'changes:list',

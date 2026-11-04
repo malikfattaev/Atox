@@ -28,6 +28,7 @@ import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
+import { readImage, saveImageAs } from './images'
 import { savePastedImage } from './pastedImages'
 import { pickFiles } from './pickedFiles'
 import type { RepositoryReader } from './repository'
@@ -316,6 +317,11 @@ export function registerIpcHandlers({
   )
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
     savePastedImage(data, type)
+  )
+
+  ipcMain.handle(IpcChannel.ImagesRead, (_event, path: string) => readImage(path))
+  ipcMain.handle(IpcChannel.ImagesSaveAs, (event, path: string) =>
+    saveImageAs(BrowserWindow.fromWebContents(event.sender), path)
   )
 
   ipcMain.handle(IpcChannel.GitBranches, () => branches.list())

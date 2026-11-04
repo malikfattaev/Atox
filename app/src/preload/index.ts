@@ -156,6 +156,10 @@ const api: AtoxApi = {
     savePastedImage: async (image) =>
       ipcRenderer.invoke(IpcChannel.FilesSavePastedImage, await image.arrayBuffer(), image.type)
   },
+  images: {
+    read: (path) => ipcRenderer.invoke(IpcChannel.ImagesRead, path),
+    saveAs: (path) => ipcRenderer.invoke(IpcChannel.ImagesSaveAs, path)
+  },
   git: {
     branches: () => ipcRenderer.invoke(IpcChannel.GitBranches),
     subscribe: (listener) => {
