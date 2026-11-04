@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.3"/></filter>
+<clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26262c"/><stop offset="1" stop-color="#0f0f13"/></linearGradient><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="36"/></filter>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#shadow)"/>
+<g clip-path="url(#body)"><g opacity="0.4" filter="url(#glow)"><g style="isolation:isolate">
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#ff6a3d" style="mix-blend-mode:screen"/>
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#2f7dff" transform="rotate(60 512 512)" style="mix-blend-mode:screen"/>
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#a24dff" transform="rotate(120 512 512)" style="mix-blend-mode:screen"/>
+</g></g><g style="isolation:isolate">
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#ff6a3d" style="mix-blend-mode:screen"/>
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#2f7dff" transform="rotate(60 512 512)" style="mix-blend-mode:screen"/>
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#a24dff" transform="rotate(120 512 512)" style="mix-blend-mode:screen"/>
+</g></g>
+<rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#fff" stroke-opacity="0.09" stroke-width="2"/>
+</svg>
