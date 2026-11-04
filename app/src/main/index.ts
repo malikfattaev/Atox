@@ -5,6 +5,7 @@ import { app, BrowserWindow } from 'electron'
 import { AgentDetector } from './agents'
 import { WorkingTreeReader } from './changes'
 import { claudeDriver } from './conversations/claude'
+import { createCodexDriver } from './conversations/codex'
 import { ConversationManager } from './conversations/manager'
 import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
@@ -18,7 +19,7 @@ import {
   registerIpcHandlers
 } from './ipc'
 import { AppMenu } from './menu'
-import { installCli, installSkills } from './orchestration/install'
+import { installCli, installCodexRules, installSkills } from './orchestration/install'
 import { OrchestrationServer } from './orchestration/server'
 import { setupQuitHandling } from './quit'
 import { RepositoryReader } from './repository'
@@ -83,7 +84,14 @@ async function bootstrap(): Promise<void> {
   const conversations = new ConversationManager({
     store,
     agents,
-    drivers: { claude: claudeDriver },
+    drivers: {
+      claude: claudeDriver,
+      codex: createCodexDriver({
+        name: 'atox',
+        title: app.getName(),
+        version: app.getVersion()
+      })
+    },
     environment: agentEnvironment,
     onEvent: broadcastConversationEvent,
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
@@ -122,6 +130,7 @@ async function bootstrap(): Promise<void> {
     force: true
   }).catch((error) => console.error('Failed to remove old chat transcripts', error))
   void installSkills().catch((error) => console.error('Failed to install agent skills', error))
+  void installCodexRules().catch((error) => console.error('Failed to install Codex rules', error))
   if (app.isPackaged && appImage) {
     void installDesktopEntry(appImage).catch((error) =>
       console.error('Failed to install the desktop entry', error)
