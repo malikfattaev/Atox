@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="web/public/screenshot.png" alt="Atox: a chat with Claude in the Hush VPN project" width="860">
+  <img src="web/public/screenshot.png" alt="Atox: a chat with Claude in the Atox project" width="860">
 </p>
 
 ## What it does
