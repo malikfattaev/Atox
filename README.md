@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="web/public/screenshot.png" alt="Atox: a Claude Code chat that started a Codex worker, shown under it in the sidebar" width="860">
+  <img src="web/public/screenshot.png" alt="Atox: a chat with Claude in the Hush VPN project" width="860">
 </p>
 
 ## What it does
