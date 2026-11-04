@@ -54,7 +54,11 @@ export class WorkingTreeReader {
     }
     const patch =
       change.kind === 'untracked'
-        ? await this.git(scope, ['diff', '--no-index', '--no-color', '--', '/dev/null', path], [0, 1])
+        ? await this.git(
+            scope,
+            ['diff', '--no-index', '--no-color', '--', '/dev/null', path],
+            [0, 1]
+          )
         : await this.git(scope, [
             'diff',
             scope.base,
@@ -244,9 +248,7 @@ function statusKind(code: string): FileChangeKind {
  * Разбирает `git diff --numstat -z`: «добавлено, удалено, путь», а у переименования вместо
  * пути — пустое поле, прежний путь и новый. У двоичных файлов вместо чисел `-`.
  */
-function parseNumstat(
-  output: string
-): Map<string, Pick<FileChange, 'additions' | 'deletions'>> {
+function parseNumstat(output: string): Map<string, Pick<FileChange, 'additions' | 'deletions'>> {
   const stats = new Map<string, Pick<FileChange, 'additions' | 'deletions'>>()
   const records = output.split('\0')
   for (let index = 0; index < records.length; index++) {

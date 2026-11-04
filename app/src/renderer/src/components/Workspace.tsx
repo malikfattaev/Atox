@@ -5,6 +5,7 @@ import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
 import type { TerminalPanelState } from '../hooks/useTerminalPanel'
 import { AgentsView } from './AgentsView'
+import { ChangesPanel } from './ChangesPanel'
 import { ChatView } from './ChatView'
 import { RepositoryView, type RepositorySection } from './RepositoryView'
 import { SettingsView } from './SettingsView'
@@ -26,9 +27,12 @@ interface WorkspaceProps {
   onClosePage(): void
   onOpenChat(chatId: string): void
   terminals: TerminalPanelState
+  /** Панель изменений открыта вместо терминала. */
+  changesOpen: boolean
   sidebarVisible: boolean
   onToggleSidebar(): void
   onToggleTerminal(): void
+  onToggleChanges(): void
 }
 
 export function Workspace({
@@ -38,9 +42,11 @@ export function Workspace({
   onClosePage,
   onOpenChat,
   terminals,
+  changesOpen,
   sidebarVisible,
   onToggleSidebar,
-  onToggleTerminal
+  onToggleTerminal,
+  onToggleChanges
 }: WorkspaceProps) {
   const {
     projects,
@@ -68,7 +74,9 @@ export function Workspace({
   const terminalProjectIds = terminals.openProjectIds.filter((id) =>
     projects.some((project) => project.id === id)
   )
-  const terminalOpen = Boolean(currentProjectId && terminalProjectIds.includes(currentProjectId))
+  const changesShown = changesOpen && Boolean(currentProjectId)
+  const terminalOpen =
+    !changesShown && Boolean(currentProjectId && terminalProjectIds.includes(currentProjectId))
   const chatTitles = new Map(
     projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
   )
@@ -89,9 +97,11 @@ export function Workspace({
           )}
           <WorkspaceToolbar
             terminalOpen={terminalOpen}
-            terminalAvailable={Boolean(currentProjectId)}
+            changesOpen={changesShown}
+            projectAvailable={Boolean(currentProjectId)}
             sidebarVisible={sidebarVisible}
             onToggleTerminal={onToggleTerminal}
+            onToggleChanges={onToggleChanges}
             onToggleSidebar={onToggleSidebar}
           />
         </header>
@@ -146,6 +156,9 @@ export function Workspace({
           )}
         </div>
       </div>
+      {!pageOpen && changesShown && currentProjectId && (
+        <ChangesPanel projectId={currentProjectId} />
+      )}
       <TerminalPanel
         projectIds={terminalProjectIds}
         shownProjectId={!pageOpen && terminalOpen ? currentProjectId : null}

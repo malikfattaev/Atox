@@ -89,6 +89,7 @@ export class AppMenu {
       submenu: [
         commandItem('Toggle Sidebar', 'toggleSidebar', { type: 'toggle-sidebar' }),
         commandItem('Toggle Terminal', 'toggleTerminal', { type: 'toggle-terminal' }),
+        commandItem('Toggle Changes', 'toggleChanges', { type: 'toggle-changes' }),
         commandItem('Repository', 'toggleRepository', { type: 'toggle-repository' }),
         commandItem('Agents', 'toggleAgents', { type: 'toggle-agents' }),
         { type: 'separator' },

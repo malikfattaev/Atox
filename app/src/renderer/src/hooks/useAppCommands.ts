@@ -14,6 +14,7 @@ interface AppCommandHandlers {
   projects: ProjectsState
   toggleSidebar(): void
   toggleTerminal(): void
+  toggleChanges(): void
   openSettings(): void
   toggleRepository(): void
   toggleAgents(): void
@@ -57,6 +58,9 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
           break
         case 'toggle-terminal':
           handlersRef.current.toggleTerminal()
+          break
+        case 'toggle-changes':
+          handlersRef.current.toggleChanges()
           break
         case 'previous-chat':
           selectRelative(-1)

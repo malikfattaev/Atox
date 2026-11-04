@@ -5,6 +5,7 @@ export type AppCommand =
   | { type: 'close-chat' }
   | { type: 'toggle-sidebar' }
   | { type: 'toggle-terminal' }
+  | { type: 'toggle-changes' }
   | { type: 'previous-chat' }
   | { type: 'next-chat' }
   | { type: 'find' }

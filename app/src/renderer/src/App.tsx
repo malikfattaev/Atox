@@ -27,6 +27,8 @@ function Layout() {
   // Раздел страницы репозитория не сбрасывается, когда её закрывают и открывают снова.
   const [repositorySection, setRepositorySection] = useState<RepositorySection>('commits')
   const terminals = useTerminalPanel()
+  // Изменения показываются вместо терминала, у текущего проекта.
+  const [changesOpen, setChangesOpen] = useState(false)
   const { currentProjectId } = projects
 
   const toggleSidebar = useCallback(() => setSidebarVisible((visible) => !visible), [])
@@ -58,12 +60,27 @@ function Layout() {
   }, [currentProjectId])
 
   // Терминал открывается у текущего проекта; поверх страницы его не видно — страница закрывается.
+  // Если на его месте были изменения, они уступают место уже открытому терминалу.
   const toggleTerminal = useCallback(() => {
+    if (!currentProjectId) {
+      return
+    }
+    setPage(null)
+    if (changesOpen) {
+      setChangesOpen(false)
+      if (terminals.openProjectIds.includes(currentProjectId)) {
+        return
+      }
+    }
+    terminals.toggle(currentProjectId)
+  }, [currentProjectId, changesOpen, terminals.openProjectIds, terminals.toggle])
+
+  const toggleChanges = useCallback(() => {
     if (currentProjectId) {
       setPage(null)
-      terminals.toggle(currentProjectId)
+      setChangesOpen((open) => !open)
     }
-  }, [currentProjectId, terminals.toggle])
+  }, [currentProjectId])
 
   // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает страницу поверх чатов.
   useEffect(closePage, [projects.activeChatId, closePage])
@@ -72,6 +89,7 @@ function Layout() {
     projects,
     toggleSidebar,
     toggleTerminal,
+    toggleChanges,
     openSettings,
     toggleRepository,
     toggleAgents
@@ -97,9 +115,11 @@ function Layout() {
         onClosePage={closePage}
         onOpenChat={openChat}
         terminals={terminals}
+        changesOpen={changesOpen}
         sidebarVisible={sidebarVisible}
         onToggleSidebar={toggleSidebar}
         onToggleTerminal={toggleTerminal}
+        onToggleChanges={toggleChanges}
       />
     </div>
   )
