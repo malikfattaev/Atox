@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/malikfattaev/Atox/releases/latest"><img src="https://img.shields.io/github/v/release/malikfattaev/Atox?label=Release&color=green" alt="Latest release"></a>
-  <a href="https://github.com/malikfattaev/Atox/releases"><img src="https://img.shields.io/github/downloads/malikfattaev/Atox/total?label=Downloads&color=blue" alt="Downloads"></a>
-  <a href="https://github.com/malikfattaev/Atox/actions/workflows/release.yml"><img src="https://github.com/malikfattaev/Atox/actions/workflows/release.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/malikfattaev/Atox/releases/latest"><img src="https://img.shields.io/github/v/release/malikfattaev/Atox?label=Release&color=green&cacheSeconds=300" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Downloads-270%2B-blue" alt="Downloads">
+  <a href="https://github.com/malikfattaev/Atox/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/malikfattaev/Atox/release.yml?branch=main&label=Build&cacheSeconds=300" alt="Build"></a>
   <img src="https://img.shields.io/badge/macOS%20%C2%B7%20Linux-111?logo=apple&logoColor=white" alt="macOS · Linux">
   <img src="https://img.shields.io/badge/Price-Free-brightgreen" alt="Free">
 </p>
