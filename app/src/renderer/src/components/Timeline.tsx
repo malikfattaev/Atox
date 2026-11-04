@@ -137,8 +137,9 @@ export const Timeline = memo(function Timeline({
           case 'compaction':
             return <CompactionNotice key={block.item.id} item={block.item} />
           case 'activity':
-            return (
-              <ActivityGroup key={block.key} items={block.items} live={block === liveActivity} />
+            // Действия, которые агент выполняет прямо сейчас, показывает строка его работы.
+            return block === liveActivity ? null : (
+              <ActivityGroup key={block.key} items={block.items} />
             )
           case 'turn':
             return (
@@ -148,6 +149,11 @@ export const Timeline = memo(function Timeline({
                 items={block.items}
                 agent={agent}
                 tokens={turnTokens}
+                activity={
+                  block === lastTurn && liveActivity?.type === 'activity'
+                    ? liveActivity.items
+                    : undefined
+                }
                 working={running && block === lastTurn && !block.user.finishedAt}
                 visible={visible}
               />
@@ -282,20 +288,9 @@ function lastActivity(blocks: readonly Block[]): Block | undefined {
   return last?.type === 'activity' ? last : undefined
 }
 
-interface ActivityGroupProps {
-  items: readonly ActivityItem[]
-  /** Агент работает именно в этой группе: показываем, что он делает сейчас. */
-  live: boolean
-}
-
-function ActivityGroup({ items, live }: ActivityGroupProps) {
+/** Законченная группа действий агента: сводка, которая раскрывается в список. */
+function ActivityGroup({ items }: { items: readonly ActivityItem[] }) {
   const [expanded, setExpanded] = useState(false)
-  const current = live ? items.findLast((item) => item.kind === 'tool') : undefined
-  const summary =
-    current?.kind === 'tool' && current.status === 'running'
-      ? `${toolVerb(current.tool, true)} ${current.title}`
-      : summarizeActivity(items)
-
   return (
     <div className="activity" data-expanded={expanded}>
       <button
@@ -304,21 +299,21 @@ function ActivityGroup({ items, live }: ActivityGroupProps) {
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
       >
-        {live ? (
-          <LoaderCircle className="icon activity__spinner" />
-        ) : (
-          <ChevronRight className="icon activity__chevron" />
-        )}
-        <span className="activity__summary-text">{summary}</span>
+        <ChevronRight className="icon activity__chevron" />
+        <span className="activity__summary-text">{summarizeActivity(items)}</span>
       </button>
-      {expanded && (
-        <ul className="activity__list">
-          {items.map((item) => (
-            <ActivityRow key={item.id} item={item} />
-          ))}
-        </ul>
-      )}
+      {expanded && <ActivityList items={items} />}
     </div>
+  )
+}
+
+function ActivityList({ items }: { items: readonly ActivityItem[] }) {
+  return (
+    <ul className="activity__list">
+      {items.map((item) => (
+        <ActivityRow key={item.id} item={item} />
+      ))}
+    </ul>
   )
 }
 
@@ -393,22 +388,42 @@ interface TurnStatusProps {
   items: readonly TimelineItem[]
   agent: AgentId
   tokens: number
+  /** Действия, которые агент выполняет сейчас; раскрываются по клику на строку работы. */
+  activity?: readonly ActivityItem[] | undefined
   working: boolean
   visible: boolean
 }
 
-function TurnStatus({ user, items, agent, tokens, working, visible }: TurnStatusProps) {
+function TurnStatus({ user, items, agent, tokens, activity, working, visible }: TurnStatusProps) {
   const now = useClock(working && visible)
+  const [expanded, setExpanded] = useState(false)
   if (working) {
     const elapsed = formatDuration(now - user.createdAt)
+    const current = activity?.findLast((item) => item.kind === 'tool' && item.status === 'running')
+    const label =
+      current?.kind === 'tool'
+        ? `${toolVerb(current.tool, true)} ${current.title}`
+        : `${workingLabel(items, user.id)}…`
+    // Одна строка: что агент делает сейчас, сколько работает и сколько написал. Клик
+    // раскрывает действия этого ответа.
     return (
-      <div className="turn-status" data-working>
-        <AgentIcon agent={agent} className="turn-status__glyph" />
-        <span className="turn-status__verb">{workingLabel(items, user.id)}…</span>
-        <span className="turn-status__meta">
-          ({elapsed}
-          {tokens > 0 && ` · ↓ ${formatTokens(tokens)} tokens`})
-        </span>
+      <div className="turn-status-group">
+        <button
+          type="button"
+          className="turn-status"
+          data-working
+          aria-expanded={activity ? expanded : undefined}
+          disabled={!activity}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <AgentIcon agent={agent} className="turn-status__glyph" />
+          <span className="turn-status__verb">{label}</span>
+          <span className="turn-status__meta">
+            ({elapsed}
+            {tokens > 0 && ` · ↓ ${formatTokens(tokens)} tokens`})
+          </span>
+        </button>
+        {expanded && activity && <ActivityList items={activity} />}
       </div>
     )
   }
