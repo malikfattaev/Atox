@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RepositorySection } from './components/RepositoryView'
+import { MenuLayer } from './components/MenuLayer'
 import { Sidebar } from './components/Sidebar'
 import { Workspace, type WorkspacePage } from './components/Workspace'
 import { ChatActivityProvider, useChatsCovered } from './hooks/ChatActivityContext'
@@ -14,6 +15,7 @@ export function App() {
       <ProjectsProvider>
         <ChatActivityProvider>
           <Layout />
+          <MenuLayer />
         </ChatActivityProvider>
       </ProjectsProvider>
     </SettingsProvider>
