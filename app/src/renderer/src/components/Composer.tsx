@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import {
@@ -96,31 +96,6 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     window.addEventListener('keydown', stopOnEscape)
     return () => window.removeEventListener('keydown', stopOnEscape)
   }, [focused, running, chat.id])
-
-  // Поле растёт вместе с текстом, пока не упрётся в max-height из стилей.
-  useLayoutEffect(() => {
-    const input = inputRef.current
-    if (input) {
-      fitToContent(input)
-    }
-  }, [text])
-
-  // Поле стало уже или шире (раздвинули чаты, скрыли сайдбар): строки перенеслись иначе.
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) {
-      return
-    }
-    let width = input.clientWidth
-    const observer = new ResizeObserver(() => {
-      if (input.clientWidth !== width) {
-        width = input.clientWidth
-        fitToContent(input)
-      }
-    })
-    observer.observe(input)
-    return () => observer.disconnect()
-  }, [])
 
   /** `true` — Atox выполнил команду сам и писать агенту ничего не нужно. */
   const runLocalCommand = (message: string): boolean => {
@@ -401,10 +376,4 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       {viewedImage && <ImageViewer src={viewedImage} onClose={() => setViewedImage(null)} />}
     </form>
   )
-}
-
-/** Высота поля ввода по его тексту. */
-function fitToContent(input: HTMLTextAreaElement): void {
-  input.style.height = 'auto'
-  input.style.height = `${input.scrollHeight}px`
 }
