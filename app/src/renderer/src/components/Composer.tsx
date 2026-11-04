@@ -292,6 +292,9 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
 
   const agentName = findAgent(chat.agent)?.name ?? chat.agent
 
+  const removeAttachment = (path: string) =>
+    setAttachments((current) => current.filter((attachment) => attachment.path !== path))
+
   return (
     <form
       className="composer"
@@ -308,60 +311,46 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           onChoose={(command) => chooseCommand(command, true)}
         />
       )}
-      {attachments.length > 0 && (
-        <ul className="composer__attachments">
-          {attachments.map((attachment) => (
-            <li
-              key={attachment.path}
-              className="composer__attachment"
-              data-kind={attachment.kind}
-              title={attachment.path}
-            >
-              {attachment.kind === 'image' ? (
+      {/* Само поле: вложения, «+», текст и отправка. Остальное — под ним и не мешает писать. */}
+      <div className="composer__box">
+        {attachments.length > 0 && (
+          <ul className="composer__attachments">
+            {attachments.map((attachment) => (
+              <li
+                key={attachment.path}
+                className="composer__attachment"
+                data-kind={attachment.kind}
+                title={attachment.path}
+              >
+                {attachment.kind === 'image' ? (
+                  <button
+                    type="button"
+                    className="composer__attachment-preview"
+                    aria-label="Open image"
+                    onClick={() => setViewedImage(attachment.preview)}
+                  >
+                    <img src={attachment.preview} alt="" />
+                  </button>
+                ) : (
+                  <>
+                    <FileText className="icon composer__attachment-icon" aria-hidden />
+                    <span className="composer__attachment-name">{fileName(attachment.path)}</span>
+                  </>
+                )}
                 <button
                   type="button"
-                  className="composer__attachment-preview"
-                  aria-label="Open image"
-                  onClick={() => setViewedImage(attachment.preview)}
+                  className="composer__attachment-remove"
+                  aria-label={`Remove ${fileName(attachment.path)}`}
+                  title="Remove"
+                  onClick={() => removeAttachment(attachment.path)}
                 >
-                  <img src={attachment.preview} alt="" />
+                  <X className="icon" />
                 </button>
-              ) : (
-                <>
-                  <FileText className="icon composer__attachment-icon" aria-hidden />
-                  <span className="composer__attachment-name">{fileName(attachment.path)}</span>
-                </>
-              )}
-              <button
-                type="button"
-                className="composer__attachment-remove"
-                aria-label={`Remove ${fileName(attachment.path)}`}
-                title="Remove"
-                onClick={() =>
-                  setAttachments((current) =>
-                    current.filter(({ path }) => path !== attachment.path)
-                  )
-                }
-              >
-                <X className="icon" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {viewedImage && <ImageViewer src={viewedImage} onClose={() => setViewedImage(null)} />}
-      <textarea
-        ref={inputRef}
-        className="composer__input"
-        rows={1}
-        value={text}
-        placeholder={running ? `Send a follow-up to ${agentName}` : `Ask ${agentName} anything`}
-        spellCheck={false}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-      <div className="composer__footer">
-        <div className="composer__tools">
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="composer__row">
           <button
             type="button"
             className="composer__attach"
@@ -371,10 +360,16 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           >
             <Plus className="icon" />
           </button>
-          <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
-        </div>
-        <div className="composer__actions">
-          {usage && <UsageIndicator usage={usage} />}
+          <textarea
+            ref={inputRef}
+            className="composer__input"
+            rows={1}
+            value={text}
+            placeholder={running ? `Send a follow-up to ${agentName}` : `Ask ${agentName} anything`}
+            spellCheck={false}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={handleKeyDown}
+          />
           {running && !canSend ? (
             <button
               type="button"
@@ -398,6 +393,11 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           )}
         </div>
       </div>
+      <div className="composer__footer">
+        <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
+        {usage && <UsageIndicator usage={usage} />}
+      </div>
+      {viewedImage && <ImageViewer src={viewedImage} onClose={() => setViewedImage(null)} />}
     </form>
   )
 }

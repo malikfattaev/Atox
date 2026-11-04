@@ -82,8 +82,13 @@
   --chat-column-width: 768px;
   --chat-gutter: 24px;
   --chat-block-gap: 16px;
-  --composer-radius: 16px;
-  --composer-padding: 12px;
+  --composer-radius: 22px;
+  /* Карточки в ленте: разрешения, лимиты, контекст. */
+  --card-radius: 16px;
+  --composer-padding: 6px;
+  --composer-footer-height: 24px;
+  /* Под строкой модели — небольшой отступ до края окна, как в Claude. */
+  --composer-bottom-gap: 8px;
   --composer-max-height: 40vh;
   --composer-button-size: 30px;
   --message-radius: 16px;
@@ -2055,7 +2060,7 @@ ul {
 }
 
 .chat-view__composer {
-  padding: 0 var(--chat-gutter) var(--chat-gutter);
+  padding: 0 var(--chat-gutter) var(--composer-bottom-gap);
   max-width: calc(var(--chat-column-width) + 2 * var(--chat-gutter));
 }
 
@@ -2103,8 +2108,8 @@ ul {
   overflow-wrap: anywhere;
 }
 
-/* Картинки сообщения — над его текстом, справа, как и само сообщение. */
-.message__images {
+/* Картинки и файлы сообщения — одним рядом над его текстом, справа, как и само сообщение. */
+.message__attachments {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -2137,17 +2142,6 @@ ul {
   height: 100%;
   padding: 0;
   cursor: zoom-in;
-}
-
-/* Файлы сообщения — квадратами над его текстом, справа, как и картинки. */
-.message__files {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .message__file,
@@ -2309,7 +2303,7 @@ ul {
   gap: 12px;
   padding: 14px 16px;
   border: 1px solid var(--color-border);
-  border-radius: var(--composer-radius);
+  border-radius: var(--card-radius);
   background: var(--color-surface);
   box-shadow: var(--shadow-composer);
 }
@@ -2787,6 +2781,12 @@ ul {
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.composer__box {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: var(--composer-padding);
   border: 1px solid var(--color-border);
@@ -2795,8 +2795,15 @@ ul {
   box-shadow: var(--shadow-composer);
 }
 
-.composer:focus-within {
+.composer__box:focus-within {
   border-color: var(--color-popover-border);
+}
+
+/* «+», текст и отправка в одну строку; когда текст растёт, кнопки остаются внизу. */
+.composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
 }
 
 /* Приложенные картинки — миниатюры над полем ввода, каждую можно убрать. */
@@ -2859,9 +2866,11 @@ ul {
 }
 
 .composer__input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   max-height: var(--composer-max-height);
-  padding: 2px 4px;
+  /* Одна строка текста по высоте ровно с кнопками по бокам. */
+  padding: calc((var(--composer-button-size) - 1.5em) / 2) 4px;
   border: none;
   outline: none;
   resize: none;
@@ -2875,21 +2884,18 @@ ul {
   color: var(--color-text-muted);
 }
 
+/* Модель и контекст — под полем, тихо: они нужны редко и не должны теснить текст. */
 .composer__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: var(--composer-footer-height);
+  padding: 0;
+  font-size: 13px;
 }
 
-.composer__tools {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-
-/* «+» — приложить файлы, тихая кнопка слева, как выбор модели рядом. */
+/* «+» — приложить файлы, тихая кнопка слева от текста. */
 .composer__attach {
   display: grid;
   flex-shrink: 0;
@@ -2985,12 +2991,6 @@ ul {
   font-size: var(--font-size-small);
 }
 
-.composer__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .usage-indicator {
   display: flex;
   align-items: center;
@@ -3058,7 +3058,7 @@ ul {
   gap: 10px;
   padding: 14px 16px;
   border: 1px solid var(--color-border);
-  border-radius: var(--composer-radius);
+  border-radius: var(--card-radius);
   background: var(--color-group);
 }
 
