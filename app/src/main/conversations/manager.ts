@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { findAgent, type AgentId } from '../../shared/agents'
 import {
   applyConversationEvent,
+  pendingRequest,
   titleFromMessage,
   type AgentCatalog,
   type AgentCommand,
@@ -514,6 +515,17 @@ export class ConversationManager {
     const event = { chatId, ...payload } as ConversationEvent
     conversation.snapshot = applyConversationEvent(conversation.snapshot, event)
     this.services.onEvent(event)
+    if (event.type === 'item' || event.type === 'reset') {
+      this.updateWaiting(chatId, conversation)
+    }
+  }
+
+  /** Сообщает, когда агент начинает или перестаёт ждать ответа пользователя. */
+  private updateWaiting(chatId: string, conversation: Conversation): void {
+    const waitingFor = pendingRequest(conversation.snapshot.items)
+    if ((conversation.snapshot.waitingFor ?? null) !== waitingFor) {
+      this.dispatch(chatId, conversation, { type: 'waiting', waitingFor })
+    }
   }
 
   private updateRunning(chatId: string, conversation: Conversation): void {

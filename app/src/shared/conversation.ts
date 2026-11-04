@@ -214,6 +214,20 @@ export type CompactionStatus = 'running' | 'done' | 'failed'
 
 export type TimelineItemKind = TimelineItem['kind']
 
+/** Чего агент ждёт от пользователя: разрешения на вызов или ответа на вопросы. */
+export type UserRequestKind = 'approval' | 'question'
+
+/** Запрос агента, на который пользователь ещё не ответил; `null` — агент ничего не ждёт. */
+export function pendingRequest(items: readonly TimelineItem[]): UserRequestKind | null {
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]!
+    if ((item.kind === 'approval' || item.kind === 'question') && item.status === 'pending') {
+      return item.kind
+    }
+  }
+  return null
+}
+
 /** Поля элемента, которые агент присылает частями, пока пишет ответ. */
 export type StreamedField = 'text' | 'output'
 
@@ -222,6 +236,8 @@ export interface ConversationSnapshot {
   items: TimelineItem[]
   /** Агент сейчас работает над сообщением. */
   running: boolean
+  /** Агент ждёт ответа пользователя на разрешение или вопросы. */
+  waitingFor?: UserRequestKind
   /** Контекст и лимиты по последнему ответу агента; нет — агент ещё не отвечал в этом запуске. */
   usage?: ConversationUsage
   /** Сколько токенов агент написал, отвечая на текущее сообщение. */
@@ -240,6 +256,8 @@ export type ConversationEvent =
       delta: string
     }
   | { chatId: string; type: 'running'; running: boolean }
+  /** Агент начал или перестал ждать ответа пользователя; `null` — больше не ждёт. */
+  | { chatId: string; type: 'waiting'; waitingFor: UserRequestKind | null }
   | { chatId: string; type: 'usage'; usage: ConversationUsage }
   | { chatId: string; type: 'tokens'; turnTokens: number }
   /** Разговор начался заново (`/clear`): лента пуста, агент не помнит прошлого. */
@@ -264,6 +282,10 @@ export function applyConversationEvent(
   switch (event.type) {
     case 'running':
       return snapshot.running === event.running ? snapshot : { ...snapshot, running: event.running }
+    case 'waiting': {
+      const { waitingFor: _previous, ...rest } = snapshot
+      return event.waitingFor ? { ...rest, waitingFor: event.waitingFor } : rest
+    }
     case 'usage':
       return { ...snapshot, usage: event.usage }
     case 'tokens':
