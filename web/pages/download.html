@@ -78,9 +78,10 @@
           <li>Scroll down and click <strong>Open Anyway</strong> next to Atox.</li>
         </ol>
         <p>
-          Atox runs the Claude Code you already have, so install
+          Atox runs the agents you already have, so install and sign in to at least one of them
+          first —
           <a href="https://docs.claude.com/en/docs/claude-code/overview" rel="noopener">Claude Code</a>
-          and sign in first.
+          or <a href="https://github.com/openai/codex" rel="noopener">Codex</a>.
         </p>
 
         <h2 id="projects-and-chats">Projects and chats</h2>
@@ -108,21 +109,19 @@
 
         <h2 id="agents">Agents</h2>
         <p>
-          Atox detects which agents are installed and offers them when you create a chat. The one
-          you pick becomes the default for ⌘N. You can always start a plain
-          <strong>Terminal</strong> chat as well.
+          Atox detects which agents are installed. A new chat starts with Claude Code; switch the
+          agent, model or effort from the picker under the message field at any moment.
         </p>
         <p>
-          To start an agent with your own flags, set its launch command in
-          <strong>Settings → Agents</strong>, for example
-          <code>claude --model opus</code>.
+          Switching mid-chat keeps the conversation: the new agent gets everything said so far and
+          carries on from there. A reply that is already in progress is finished by the agent that
+          started it.
         </p>
 
         <h2 id="agent-teams">Agent teams</h2>
         <p>
-          Agents in Atox can delegate. Ask Claude to “have another agent review this” and it
-          starts a second Claude in a new chat with the task. When it is done, its report arrives in
-          the first chat as
+          Agents in Atox can delegate. Ask Claude to “have Codex review this” and it starts Codex
+          in a new chat with the task. When Codex is done, its report arrives in Claude's chat as
           a new message, and Claude carries on.
         </p>
         <p>
@@ -132,7 +131,7 @@
         </p>
         <p>
           Agents do this with the <code>atox</code> command, which is available in every Atox
-          terminal. Claude Code learns it automatically; you can also use it yourself:
+          terminal. Claude Code and Codex learn it automatically; you can also use it yourself:
         </p>
         <div class="table">
           <table>
@@ -246,11 +245,10 @@
           and Omarchy install it with <code>sudo pacman -S fuse2</code>, or use the Arch package.
         </p>
 
-        <h3>Atox can't find Claude</h3>
+        <h3>My agent isn't in the list</h3>
         <p>
-          Atox looks for the <code>claude</code> command in your shell. Make sure it works in your
-          terminal, then restart Atox. If it lives somewhere unusual,
-          set the full command in <strong>Settings → Agents</strong>.
+          Atox looks for the agent's command in your shell. Make sure <code>claude</code> or
+          <code>codex</code> works in your terminal, then restart Atox.
         </p>
 
         <h3>Does Atox see my code or send it anywhere?</h3>

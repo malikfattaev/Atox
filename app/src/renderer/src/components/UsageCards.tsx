@@ -28,7 +28,7 @@ export function LimitsCard({ limits }: { limits: readonly PlanLimit[] }) {
       <h2 className="usage-card__title">Usage limits</h2>
       {limits.length === 0 ? (
         <p className="usage-card__note">
-          Claude is signed in with an API key, so there are no plan limits to show.
+          The agent is signed in with an API key, so there are no plan limits to show.
         </p>
       ) : (
         <ul className="usage-card__rows">
