@@ -109,6 +109,29 @@ export function formatTokens(tokens: number): string {
   return `${Number((tokens / 1_000_000).toFixed(1))}M`
 }
 
+/** Подпись сжатия разговора: что происходит и сколько контекста освободилось. */
+export function compactionText(item: Extract<TimelineItem, { kind: 'compaction' }>): string {
+  switch (item.status) {
+    case 'running':
+      return 'Compacting conversation…'
+    case 'failed':
+      return item.error ? `Could not compact the conversation: ${item.error}` : 'Compaction stopped'
+    case 'done': {
+      const title =
+        item.trigger === 'auto'
+          ? 'Context was full — conversation compacted'
+          : 'Conversation compacted'
+      const { tokensBefore, tokensAfter } = item
+      if (tokensBefore === undefined) {
+        return title
+      }
+      return tokensAfter === undefined
+        ? `${title} · ${formatTokens(tokensBefore)} tokens summarized`
+        : `${title} · ${formatTokens(tokensBefore)} → ${formatTokens(tokensAfter)} tokens`
+    }
+  }
+}
+
 /** Чем занят агент, пока не видно действий: глагол выбирается на весь ответ. */
 const WORKING_VERBS = [
   'Thinking',
@@ -144,6 +167,11 @@ export function workingLabel(items: readonly TimelineItem[], seed: string): stri
       return 'Thinking'
     case 'assistant':
       return 'Writing'
+    case 'compaction':
+      if (last.status === 'running') {
+        return 'Compacting'
+      }
+      break
   }
   return WORKING_VERBS[hashString(seed) % WORKING_VERBS.length]!
 }

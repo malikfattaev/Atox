@@ -36,6 +36,8 @@ import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOpti
 
 type ToolItem = Extract<TimelineItem, { kind: 'tool' }>
 
+type CompactionItem = Extract<TimelineItem, { kind: 'compaction' }>
+
 type ApprovalRequest = Parameters<CanUseTool>[2]
 
 /** Что Claude узнаёт, когда пользователь отклонил вызов. */
@@ -250,6 +252,11 @@ class ClaudeSession implements AgentSession {
   private streamingMessageId: string | null = null
   /** Пользователь остановил ответ: ошибка прерванного хода — не ошибка. */
   private interrupted = false
+  /**
+   * Последнее сжатие разговора в этом ответе: его элемент ленты обновляется по ходу, а итог
+   * с числом токенов может прийти уже после статуса об успехе.
+   */
+  private compaction: CompactionItem | null = null
   /** Токены ответа на текущее сообщение: законченные сообщения модели и то, что пишется сейчас. */
   private readonly turnTokens = { finished: 0, message: 0, estimate: 0, reported: 0 }
 
@@ -450,6 +457,17 @@ class ClaudeSession implements AgentSession {
             text: message.content,
             commandOutput: true
           })
+        } else if (message.subtype === 'status') {
+          this.handleCompactionStatus(message)
+        } else if (message.subtype === 'compact_boundary') {
+          const { trigger, pre_tokens, post_tokens } = message.compact_metadata
+          this.updateCompaction({
+            status: 'done',
+            trigger,
+            tokensBefore: pre_tokens,
+            ...(post_tokens !== undefined && { tokensAfter: post_tokens })
+          })
+          void this.reportUsage()
         }
         break
       case 'stream_event':
@@ -473,10 +491,49 @@ class ClaudeSession implements AgentSession {
         }
         this.streamingMessageId = null
         this.streamed.clear()
+        // Ответ закончился посреди сжатия (например, его остановили) — сжатие не состоялось.
+        if (this.compaction?.status === 'running') {
+          this.updateCompaction({ status: 'failed' })
+        }
+        this.compaction = null
         this.events.turnFinished()
         void this.reportUsage()
         break
     }
+  }
+
+  /**
+   * Claude Code сообщает о сжатии статусом `compacting`, а итог — границей сжатия
+   * (`compact_boundary`) или статусом с `compact_result`.
+   */
+  private handleCompactionStatus(message: Extract<SDKMessage, { subtype: 'status' }>): void {
+    if (message.status === 'compacting') {
+      // Новое сжатие — новый элемент; повтор статуса о том же сжатии ничего не меняет.
+      if (this.compaction?.status !== 'running') {
+        this.compaction = null
+        this.updateCompaction({ status: 'running' })
+      }
+      return
+    }
+    if (message.compact_result === 'failed') {
+      this.updateCompaction({
+        status: 'failed',
+        ...(message.compact_error && { error: message.compact_error })
+      })
+    } else if (message.compact_result === 'success' && this.compaction?.status === 'running') {
+      this.updateCompaction({ status: 'done' })
+      void this.reportUsage()
+    }
+  }
+
+  /** Создаёт элемент ленты о сжатии или обновляет тот, что уже показан. */
+  private updateCompaction(update: Omit<CompactionItem, 'kind' | 'id'>): void {
+    const item: CompactionItem = {
+      ...(this.compaction ?? { kind: 'compaction', id: randomUUID() }),
+      ...update
+    }
+    this.compaction = item
+    this.events.item(item)
   }
 
   private handleStreamEvent(event: Extract<SDKMessage, { type: 'stream_event' }>['event']): void {

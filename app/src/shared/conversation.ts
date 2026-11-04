@@ -195,7 +195,22 @@ export type TimelineItem =
       limits: PlanLimit[]
     }
   | { kind: 'context'; id: string; context: ContextReport }
+  | {
+      /** Агент сжимает разговор в сводку, чтобы освободить контекст. */
+      kind: 'compaction'
+      id: string
+      status: CompactionStatus
+      /** `auto` — контекст кончился и агент сжал разговор сам, `manual` — по `/compact`. */
+      trigger?: 'manual' | 'auto'
+      /** Сколько токенов занимал разговор до сжатия и после. */
+      tokensBefore?: number
+      tokensAfter?: number
+      /** Почему сжать не удалось. */
+      error?: string
+    }
   | { kind: 'error'; id: string; message: string }
+
+export type CompactionStatus = 'running' | 'done' | 'failed'
 
 export type TimelineItemKind = TimelineItem['kind']
 

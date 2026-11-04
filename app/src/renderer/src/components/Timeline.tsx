@@ -4,6 +4,7 @@ import {
   Brain,
   ChevronRight,
   CircleAlert,
+  FoldVertical,
   FilePen,
   FileText,
   Globe,
@@ -17,6 +18,7 @@ import {
 import type { TimelineItem, ToolKind } from '../../../shared/conversation'
 import type { AgentId } from '../../../shared/agents'
 import {
+  compactionText,
   formatDuration,
   formatTokens,
   summarizeActivity,
@@ -32,6 +34,7 @@ import { ContextCard, LimitsCard } from './UsageCards'
 
 type UserItem = Extract<TimelineItem, { kind: 'user' }>
 type ActivityItem = Extract<TimelineItem, { kind: 'tool' | 'reasoning' }>
+type CompactionItem = Extract<TimelineItem, { kind: 'compaction' }>
 
 type Block =
   | { type: 'user'; item: UserItem }
@@ -41,6 +44,7 @@ type Block =
   | { type: 'question'; item: Extract<TimelineItem, { kind: 'question' }> }
   | { type: 'limits'; item: Extract<TimelineItem, { kind: 'limits' }> }
   | { type: 'context'; item: Extract<TimelineItem, { kind: 'context' }> }
+  | { type: 'compaction'; item: CompactionItem }
   | { type: 'activity'; key: string; items: ActivityItem[] }
   /** Конец ответа на сообщение: сколько агент работал или что он работает сейчас. */
   | { type: 'turn'; key: string; user: UserItem; items: TimelineItem[] }
@@ -124,6 +128,8 @@ export const Timeline = memo(function Timeline({
             return <LimitsCard key={block.item.id} limits={block.item.limits} />
           case 'context':
             return <ContextCard key={block.item.id} context={block.item.context} />
+          case 'compaction':
+            return <CompactionNotice key={block.item.id} item={block.item} />
           case 'activity':
             return (
               <ActivityGroup key={block.key} items={block.items} live={block === liveActivity} />
@@ -228,6 +234,10 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
         flushActivity()
         blocks.push({ type: 'context', item })
         break
+      case 'compaction':
+        flushActivity()
+        blocks.push({ type: 'compaction', item })
+        break
     }
   }
   finishTurn()
@@ -321,6 +331,26 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         </pre>
       )}
     </li>
+  )
+}
+
+/** Разделитель в ленте: агент сжимает разговор, всё выше осталось только в сводке. */
+function CompactionNotice({ item }: { item: CompactionItem }) {
+  return (
+    <div className="compaction" data-status={item.status} role="status">
+      <span className="compaction__line" />
+      <span className="compaction__label">
+        {item.status === 'running' ? (
+          <LoaderCircle className="icon activity__spinner" />
+        ) : item.status === 'failed' ? (
+          <CircleAlert className="icon" />
+        ) : (
+          <FoldVertical className="icon" />
+        )}
+        <span>{compactionText(item)}</span>
+      </span>
+      <span className="compaction__line" />
+    </div>
   )
 }
 
