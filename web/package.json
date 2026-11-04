@@ -1,5 +1,6 @@
 {
   "name": "atox-web",
+  "license": "MIT",
   "private": true,
   "description": "Landing page for Atox at atox.dev",
   "type": "module",

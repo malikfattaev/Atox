@@ -13,6 +13,7 @@
   <a href="https://github.com/malikfattaev/Atox/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/malikfattaev/Atox/release.yml?branch=main&label=Build&cacheSeconds=300" alt="Build"></a>
   <img src="https://img.shields.io/badge/macOS%20%C2%B7%20Linux-111?logo=apple&logoColor=white" alt="macOS · Linux">
   <img src="https://img.shields.io/badge/Price-Free-brightgreen" alt="Free">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License"></a>
 </p>
 
 <p align="center">
@@ -47,3 +48,7 @@ The first time, macOS says it can't verify the developer: open System Settings �
 ```bash
 chmod +x Atox-*.AppImage && ./Atox-*.AppImage
 ```
+
+## License
+
+[MIT](LICENSE) © Malik Fattaev
