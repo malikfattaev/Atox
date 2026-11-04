@@ -2,7 +2,6 @@ import { memo, useEffect, useMemo, useState, type ComponentType } from 'react'
 import {
   Bot,
   Brain,
-  ChevronRight,
   CircleAlert,
   FoldVertical,
   FilePen,
@@ -21,7 +20,6 @@ import {
   compactionText,
   formatDuration,
   formatTokens,
-  summarizeActivity,
   toolVerb,
   workingLabel
 } from '../lib/conversationText'
@@ -46,8 +44,7 @@ type Block =
   | { type: 'limits'; item: Extract<TimelineItem, { kind: 'limits' }> }
   | { type: 'context'; item: Extract<TimelineItem, { kind: 'context' }> }
   | { type: 'compaction'; item: CompactionItem }
-  | { type: 'activity'; key: string; items: ActivityItem[] }
-  /** Конец ответа на сообщение: сколько агент работал или что он работает сейчас. */
+  /** Конец ответа на сообщение: пока агент работает — что он делает сейчас. */
   | { type: 'turn'; key: string; user: UserItem; items: TimelineItem[] }
 
 const TOOL_ICONS: Record<ToolKind, ComponentType<LucideProps>> = {
@@ -90,7 +87,6 @@ export const Timeline = memo(function Timeline({
 }: TimelineProps) {
   const blocks = useMemo(() => buildBlocks(items), [items])
   const lastTurn = blocks.findLast((block) => block.type === 'turn')
-  const liveActivity = running ? lastActivity(blocks) : undefined
   return (
     <div className="timeline">
       {blocks.map((block) => {
@@ -136,28 +132,18 @@ export const Timeline = memo(function Timeline({
             return <ContextCard key={block.item.id} context={block.item.context} />
           case 'compaction':
             return <CompactionNotice key={block.item.id} item={block.item} />
-          case 'activity':
-            // Действия, которые агент выполняет прямо сейчас, показывает строка его работы.
-            return block === liveActivity ? null : (
-              <ActivityGroup key={block.key} items={block.items} />
-            )
           case 'turn':
-            return (
-              <TurnStatus
+            // Законченный ответ — это только его текст: что агент делал, видно лишь пока он работает.
+            return running && block === lastTurn && !block.user.finishedAt ? (
+              <WorkingStatus
                 key={block.key}
                 user={block.user}
                 items={block.items}
                 agent={agent}
                 tokens={turnTokens}
-                activity={
-                  block === lastTurn && liveActivity?.type === 'activity'
-                    ? liveActivity.items
-                    : undefined
-                }
-                working={running && block === lastTurn && !block.user.finishedAt}
                 visible={visible}
               />
-            )
+            ) : null
         }
       })}
     </div>
@@ -207,30 +193,19 @@ function MessageAttachments({ images, files }: MessageAttachmentsProps) {
   )
 }
 
-/** Разбивает ленту на блоки: подряд идущие действия агента сворачиваются в одну группу. */
+/** Разбивает ленту на блоки; действия агента в неё не попадают — их показывает строка работы. */
 function buildBlocks(items: readonly TimelineItem[]): Block[] {
   const blocks: Block[] = []
-  let activity: ActivityItem[] = []
   let turn: UserItem | null = null
   let turnItems: TimelineItem[] = []
 
-  const flushActivity = () => {
-    if (activity.length > 0) {
-      blocks.push({ type: 'activity', key: activity[0]!.id, items: activity })
-      activity = []
-    }
-  }
   const finishTurn = () => {
-    flushActivity()
     if (turn) {
       blocks.push({ type: 'turn', key: `${turn.id}:turn`, user: turn, items: turnItems })
     }
   }
 
   for (const item of items) {
-    if (item.kind !== 'user') {
-      turnItems.push(item)
-    }
     switch (item.kind) {
       case 'user':
         finishTurn()
@@ -239,72 +214,36 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
         blocks.push({ type: 'user', item })
         continue
       case 'reasoning':
-        // Пустое рассуждение в ленту не идёт.
-        if (item.text.trim()) {
-          activity.push(item)
-        }
-        break
       case 'tool':
-        activity.push(item)
         break
       case 'assistant':
-        flushActivity()
         if (item.text) {
           blocks.push({ type: 'assistant', item })
         }
         break
       case 'error':
-        flushActivity()
         blocks.push({ type: 'error', item })
         break
       case 'approval':
-        flushActivity()
         blocks.push({ type: 'approval', item })
         break
       case 'question':
-        flushActivity()
         blocks.push({ type: 'question', item })
         break
       case 'limits':
-        flushActivity()
         blocks.push({ type: 'limits', item })
         break
       case 'context':
-        flushActivity()
         blocks.push({ type: 'context', item })
         break
       case 'compaction':
-        flushActivity()
         blocks.push({ type: 'compaction', item })
         break
     }
+    turnItems.push(item)
   }
   finishTurn()
   return blocks
-}
-
-function lastActivity(blocks: readonly Block[]): Block | undefined {
-  const last = blocks.findLast((block) => block.type !== 'turn')
-  return last?.type === 'activity' ? last : undefined
-}
-
-/** Законченная группа действий агента: сводка, которая раскрывается в список. */
-function ActivityGroup({ items }: { items: readonly ActivityItem[] }) {
-  const [expanded, setExpanded] = useState(false)
-  return (
-    <div className="activity" data-expanded={expanded}>
-      <button
-        type="button"
-        className="activity__summary"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        <ChevronRight className="icon activity__chevron" />
-        <span className="activity__summary-text">{summarizeActivity(items)}</span>
-      </button>
-      {expanded && <ActivityList items={items} />}
-    </div>
-  )
 }
 
 function ActivityList({ items }: { items: readonly ActivityItem[] }) {
@@ -382,54 +321,51 @@ function CompactionNotice({ item }: { item: CompactionItem }) {
   )
 }
 
-interface TurnStatusProps {
+interface WorkingStatusProps {
   user: UserItem
   /** Что агент уже сделал, отвечая на сообщение: по последнему видно, чем он занят. */
   items: readonly TimelineItem[]
   agent: AgentId
   tokens: number
-  /** Действия, которые агент выполняет сейчас; раскрываются по клику на строку работы. */
-  activity?: readonly ActivityItem[] | undefined
-  working: boolean
   visible: boolean
 }
 
-function TurnStatus({ user, items, agent, tokens, activity, working, visible }: TurnStatusProps) {
-  const now = useClock(working && visible)
+/**
+ * Строка работающего агента: что он делает сейчас, сколько работает и сколько написал.
+ * Клик раскрывает все действия этого ответа.
+ */
+function WorkingStatus({ user, items, agent, tokens, visible }: WorkingStatusProps) {
+  const now = useClock(visible)
   const [expanded, setExpanded] = useState(false)
-  if (working) {
-    const elapsed = formatDuration(now - user.createdAt)
-    const current = activity?.findLast((item) => item.kind === 'tool' && item.status === 'running')
-    const label =
-      current?.kind === 'tool'
-        ? `${toolVerb(current.tool, true)} ${current.title}`
-        : `${workingLabel(items, user.id)}…`
-    // Одна строка: что агент делает сейчас, сколько работает и сколько написал. Клик
-    // раскрывает действия этого ответа.
-    return (
-      <div className="turn-status-group">
-        <button
-          type="button"
-          className="turn-status"
-          data-working
-          aria-expanded={activity ? expanded : undefined}
-          disabled={!activity}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          <AgentIcon agent={agent} className="turn-status__glyph" />
-          <span className="turn-status__verb">{label}</span>
-          <span className="turn-status__meta">
-            ({elapsed}
-            {tokens > 0 && ` · ↓ ${formatTokens(tokens)} tokens`})
-          </span>
-        </button>
-        {expanded && activity && <ActivityList items={activity} />}
-      </div>
-    )
-  }
-  return user.finishedAt ? (
-    <div className="turn-status">Worked for {formatDuration(user.finishedAt - user.createdAt)}</div>
-  ) : null
+  const activity = items.filter(
+    (item): item is ActivityItem =>
+      item.kind === 'tool' || (item.kind === 'reasoning' && item.text.trim() !== '')
+  )
+  const current = activity.findLast((item) => item.kind === 'tool' && item.status === 'running')
+  const label =
+    current?.kind === 'tool'
+      ? `${toolVerb(current.tool, true)} ${current.title}`
+      : `${workingLabel(items, user.id)}…`
+  return (
+    <div className="turn-status-group">
+      <button
+        type="button"
+        className="turn-status"
+        data-working
+        aria-expanded={activity.length > 0 ? expanded : undefined}
+        disabled={activity.length === 0}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <AgentIcon agent={agent} className="turn-status__glyph" />
+        <span className="turn-status__verb">{label}</span>
+        <span className="turn-status__meta">
+          ({formatDuration(now - user.createdAt)}
+          {tokens > 0 && ` · ↓ ${formatTokens(tokens)} tokens`})
+        </span>
+      </button>
+      {expanded && <ActivityList items={activity} />}
+    </div>
+  )
 }
 
 /** Текущее время, которое обновляется каждую секунду, пока `active`. */

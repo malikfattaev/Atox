@@ -699,7 +699,6 @@ ul {
   .project-chats__content,
   .chat-workers,
   .chat-workers__toggle .icon,
-  .activity__chevron,
   .usage-indicator__fill {
     transition: none;
   }
@@ -2579,38 +2578,7 @@ ul {
   margin: 16px 0;
 }
 
-/* Действия агента: свёрнутая сводка и список команд, правок и чтений */
-
-.activity {
-  color: var(--color-text-muted);
-}
-
-.activity__summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  padding: 2px 0;
-  border-radius: 6px;
-}
-
-.activity__summary:hover {
-  color: var(--color-text);
-}
-
-.activity__summary-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.activity__chevron {
-  transition: rotate var(--collapse-duration) var(--collapse-easing);
-}
-
-.activity[data-expanded='true'] .activity__chevron {
-  rotate: 90deg;
-}
+/* Действия агента: список команд, правок и чтений под строкой его работы */
 
 .activity__spinner {
   animation: spin 1s linear infinite;
@@ -2623,6 +2591,7 @@ ul {
 }
 
 .activity__list {
+  color: var(--color-text-muted);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2861,6 +2830,11 @@ ul {
 .composer__input {
   flex: 1;
   min-width: 0;
+  /*
+   * Поле растёт вместе с текстом само, без пересчёта высоты в скрипте: пересчёт на миг сжимал
+   * поле, лента вырастала и упиралась в конец, а потом оставалась выше, чем была.
+   */
+  field-sizing: content;
   max-height: var(--composer-max-height);
   /* Одна строка текста по высоте ровно с кнопками по бокам. */
   padding: calc((var(--composer-button-size) - 1.5em) / 2) 4px;
