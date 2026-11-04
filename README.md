@@ -2,8 +2,6 @@
   <img src="app/resources/icon.png" alt="Atox" width="128">
 </p>
 
-<h1 align="center">Atox</h1>
-
 <p align="center">
   <strong>Every coding agent in one window</strong><br>
   <sub>A lightweight Mac and Linux app for Claude Code, Codex and other coding agents.</sub>
