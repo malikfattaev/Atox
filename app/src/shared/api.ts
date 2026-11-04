@@ -27,6 +27,7 @@ import type {
 } from './repository'
 import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
+import type { UpdateState } from './update'
 
 export type ContextMenuItem<Action extends string> =
   | {
@@ -201,9 +202,9 @@ export interface AtoxApi {
     ): Promise<RepositoryResult<Page<GitHubItems[Kind]>>>
   }
   updates: {
-    /** Версия, которая скачана и готова к установке; `null` — обновлений нет. */
-    readyVersion(): Promise<string | null>
-    subscribe(listener: (version: string | null) => void): () => void
+    /** Скачивается ли новая версия или она уже готова к установке; `null` — обновлений нет. */
+    state(): Promise<UpdateState>
+    subscribe(listener: (state: UpdateState) => void): () => void
     /** Перезапускает приложение с установкой обновления. */
     install(): void
   }
@@ -288,8 +289,8 @@ export const IpcChannel = {
   RepositoryMoreCommits: 'repository:more-commits',
   RepositoryGitHub: 'repository:github',
   RepositoryMoreGitHub: 'repository:more-github',
-  UpdatesReadyVersion: 'updates:ready-version',
-  UpdatesReady: 'updates:ready',
+  UpdatesState: 'updates:state',
+  UpdatesStateChanged: 'updates:state-changed',
   UpdatesInstall: 'updates:install',
   SystemUserProfile: 'system:user-profile',
   SystemFocusWindow: 'system:focus-window',

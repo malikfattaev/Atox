@@ -30,6 +30,7 @@ import { IS_MAC } from '../shared/platform'
 import { isProjectColor } from '../shared/projectColors'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
+import type { UpdateState } from '../shared/update'
 import { findAgent, isAgentId, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
 import type { WorkingTreeReader } from './changes'
@@ -374,7 +375,7 @@ export function registerIpcHandlers({
       repository.moreGitHub(store.getProject(projectId).path, kind, state, cursor)
   )
 
-  ipcMain.handle(IpcChannel.UpdatesReadyVersion, () => updater?.readyVersion ?? null)
+  ipcMain.handle(IpcChannel.UpdatesState, () => updater?.state ?? null)
   ipcMain.on(IpcChannel.UpdatesInstall, () => updater?.installAndRelaunch())
 
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
@@ -485,8 +486,8 @@ function buildMenuTemplate(
   })
 }
 
-export function broadcastUpdateReady(version: string): void {
-  broadcast(IpcChannel.UpdatesReady, version)
+export function broadcastUpdateState(state: UpdateState): void {
+  broadcast(IpcChannel.UpdatesStateChanged, state)
 }
 
 export function broadcastProjectsChanged(projects: Project[]): void {

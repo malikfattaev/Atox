@@ -57,3 +57,12 @@ export function compareVersions(a: string, b: string): number {
 export function isSafeReleaseFileName(name: string): boolean {
   return /^[\w.-]+$/.test(name) && !name.startsWith('.')
 }
+
+/**
+ * Что сейчас с обновлением: новая версия скачивается (`progress` от 0 до 1) или уже готова
+ * к установке; `null` — обновлений нет.
+ */
+export type UpdateState =
+  | { phase: 'downloading'; version: string; progress: number }
+  | { phase: 'ready'; version: string }
+  | null

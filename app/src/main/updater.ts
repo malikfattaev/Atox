@@ -10,16 +10,26 @@ import {
   UPDATE_PLATFORMS,
   updateSignaturePayload,
   type UpdateFile,
-  type UpdateManifest
+  type UpdateManifest,
+  type UpdateState
 } from '../shared/update'
 import { isInstallableFile, type UpdateInstaller } from './updateInstallers'
 import { UPDATE_PUBLIC_KEY } from './updatePublicKey'
 
 /** Первая проверка — вскоре после запуска, чтобы не мешать открытию окна. */
 const FIRST_CHECK_DELAY_MS = 10_000
-const CHECK_INTERVAL_MS = 15 * 60 * 1000
+const CHECK_INTERVAL_MS = 5 * 60 * 1000
 /** При возвращении в окно проверяем снова, но не чаще этого интервала. */
-const FOCUS_CHECK_INTERVAL_MS = 2 * 60 * 1000
+const FOCUS_CHECK_INTERVAL_MS = 30 * 1000
+/** Прогресс скачивания сообщается шагами по проценту, а не на каждый пришедший кусок. */
+const PROGRESS_STEP = 0.01
+
+/**
+ * Чем закончилась проверка: `busy` — проверка уже идёт, `unsupported` — приложение нельзя
+ * заменить на месте (например, запущено из образа диска), `current` — новее версии нет,
+ * `available` — новая версия скачана или уже была готова.
+ */
+export type UpdateCheckResult = 'busy' | 'unsupported' | 'current' | 'available'
 
 interface ReadyUpdate {
   version: string
@@ -31,7 +41,7 @@ interface AppUpdaterOptions {
   /** Адрес, по которому лежат файлы последнего релиза. */
   feedUrl: string
   installer: UpdateInstaller
-  onReady(version: string): void
+  onStateChange(state: UpdateState): void
 }
 
 /**
@@ -41,6 +51,7 @@ interface AppUpdaterOptions {
  */
 export class AppUpdater {
   private readyUpdate: ReadyUpdate | null = null
+  private currentState: UpdateState = null
   private checking = false
   private relaunchAfterInstall = false
   private installerStarted = false
@@ -48,9 +59,8 @@ export class AppUpdater {
 
   constructor(private readonly options: AppUpdaterOptions) {}
 
-  /** Версия, готовая к установке, или `null`. */
-  get readyVersion(): string | null {
-    return this.readyUpdate?.version ?? null
+  get state(): UpdateState {
+    return this.currentState
   }
 
   start(): void {
@@ -63,6 +73,12 @@ export class AppUpdater {
     if (Date.now() - this.lastCheckAt >= FOCUS_CHECK_INTERVAL_MS) {
       this.runCheck()
     }
+  }
+
+  /** Проверка по просьбе пользователя — из меню приложения; ошибки достаются вызывающему. */
+  checkNow(): Promise<UpdateCheckResult> {
+    this.lastCheckAt = Date.now()
+    return this.check()
   }
 
   private runCheck(): void {
@@ -99,25 +115,39 @@ export class AppUpdater {
     }
   }
 
-  private async check(): Promise<void> {
+  private async check(): Promise<UpdateCheckResult> {
     const { installer } = this.options
-    if (this.checking || !(await installer.canInstall())) {
-      return
+    if (this.checking) {
+      return 'busy'
+    }
+    if (!(await installer.canInstall())) {
+      return 'unsupported'
     }
     this.checking = true
     try {
       const manifest = await this.fetchManifest()
       const isNewer = compareVersions(manifest.version, app.getVersion()) > 0
       const file = manifest.files[process.arch]
-      if (!isNewer || !file || manifest.version === this.readyUpdate?.version) {
-        return
+      if (!isNewer || !file) {
+        return 'current'
       }
-      const path = await this.download(manifest, file)
+      if (manifest.version === this.readyUpdate?.version) {
+        return 'available'
+      }
+      let path: string
+      try {
+        path = await this.download(manifest, file)
+      } catch (error) {
+        // Скачивание сорвалось — показываем готовое ранее обновление, если оно есть.
+        this.setState(this.readyUpdate && { phase: 'ready', version: this.readyUpdate.version })
+        throw error
+      }
       this.readyUpdate = { version: manifest.version, path }
-      this.options.onReady(manifest.version)
+      this.setState({ phase: 'ready', version: manifest.version })
       // Прежние скачивания удаляются, только когда готовым стало новое: до этого на одно
       // из них могло указывать обновление, ожидающее установки.
       await removeOtherDownloads(installer.downloadsRoot(), manifest.version)
+      return 'available'
     } finally {
       this.checking = false
     }
@@ -160,10 +190,17 @@ export class AppUpdater {
     const filePath = join(directory, file.name)
     const hash = createHash('sha512')
     let size = 0
+    let reported = 0
+    this.setState({ phase: 'downloading', version: manifest.version, progress: 0 })
     const measure = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
+      transform: (chunk: Buffer, _encoding, callback) => {
         hash.update(chunk)
         size += chunk.length
+        const progress = Math.min(1, size / file.size)
+        if (progress - reported >= PROGRESS_STEP) {
+          reported = progress
+          this.setState({ phase: 'downloading', version: manifest.version, progress })
+        }
         callback(null, chunk)
       }
     })
@@ -173,6 +210,11 @@ export class AppUpdater {
     }
 
     return installer.prepare(filePath)
+  }
+
+  private setState(state: UpdateState): void {
+    this.currentState = state
+    this.options.onStateChange(state)
   }
 }
 

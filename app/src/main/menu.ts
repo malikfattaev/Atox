@@ -32,7 +32,14 @@ export class AppMenu {
   private recordingShortcut = false
   private installedShortcuts = ''
 
-  constructor(private readonly settings: SettingsStore) {
+  /**
+   * @param checkForUpdates Проверка обновлений по просьбе пользователя; без неё (сборка
+   * для разработки) пункта в меню нет.
+   */
+  constructor(
+    private readonly settings: SettingsStore,
+    private readonly checkForUpdates?: () => void
+  ) {
     settings.onChange(({ shortcuts }) => {
       if (JSON.stringify(shortcuts) !== this.installedShortcuts) {
         this.install()
@@ -157,6 +164,9 @@ export class AppMenu {
         label: app.name,
         submenu: [
           { role: 'about' },
+          ...(this.checkForUpdates
+            ? [{ label: 'Check for Updates…', click: this.checkForUpdates }]
+            : []),
           { type: 'separator' },
           commandItem('Settings…', 'openSettings', { type: 'open-settings' }),
           { type: 'separator' },

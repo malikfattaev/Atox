@@ -25,6 +25,15 @@ export async function confirm(
   return response === 0
 }
 
+/** Системное сообщение с одной кнопкой «OK»; на окне показывается как sheet. */
+export async function inform(
+  window: BrowserWindow | null,
+  { type, message, detail }: Pick<Electron.MessageBoxOptions, 'type' | 'message' | 'detail'>
+): Promise<void> {
+  const options: Electron.MessageBoxOptions = { type, message, detail, buttons: ['OK'] }
+  await (window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options))
+}
+
 /**
  * Предупреждение о работающих агентах, например:
  * «Claude is still working in this chat. Deleting the chat will stop it.»

@@ -15,7 +15,7 @@ import {
   broadcastProjectsChanged,
   broadcastTerminalData,
   broadcastTerminalExit,
-  broadcastUpdateReady,
+  broadcastUpdateState,
   registerIpcHandlers
 } from './ipc'
 import { AppMenu } from './menu'
@@ -27,6 +27,7 @@ import { SettingsStore } from './settings'
 import { ShellEnvironment } from './shellEnvironment'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
+import { checkForUpdatesFromMenu } from './updateCheck'
 import { createUpdateInstaller } from './updateInstallers'
 import { AppUpdater } from './updater'
 import { createMainWindow } from './window'
@@ -107,7 +108,7 @@ async function bootstrap(): Promise<void> {
     ? new AppUpdater({
         feedUrl: process.env['ATOX_UPDATE_FEED_URL'] ?? __UPDATE_FEED_URL__,
         installer: updateInstaller,
-        onReady: broadcastUpdateReady
+        onStateChange: broadcastUpdateState
       })
     : null
   const orchestration = new OrchestrationServer({
@@ -136,7 +137,10 @@ async function bootstrap(): Promise<void> {
       console.error('Failed to install the desktop entry', error)
     )
   }
-  const menu = new AppMenu(settings)
+  const menu = new AppMenu(
+    settings,
+    updater ? () => void checkForUpdatesFromMenu(updater) : undefined
+  )
   registerIpcHandlers({
     store,
     settings,

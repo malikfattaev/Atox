@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppCommand } from '../shared/commands'
 import type { Settings } from '../shared/settings'
 import type { ConversationEvent, UserRequestKind } from '../shared/conversation'
+import type { UpdateState } from '../shared/update'
 import { IpcChannel, type AtoxApi, type GitBranches } from '../shared/api'
 
 type Listener<Payload> = (payload: Payload) => void
@@ -179,12 +180,11 @@ const api: AtoxApi = {
       ipcRenderer.invoke(IpcChannel.RepositoryMoreGitHub, projectId, kind, state, cursor)
   },
   updates: {
-    readyVersion: () => ipcRenderer.invoke(IpcChannel.UpdatesReadyVersion),
+    state: () => ipcRenderer.invoke(IpcChannel.UpdatesState),
     subscribe: (listener) => {
-      const handler = (_event: Electron.IpcRendererEvent, version: string | null) =>
-        listener(version)
-      ipcRenderer.on(IpcChannel.UpdatesReady, handler)
-      return () => ipcRenderer.removeListener(IpcChannel.UpdatesReady, handler)
+      const handler = (_event: Electron.IpcRendererEvent, state: UpdateState) => listener(state)
+      ipcRenderer.on(IpcChannel.UpdatesStateChanged, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.UpdatesStateChanged, handler)
     },
     install: () => ipcRenderer.send(IpcChannel.UpdatesInstall)
   },

@@ -39,6 +39,8 @@
   --avatar-size: 26px;
   /* Кнопка обновления уже кнопки настроек, чтобы стоять к ней ближе. */
   --update-button-width: 26px;
+  --update-progress-size: 15px;
+  --update-progress-stroke: 2.5px;
   --status-dot-size: 8px;
   --status-gap: 8px;
   --chat-row-padding: 7px;
@@ -772,6 +774,36 @@ ul {
 .update-button:hover {
   width: var(--update-button-width);
   color: var(--color-accent);
+}
+
+/* Пока новая версия скачивается, на месте кнопки — кольцо, которое заполняется. */
+.update-progress {
+  display: grid;
+  place-items: center;
+  width: var(--update-button-width);
+  height: var(--row-height);
+}
+
+.update-progress__ring {
+  width: var(--update-progress-size);
+  height: var(--update-progress-size);
+  transform: rotate(-90deg);
+}
+
+.update-progress__track,
+.update-progress__value {
+  fill: none;
+  stroke-width: var(--update-progress-stroke);
+}
+
+.update-progress__track {
+  stroke: var(--color-border);
+}
+
+.update-progress__value {
+  stroke: var(--color-accent);
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.2s ease;
 }
 
 .profile-bar__name {
