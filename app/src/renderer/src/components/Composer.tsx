@@ -11,12 +11,7 @@ import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { LOCAL_COMMAND_ALIASES, useAgentCommands } from '../hooks/useAgentCommands'
 import { attachFiles, attachPicked, fileName, type Attachment } from '../lib/attachments'
-import {
-  currentModel,
-  matchEffort,
-  matchModel,
-  modelConfiguration
-} from '../lib/modelSelection'
+import { currentModel, matchEffort, matchModel, modelConfiguration } from '../lib/modelSelection'
 import { CommandMenu, filterCommands } from './CommandMenu'
 import { ImageViewer } from './ImageViewer'
 import { ModelPicker } from './ModelPicker'
@@ -55,7 +50,9 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   const commands = useAgentCommands(chat.id, chat.agent, commandQuery !== undefined)
   const [dismissedText, setDismissedText] = useState<string | null>(null)
   const suggestions =
-    commandQuery !== undefined && dismissedText !== text ? filterCommands(commands, commandQuery) : []
+    commandQuery !== undefined && dismissedText !== text
+      ? filterCommands(commands, commandQuery)
+      : []
   const [activeIndex, setActiveIndex] = useState(0)
   const [pickerRequest, setPickerRequest] = useState(0)
 
@@ -368,9 +365,9 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           )}
         </div>
       </div>
-      {/* В пустом чате модель появляется, только когда начали писать: сначала — только поле. */}
-      <div className="composer__footer" data-hidden={!started && !canSend}>
-        <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
+      {/* В пустом чате только поле: новый чат начинает агент по умолчанию, сменить его можно потом. */}
+      <div className="composer__footer" data-hidden={!started}>
+        <ModelPicker chat={chat} openRequest={pickerRequest} />
         {usage && <UsageIndicator usage={usage} />}
       </div>
       {viewedImage && <ImageViewer src={viewedImage} onClose={() => setViewedImage(null)} />}

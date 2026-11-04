@@ -261,18 +261,15 @@ export function registerIpcHandlers({
       await conversations.configure(chatId, parseConfiguration(configuration))
       const chat = store.findChat(chatId)?.chat
       if (chat) {
-        // Выбор запоминается: следующий чат начнётся с того же агента, модели и эффорта.
-        const { defaultAgent, agentModels } = settings.get()
+        // Модель и эффорт агента запоминаются для следующих чатов; агент по умолчанию —
+        // нет: смена агента касается только этого чата.
+        const { agentModels } = settings.get()
         const selection = {
           ...(chat.model && { model: chat.model }),
           ...(chat.effort && { effort: chat.effort })
         }
-        if (
-          defaultAgent !== chat.agent ||
-          JSON.stringify(agentModels[chat.agent] ?? {}) !== JSON.stringify(selection)
-        ) {
+        if (JSON.stringify(agentModels[chat.agent] ?? {}) !== JSON.stringify(selection)) {
           settings.update({
-            defaultAgent: chat.agent,
             agentModels: { ...agentModels, [chat.agent]: selection }
           })
         }
@@ -368,10 +365,8 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.RepositoryMoreCommits, (_event, projectId: string, cursor: string) =>
     repository.moreCommits(store.getProject(projectId).path, cursor)
   )
-  ipcMain.handle(
-    IpcChannel.RepositoryGitHub,
-    (_event, projectId: string, loaded?: GitHubCounts) =>
-      repository.github(store.getProject(projectId).path, loaded)
+  ipcMain.handle(IpcChannel.RepositoryGitHub, (_event, projectId: string, loaded?: GitHubCounts) =>
+    repository.github(store.getProject(projectId).path, loaded)
   )
   ipcMain.handle(
     IpcChannel.RepositoryMoreGitHub,
