@@ -41,8 +41,10 @@ jobs:
     strategy:
       matrix:
         include:
+          # Обе архитектуры собираются на Intel: машин macOS на Apple Silicon у GitHub часто не
+          # хватает, и сборка часами стоит в очереди. Готовые node-pty есть под обе архитектуры.
           - platform: mac
-            runner: macos-15
+            runner: macos-15-intel
             builder: --mac --arm64 --x64
             files: |
               app/dist/*.dmg
