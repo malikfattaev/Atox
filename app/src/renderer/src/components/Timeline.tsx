@@ -102,8 +102,12 @@ export const Timeline = memo(function Timeline({
                 className="user-message"
                 data-fresh={Date.now() - block.item.createdAt < FRESH_MESSAGE_MS || undefined}
               >
-                {block.item.images && <MessageImages paths={block.item.images} />}
-                {block.item.files && <MessageFiles paths={block.item.files} />}
+                {(block.item.images || block.item.files) && (
+                  <MessageAttachments
+                    images={block.item.images ?? []}
+                    files={block.item.files ?? []}
+                  />
+                )}
                 {block.item.text && <div className="message message--user">{block.item.text}</div>}
               </div>
             )
@@ -154,12 +158,20 @@ export const Timeline = memo(function Timeline({
   )
 })
 
-/** Картинки, приложенные к сообщению: клик открывает картинку на весь экран. */
-function MessageImages({ paths }: { paths: readonly string[] }) {
+interface MessageAttachmentsProps {
+  images: readonly string[]
+  files: readonly string[]
+}
+
+/**
+ * Вложения сообщения одним рядом над его текстом: картинки, затем файлы. Клик по картинке
+ * открывает её на весь экран.
+ */
+function MessageAttachments({ images, files }: MessageAttachmentsProps) {
   const [viewed, setViewed] = useState<string | null>(null)
   return (
-    <ul className="message__images">
-      {paths.map((path) => {
+    <ul className="message__attachments">
+      {images.map((path) => {
         const preview = imagePreview(path)
         return (
           <li key={path} className="message__image" title={path}>
@@ -178,21 +190,13 @@ function MessageImages({ paths }: { paths: readonly string[] }) {
           </li>
         )
       })}
-      {viewed && <ImageViewer src={viewed} onClose={() => setViewed(null)} />}
-    </ul>
-  )
-}
-
-/** Файлы, приложенные к сообщению, — плашками с именем, как в поле ввода. */
-function MessageFiles({ paths }: { paths: readonly string[] }) {
-  return (
-    <ul className="message__files">
-      {paths.map((path) => (
+      {files.map((path) => (
         <li key={path} className="message__file" title={path}>
           <FileText className="icon" aria-hidden />
           <span className="message__file-name">{fileName(path)}</span>
         </li>
       ))}
+      {viewed && <ImageViewer src={viewed} onClose={() => setViewed(null)} />}
     </ul>
   )
 }
