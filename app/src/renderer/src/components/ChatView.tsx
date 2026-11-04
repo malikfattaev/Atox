@@ -111,7 +111,6 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
               chatId={chat.id}
               items={conversation.items}
               running={conversation.running}
-              agent={chat.agent}
               turnTokens={conversation.turnTokens ?? 0}
               visible={visible}
             />

@@ -73,6 +73,8 @@
   /* Обзор агентов: колонка уже репозитория — в строке меньше текста. */
   --agents-width: 720px;
   --agents-row-padding: 10px;
+  /* Знак агента в строке обзора — по высоте мелкого текста рядом. */
+  --agent-row-icon-size: 13px;
   --changed-file-height: 30px;
   --changed-file-icon-size: 14px;
   --diff-font-size: 12px;
@@ -917,6 +919,14 @@ ul {
   font-size: var(--font-size-small);
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+.agent-row__agent {
+  flex-shrink: 0;
+  align-self: center;
+  width: var(--agent-row-icon-size);
+  height: var(--agent-row-icon-size);
+  margin-right: 6px;
 }
 
 .agent-row__place {
@@ -2210,6 +2220,21 @@ ul {
   .image-viewer {
     animation: none;
   }
+}
+
+/* Смена агента посреди чата: тихая строка по центру ленты. */
+.agent-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.agent-switch__icon {
+  width: var(--agent-icon-size);
+  height: var(--agent-icon-size);
 }
 
 /* Только что отправленное сообщение всплывает снизу — быстро, чтобы не задерживать взгляд. */

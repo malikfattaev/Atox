@@ -74,7 +74,7 @@ export interface ModelSelection {
   effort?: string
 }
 
-/** Что можно поменять в чате; `null` — вернуть значение по умолчанию. Агента — только до первого сообщения. */
+/** Что можно поменять в чате; `null` — вернуть значение по умолчанию. Агента — в любой момент. */
 export interface ChatConfiguration {
   agent?: AgentId
   model?: string | null
@@ -142,6 +142,8 @@ export type TimelineItem =
       images?: string[]
       /** Другие приложенные файлы и папки — их агент открывает сам по путям. */
       files?: string[]
+      /** Агент, которому ушло сообщение: чат могли переключить, пока он отвечал. */
+      agent: AgentId
       createdAt: number
       /** Когда агент закончил отвечать на это сообщение; нет — ещё работает или ждёт очереди. */
       finishedAt?: number
@@ -211,6 +213,8 @@ export type TimelineItem =
       error?: string
     }
   | { kind: 'error'; id: string; message: string }
+  /** Сообщения в чате начал получать другой агент — строка перед первым из них. */
+  | { kind: 'agent-switch'; id: string; agent: AgentId }
 
 export type CompactionStatus = 'running' | 'done' | 'failed'
 
@@ -320,7 +324,9 @@ export function summarizeConversation(
     ...(snapshot.waitingFor && { waitingFor: snapshot.waitingFor }),
     ...(step && { step }),
     startedAt: lastUser.createdAt,
-    ...(lastUser.finishedAt !== undefined && { finishedAt: lastUser.finishedAt }),
+    ...(lastUser.finishedAt !== undefined && {
+      finishedAt: lastUser.finishedAt
+    }),
     ...(replyLine && { reply: replyLine }),
     ...(snapshot.running && snapshot.turnTokens && { turnTokens: snapshot.turnTokens })
   }

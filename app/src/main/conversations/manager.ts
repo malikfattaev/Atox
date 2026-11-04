@@ -22,6 +22,7 @@ import {
 import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
+import { handoffMessage } from './handoff'
 import type { AgentDriver, AgentLaunch, AgentSession } from './types'
 
 /**
@@ -40,6 +41,8 @@ interface QueuedMessage {
   itemId: string
   text: string
   images: readonly string[]
+  /** Агент чата в момент отправки: его потом не меняет переключение, пока сообщение в очереди. */
+  agent: AgentId
 }
 
 interface PendingDelta {
@@ -56,6 +59,15 @@ interface Conversation {
    * ради новой модели, продолжает тот же разговор. Живёт до выхода из Atox.
    */
   sessionId: string | null
+  /** Агент, с которым идёт разговор на его стороне; `null` — разговор ещё не начинался. */
+  sessionAgent: AgentId | null
+  /** Агент последнего отправленного сообщения: по нему видно, что следующее уходит другому. */
+  lastAgent: AgentId | null
+  /**
+   * Чат перешёл к другому агенту: он ничего не знает о разговоре, и с первым сообщением
+   * получит переписку прежнего агента — этого.
+   */
+  handoffFrom: AgentId | null
   /** Чат удалён или приложение закрывается: новых сессий для него не запускают. */
   disposed: boolean
   /** Модель или эффорт сменились: сессию нужно перезапустить, как только агент освободится. */
@@ -114,13 +126,22 @@ export class ConversationManager {
       return
     }
     const conversation = this.conversation(chatId)
+    const { agent } = this.findChat(chatId).chat
     const isFirst = !conversation.snapshot.items.some(({ kind }) => kind === 'user')
+    if (conversation.lastAgent && conversation.lastAgent !== agent) {
+      this.emit(chatId, conversation, {
+        type: 'item',
+        item: { kind: 'agent-switch', id: randomUUID(), agent }
+      })
+    }
+    conversation.lastAgent = agent
     const item: TimelineItem = {
       kind: 'user',
       id: randomUUID(),
       text: message,
       ...(images.length > 0 && { images: [...images] }),
       ...(files.length > 0 && { files: [...files] }),
+      agent,
       createdAt: Date.now()
     }
     this.emit(chatId, conversation, { type: 'item', item })
@@ -131,7 +152,12 @@ export class ConversationManager {
     ) {
       this.services.onProjectsChanged()
     }
-    conversation.queue.push({ itemId: item.id, text: withAttachedFiles(message, files), images })
+    conversation.queue.push({
+      itemId: item.id,
+      text: withAttachedFiles(message, files),
+      images,
+      agent
+    })
     this.pump(chatId, conversation)
   }
 
@@ -162,11 +188,23 @@ export class ConversationManager {
     try {
       item =
         command === 'usage'
-          ? { kind: 'limits', id, limits: await this.readLimits(chatId, conversation) }
-          : { kind: 'context', id, context: await this.readContext(chatId, conversation) }
+          ? {
+              kind: 'limits',
+              id,
+              limits: await this.readLimits(chatId, conversation)
+            }
+          : {
+              kind: 'context',
+              id,
+              context: await this.readContext(chatId, conversation)
+            }
     } catch (error) {
       const subject = command === 'usage' ? 'usage limits' : 'context usage'
-      item = { kind: 'error', id, message: `Could not read ${subject}. ${errorMessage(error)}` }
+      item = {
+        kind: 'error',
+        id,
+        message: `Could not read ${subject}. ${errorMessage(error)}`
+      }
     }
     if (conversation.disposed) {
       return
@@ -174,7 +212,10 @@ export class ConversationManager {
     this.emit(chatId, conversation, { type: 'item', item })
     if (item.kind === 'context') {
       const { used, limit } = item.context
-      this.emit(chatId, conversation, { type: 'usage', usage: { context: { used, limit } } })
+      this.emit(chatId, conversation, {
+        type: 'usage',
+        usage: { context: { used, limit } }
+      })
     }
   }
 
@@ -183,12 +224,14 @@ export class ConversationManager {
     this.conversation(chatId).session?.answer(itemId, answer)
   }
 
-  /** Меняет агента, модель или эффорт чата; новая модель вступает в силу со следующего сообщения. */
+  /**
+   * Меняет агента, модель или эффорт чата; всё это вступает в силу со следующего сообщения,
+   * а начатый ответ доводит до конца прежний агент. Агента можно сменить и посреди разговора:
+   * новый получит переписку и продолжит её.
+   */
   async configure(chatId: string, configuration: ChatConfiguration): Promise<void> {
     const conversation = this.conversation(chatId)
-    const started = conversation.snapshot.items.some(({ kind }) => kind === 'user')
-    const changed = this.services.store.configureChat(chatId, configuration, started)
-    if (changed && conversation.session) {
+    if (this.services.store.configureChat(chatId, configuration) && conversation.session) {
       conversation.stale = true
       this.restartIfIdle(conversation)
     }
@@ -292,6 +335,9 @@ export class ConversationManager {
     conversation.session?.close()
     conversation.session = null
     conversation.sessionId = null
+    conversation.sessionAgent = null
+    conversation.lastAgent = null
+    conversation.handoffFrom = null
     conversation.stale = false
     conversation.pendingDeltas.clear()
     conversation.pendingTokens = null
@@ -317,6 +363,9 @@ export class ConversationManager {
         snapshot: { items: [], running: false },
         session: null,
         sessionId: null,
+        sessionAgent: null,
+        lastAgent: null,
+        handoffFrom: null,
         disposed: false,
         stale: false,
         queue: [],
@@ -342,13 +391,13 @@ export class ConversationManager {
     if (!next) {
       return
     }
-    this.ensureSession(chatId, conversation)
+    this.ensureSession(chatId, conversation, next.agent)
       .then((session) => {
         if (conversation.interruptedTurn === next) {
           this.finishTurn(chatId, conversation)
-        } else {
-          session.send(next.text, next.images)
+          return
         }
+        session.send(this.messageForAgent(conversation, next), next.images)
       })
       .catch((error) => {
         if (conversation.disposed) {
@@ -364,6 +413,18 @@ export class ConversationManager {
         })
         this.finishTurn(chatId, conversation)
       })
+  }
+
+  /** Текст сообщения для агента; первое после смены агента несёт с собой переписку. */
+  private messageForAgent(conversation: Conversation, message: QueuedMessage): string {
+    const previousAgent = conversation.handoffFrom
+    if (!previousAgent) {
+      return message.text
+    }
+    conversation.handoffFrom = null
+    const { items } = conversation.snapshot
+    const index = items.findIndex(({ id }) => id === message.itemId)
+    return handoffMessage(previousAgent, index < 0 ? items : items.slice(0, index), message.text)
   }
 
   private finishTurn(chatId: string, conversation: Conversation): void {
@@ -393,28 +454,43 @@ export class ConversationManager {
     }
   }
 
-  private async ensureSession(chatId: string, conversation: Conversation): Promise<AgentSession> {
-    if (conversation.session) {
+  /** Сессия с агентом, которому ушло сообщение; сессию прежнего агента закрывает. */
+  private async ensureSession(
+    chatId: string,
+    conversation: Conversation,
+    agent: AgentId
+  ): Promise<AgentSession> {
+    if (conversation.session && conversation.sessionAgent === agent) {
       return conversation.session
     }
-    const location = this.services.store.findChat(chatId)
-    if (!location) {
-      throw new Error('The chat was deleted.')
+    // Сессия с другим агентом свободна: сообщения отдаются по одному, и прежнее уже отвечено.
+    conversation.session?.close()
+    conversation.session = null
+    conversation.stale = false
+    const { project } = this.findChat(chatId)
+    // Разговор шёл с другим агентом: его сессию новый продолжить не может — начинает свою
+    // и получает прежнюю переписку с первым сообщением.
+    if (conversation.sessionAgent && conversation.sessionAgent !== agent) {
+      conversation.handoffFrom = conversation.sessionAgent
+      conversation.sessionId = null
     }
-    const { chat, project } = location
-    const launch = await this.launch(chat.agent, project.path, chatId)
+    conversation.sessionAgent = agent
+    const launch = await this.launch(agent, project.path, chatId)
     // Чат удалили или приложение закрывается, пока агент запускался: запускать его уже незачем.
     if (conversation.disposed || this.closing) {
       throw new Error('The chat was closed.')
     }
-    const driver = this.services.drivers[chat.agent]
+    // Модель и эффорт берутся последние: их могли сменить, пока агент запускался.
+    const { chat } = this.findChat(chatId)
+    const sameAgent = chat.agent === agent
+    const driver = this.services.drivers[agent]
     const session: AgentSession = driver.start(
       {
         ...launch,
         ...(conversation.sessionId && { sessionId: conversation.sessionId }),
         selection: {
-          ...(chat.model && { model: chat.model }),
-          ...(chat.effort && { effort: chat.effort })
+          ...(sameAgent && chat.model && { model: chat.model }),
+          ...(sameAgent && chat.effort && { effort: chat.effort })
         }
       },
       {
@@ -434,7 +510,10 @@ export class ConversationManager {
         usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
         tokens: (turnTokens) => this.emit(chatId, conversation, { type: 'tokens', turnTokens }),
         sessionStarted: (sessionId) => {
-          conversation.sessionId = sessionId
+          // Сессия, которую уже сменил другой агент, свой разговор не навязывает.
+          if (conversation.session === session) {
+            conversation.sessionId = sessionId
+          }
         },
         closed: () => {
           if (conversation.session === session) {
@@ -517,7 +596,12 @@ export class ConversationManager {
     const deltas = [...conversation.pendingDeltas.values()]
     conversation.pendingDeltas.clear()
     for (const { itemId, field, delta } of deltas) {
-      this.dispatch(chatId, conversation, { type: 'delta', itemId, field, delta })
+      this.dispatch(chatId, conversation, {
+        type: 'delta',
+        itemId,
+        field,
+        delta
+      })
     }
     if (conversation.pendingTokens !== null) {
       const turnTokens = conversation.pendingTokens

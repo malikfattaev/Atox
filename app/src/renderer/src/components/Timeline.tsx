@@ -15,7 +15,7 @@ import {
   type LucideProps
 } from 'lucide-react'
 import type { TimelineItem, ToolKind } from '../../../shared/conversation'
-import type { AgentId } from '../../../shared/agents'
+import { findAgent } from '../../../shared/agents'
 import {
   compactionText,
   formatDuration,
@@ -44,6 +44,10 @@ type Block =
   | { type: 'limits'; item: Extract<TimelineItem, { kind: 'limits' }> }
   | { type: 'context'; item: Extract<TimelineItem, { kind: 'context' }> }
   | { type: 'compaction'; item: CompactionItem }
+  | {
+      type: 'agent-switch'
+      item: Extract<TimelineItem, { kind: 'agent-switch' }>
+    }
   /** Конец ответа на сообщение: пока агент работает — что он делает сейчас. */
   | { type: 'turn'; key: string; user: UserItem; items: TimelineItem[] }
 
@@ -70,7 +74,6 @@ interface TimelineProps {
   chatId: string
   items: readonly TimelineItem[]
   running: boolean
-  agent: AgentId
   /** Сколько токенов агент написал, отвечая на текущее сообщение. */
   turnTokens: number
   /** Чат на экране: секундомер скрытого чата не тикает. */
@@ -81,7 +84,6 @@ export const Timeline = memo(function Timeline({
   chatId,
   items,
   running,
-  agent,
   turnTokens,
   visible
 }: TimelineProps) {
@@ -132,6 +134,13 @@ export const Timeline = memo(function Timeline({
             return <ContextCard key={block.item.id} context={block.item.context} />
           case 'compaction':
             return <CompactionNotice key={block.item.id} item={block.item} />
+          case 'agent-switch':
+            return (
+              <div key={block.item.id} className="agent-switch">
+                <AgentIcon agent={block.item.agent} className="agent-switch__icon" />
+                Switched to {findAgent(block.item.agent)?.name ?? block.item.agent}
+              </div>
+            )
           case 'turn':
             // Законченный ответ — это только его текст: что агент делал, видно лишь пока он работает.
             return running && block === lastTurn && !block.user.finishedAt ? (
@@ -139,7 +148,6 @@ export const Timeline = memo(function Timeline({
                 key={block.key}
                 user={block.user}
                 items={block.items}
-                agent={agent}
                 tokens={turnTokens}
                 visible={visible}
               />
@@ -201,7 +209,12 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
 
   const finishTurn = () => {
     if (turn) {
-      blocks.push({ type: 'turn', key: `${turn.id}:turn`, user: turn, items: turnItems })
+      blocks.push({
+        type: 'turn',
+        key: `${turn.id}:turn`,
+        user: turn,
+        items: turnItems
+      })
     }
   }
 
@@ -238,6 +251,9 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
         break
       case 'compaction':
         blocks.push({ type: 'compaction', item })
+        break
+      case 'agent-switch':
+        blocks.push({ type: 'agent-switch', item })
         break
     }
     turnItems.push(item)
@@ -325,7 +341,6 @@ interface WorkingStatusProps {
   user: UserItem
   /** Что агент уже сделал, отвечая на сообщение: по последнему видно, чем он занят. */
   items: readonly TimelineItem[]
-  agent: AgentId
   tokens: number
   visible: boolean
 }
@@ -334,7 +349,7 @@ interface WorkingStatusProps {
  * Строка работающего агента: что он делает сейчас, сколько работает и сколько написал.
  * Клик раскрывает все действия этого ответа.
  */
-function WorkingStatus({ user, items, agent, tokens, visible }: WorkingStatusProps) {
+function WorkingStatus({ user, items, tokens, visible }: WorkingStatusProps) {
   const now = useClock(visible)
   const [expanded, setExpanded] = useState(false)
   const activity = items.filter(
@@ -356,7 +371,7 @@ function WorkingStatus({ user, items, agent, tokens, visible }: WorkingStatusPro
         disabled={activity.length === 0}
         onClick={() => setExpanded((value) => !value)}
       >
-        <AgentIcon agent={agent} className="turn-status__glyph" />
+        <AgentIcon agent={user.agent} className="turn-status__glyph" />
         <span className="turn-status__verb">{label}</span>
         <span className="turn-status__meta">
           ({formatDuration(now - user.createdAt)}

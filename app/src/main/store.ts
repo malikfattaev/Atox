@@ -350,17 +350,13 @@ export class ProjectStore {
    * Агента можно сменить, только пока разговор с ним не начат (`started`).
    * `true` — что-то изменилось.
    */
-  configureChat(
-    chatId: string,
-    { agent, model, effort }: ChatConfiguration,
-    started: boolean
-  ): boolean {
+  configureChat(chatId: string, { agent, model, effort }: ChatConfiguration): boolean {
     const chat = this.findChat(chatId)?.chat
     if (!chat) {
       return false
     }
     const before = JSON.stringify([chat.agent, chat.model, chat.effort])
-    if (agent && agent !== chat.agent && !started) {
+    if (agent && agent !== chat.agent) {
       // Модели у агентов свои: выбор прежнего агента новому не подходит.
       chat.agent = agent
       delete chat.model

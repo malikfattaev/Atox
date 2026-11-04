@@ -17,14 +17,12 @@ type PickerAction = `agent:${string}` | `model:${string}` | `effort:${string}`
 
 interface ModelPickerProps {
   chat: Chat
-  /** Разговор уже начат: агента сменить нельзя, только модель и эффорт. */
-  started: boolean
   /** Растёт, когда меню просят открыть без клика — командой `/model` или `/effort`. */
   openRequest: number
 }
 
 /** Кнопка «Opus 5.5 High» в поле ввода: системное меню с агентом, моделью и эффортом. */
-export function ModelPicker({ chat, started, openRequest }: ModelPickerProps) {
+export function ModelPicker({ chat, openRequest }: ModelPickerProps) {
   const { configureChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -33,7 +31,8 @@ export function ModelPicker({ chat, started, openRequest }: ModelPickerProps) {
 
   const openMenu = async () => {
     const rect = buttonRef.current?.getBoundingClientRect()
-    const agents = started ? [] : await atox.agents.available()
+    // Агента можно сменить в любой момент: новый продолжит разговор с того же места.
+    const agents = await atox.agents.available()
     const action = await atox.showContextMenu<PickerAction>(
       buildMenu({ chat, catalog, model, agents }),
       rect && { x: rect.left, y: rect.bottom }
@@ -99,14 +98,12 @@ function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuIte
   const installed = AGENTS.filter(({ id }) => agents.includes(id))
   if (installed.length > 1) {
     items.push(
-      ...installed.map(
-        (agent): ContextMenuItem<PickerAction> => ({
-          action: `agent:${agent.id}`,
-          label: agent.name,
-          symbol: agent.symbol,
-          checked: agent.id === chat.agent
-        })
-      ),
+      ...installed.map((agent): ContextMenuItem<PickerAction> => ({
+        action: `agent:${agent.id}`,
+        label: agent.name,
+        symbol: agent.symbol,
+        checked: agent.id === chat.agent
+      })),
       { type: 'separator' }
     )
   }
@@ -128,7 +125,11 @@ function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuIte
   const secondary = catalog.models.filter((option) => option.secondary)
   items.push(...catalog.models.filter((option) => !option.secondary).map(modelItem))
   if (secondary.length > 0) {
-    items.push({ type: 'submenu', label: 'Other Models', items: secondary.map(modelItem) })
+    items.push({
+      type: 'submenu',
+      label: 'Other Models',
+      items: secondary.map(modelItem)
+    })
   }
 
   if (model && model.efforts.length > 0) {
@@ -142,15 +143,17 @@ function buildMenu({ chat, catalog, model, agents }: MenuSource): ContextMenuIte
         label: 'Effort',
         symbol: 'gauge.with.dots.needle.67percent',
         items: [
-          { action: 'effort:', label: defaultLabel, checked: chat.effort === undefined },
+          {
+            action: 'effort:',
+            label: defaultLabel,
+            checked: chat.effort === undefined
+          },
           { type: 'separator' },
-          ...model.efforts.map(
-            (level): ContextMenuItem<PickerAction> => ({
-              action: `effort:${level}`,
-              label: effortLabel(level),
-              checked: level === chat.effort
-            })
-          )
+          ...model.efforts.map((level): ContextMenuItem<PickerAction> => ({
+            action: `effort:${level}`,
+            label: effortLabel(level),
+            checked: level === chat.effort
+          }))
         ]
       }
     )

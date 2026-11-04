@@ -7,6 +7,7 @@ import { useConversationSummaries } from '../hooks/useConversationSummaries'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { formatDuration, formatTokens, toolVerb } from '../lib/conversationText'
 import { formatFullDate, formatRelativeTime } from '../lib/relativeTime'
+import { AgentIcon } from './AgentIcon'
 import { ChatStatus } from './ChatStatus'
 
 /** Как часто обновлять время работы агентов на экране. */
@@ -64,7 +65,15 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
       if (chat) {
         const parent = project.chats.find(({ id }) => id === chat.parentChatId)
         const space = spaces.find(({ id }) => id === project.spaceId)
-        return [{ summary, chat, project, ...(space && { space }), ...(parent && { parent }) }]
+        return [
+          {
+            summary,
+            chat,
+            project,
+            ...(space && { space }),
+            ...(parent && { parent })
+          }
+        ]
       }
     }
     // Чат уже удалён, а сводка пришла раньше обновления списка.
@@ -142,6 +151,7 @@ function AgentRow({
           </time>
         )}
         <span className="agent-row__detail" data-waiting={Boolean(summary.waitingFor)}>
+          <AgentIcon agent={chat.agent} className="agent-row__agent" />
           <span className="agent-row__place">
             {[space?.name, project.name, parent?.title].filter(Boolean).join(' | ')}
           </span>
