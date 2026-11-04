@@ -36,11 +36,17 @@ export function LimitsCard({ limits }: { limits: readonly PlanLimit[] }) {
             <li key={limit.label} className="usage-card__row">
               <div className="usage-card__line">
                 <span>{limit.label}</span>
-                <span className="usage-card__value">{Math.round(limit.percent)}%</span>
+                <span className="usage-card__value">
+                  {limit.percent === undefined ? '—' : `${Math.round(limit.percent)}%`}
+                </span>
               </div>
-              <Meter percent={limit.percent} />
-              {limit.resetsAt !== undefined && (
-                <span className="usage-card__note">{formatReset(limit.resetsAt)}</span>
+              <Meter percent={limit.percent ?? 0} />
+              {limit.percent === undefined ? (
+                <span className="usage-card__note">Not reported by Anthropic right now</span>
+              ) : (
+                limit.resetsAt !== undefined && (
+                  <span className="usage-card__note">{formatReset(limit.resetsAt)}</span>
+                )
               )}
             </li>
           ))}

@@ -42,8 +42,8 @@ export interface ConversationUsage {
 export interface PlanLimit {
   /** Например «Current session» (5 часов) или «Current week (all models)». */
   label: string
-  /** Израсходовано, 0–100. */
-  percent: number
+  /** Израсходовано, 0–100; нет — Anthropic сейчас не сообщает это окно для подписки. */
+  percent?: number
   /** Когда окно сбросится, мс с начала эпохи; нет — агент не сообщил. */
   resetsAt?: number
 }

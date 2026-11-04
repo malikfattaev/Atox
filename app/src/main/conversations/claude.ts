@@ -13,6 +13,7 @@ import {
   type SDKControlGetUsageResponse,
   type Query,
   type SDKMessage,
+  type SDKRateLimitInfo,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import {
@@ -126,19 +127,36 @@ type RateLimits = NonNullable<SDKControlGetUsageResponse['rate_limits']>
 
 type RateLimitWindow = { utilization: number | null; resets_at: string | null }
 
+/** Окно лимита подписки на 5 часов — «Current session» в `/usage` Claude Code. */
+const SESSION_LIMIT_LABEL = 'Current session'
+
 /** Окна лимитов в том порядке и с теми названиями, что у `/usage` в Claude Code. */
 const LIMIT_WINDOWS: readonly { key: keyof RateLimits; label: string }[] = [
-  { key: 'five_hour', label: 'Current session' },
+  { key: 'five_hour', label: SESSION_LIMIT_LABEL },
   { key: 'seven_day', label: 'Current week (all models)' },
   { key: 'seven_day_opus', label: 'Current week (Opus)' },
   { key: 'seven_day_sonnet', label: 'Current week (Sonnet)' }
 ]
 
 /**
+ * Пятичасовое окно, о котором Claude Code сообщил во время ответа (`rate_limit_event`):
+ * доля 0–1 и сброс в секундах — как в заголовках ответов API.
+ */
+interface StreamedSessionLimit {
+  utilization: number
+  resetsAt?: number
+}
+
+/**
  * Лимиты подписки из тех же данных, что показывает `/usage` в Claude Code. Метод в SDK помечен
  * экспериментальным; разбор локальной истории (`behaviors`) не нужен и пропускается.
+ * Пятичасовое окно показывается всегда: если Anthropic его не сообщает, строка остаётся без
+ * процента, а не пропадает молча. `streamed` — то же окно из событий текущего разговора.
  */
-async function readLimits(session: Query): Promise<PlanLimit[]> {
+async function readLimits(
+  session: Query,
+  streamed?: StreamedSessionLimit | null
+): Promise<PlanLimit[]> {
   const usage = await session.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
     skipBehaviors: true
   })
@@ -156,7 +174,10 @@ async function readLimits(session: Query): Promise<PlanLimit[]> {
       window
     ])
   ]
-  return windows.flatMap(([label, window]) => {
+  return windows.flatMap(([label, window]): PlanLimit[] => {
+    if (label === SESSION_LIMIT_LABEL) {
+      return [sessionLimit(window, streamed)]
+    }
     if (!window || window.utilization === null) {
       return []
     }
@@ -169,6 +190,54 @@ async function readLimits(session: Query): Promise<PlanLimit[]> {
       }
     ]
   })
+}
+
+/** Пятичасовое окно: из `/usage`, иначе из событий разговора, иначе — без процента. */
+function sessionLimit(
+  window: RateLimitWindow | null | undefined,
+  streamed: StreamedSessionLimit | null | undefined
+): PlanLimit {
+  if (window && window.utilization !== null) {
+    const resetsAt = window.resets_at ? Date.parse(window.resets_at) : Number.NaN
+    return {
+      label: SESSION_LIMIT_LABEL,
+      percent: window.utilization,
+      ...(Number.isFinite(resetsAt) && { resetsAt })
+    }
+  }
+  if (streamed && (streamed.resetsAt === undefined || streamed.resetsAt * 1000 > Date.now())) {
+    return {
+      label: SESSION_LIMIT_LABEL,
+      percent: streamed.utilization * 100,
+      ...(streamed.resetsAt !== undefined && { resetsAt: streamed.resetsAt * 1000 })
+    }
+  }
+  return { label: SESSION_LIMIT_LABEL }
+}
+
+/**
+ * Пятичасовое окно из события о лимитах. Окна по отдельности Claude Code присылает в
+ * `unifiedWindows` — поле есть в событиях, но не в типах SDK, поэтому читается осторожно.
+ */
+function streamedSessionLimit(info: SDKRateLimitInfo): StreamedSessionLimit | null {
+  const unified = (info as { unifiedWindows?: unknown }).unifiedWindows
+  const window =
+    typeof unified === 'object' && unified !== null
+      ? (unified as Record<string, unknown>)['five_hour']
+      : undefined
+  if (typeof window === 'object' && window !== null) {
+    const { utilization, resetsAt } = window as Record<string, unknown>
+    if (typeof utilization === 'number') {
+      return { utilization, ...(typeof resetsAt === 'number' && { resetsAt }) }
+    }
+  }
+  if (info.rateLimitType === 'five_hour' && typeof info.utilization === 'number') {
+    return {
+      utilization: info.utilization,
+      ...(info.resetsAt !== undefined && { resetsAt: info.resetsAt })
+    }
+  }
+  return null
 }
 
 /** Контекст по частям — без отчёта `/context` в виде таблиц для терминала. */
@@ -250,6 +319,8 @@ class ClaudeSession implements AgentSession {
   private readonly streamed = new Map<string, { id: string; kind: StreamedKind }[]>()
   /** Сообщение модели, части которого сейчас приходят потоком. */
   private streamingMessageId: string | null = null
+  /** Пятичасовой лимит из последнего события о лимитах в этом разговоре. */
+  private sessionLimit: StreamedSessionLimit | null = null
   /** Пользователь остановил ответ: ошибка прерванного хода — не ошибка. */
   private interrupted = false
   /**
@@ -324,7 +395,7 @@ class ClaudeSession implements AgentSession {
   }
 
   limits(): Promise<PlanLimit[]> {
-    return readLimits(this.session)
+    return readLimits(this.session, this.sessionLimit)
   }
 
   context(): Promise<ContextReport> {
@@ -469,6 +540,9 @@ class ClaudeSession implements AgentSession {
           })
           void this.reportUsage()
         }
+        break
+      case 'rate_limit_event':
+        this.sessionLimit = streamedSessionLimit(message.rate_limit_info) ?? this.sessionLimit
         break
       case 'stream_event':
         this.handleStreamEvent(message.event)
