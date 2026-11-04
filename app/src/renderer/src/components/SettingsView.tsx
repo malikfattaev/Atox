@@ -29,7 +29,6 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       </header>
 
       <div className="settings__group">
-        <h2 className="settings__group-title">Keyboard shortcuts</h2>
         <ShortcutList />
       </div>
     </section>

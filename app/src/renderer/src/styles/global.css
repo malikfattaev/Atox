@@ -770,7 +770,7 @@ ul {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .settings__title {
@@ -781,13 +781,6 @@ ul {
 
 .settings__group + .settings__group {
   margin-top: 28px;
-}
-
-.settings__group-title {
-  margin: 0 0 8px;
-  font-size: var(--font-size);
-  font-weight: 400;
-  color: var(--color-text-muted);
 }
 
 /* Строки группы собраны в одну карточку и разделены тонкой линией, как в Системных настройках. */
@@ -813,7 +806,7 @@ ul {
 }
 
 .settings__subgroup + .settings__subgroup {
-  margin-top: 16px;
+  margin-top: 20px;
 }
 
 .settings__subgroup-title {
