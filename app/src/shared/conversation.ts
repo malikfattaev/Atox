@@ -282,7 +282,7 @@ export interface ConversationSummary {
   startedAt: number
   /** Когда агент закончил последний ответ; нет — ещё работает. */
   finishedAt?: number
-  /** Первая строка последнего ответа агента. */
+  /** Первая строка последнего ответа агента или ошибки, которой он закончился. */
   reply?: string
   /** Сколько токенов агент написал в текущем ответе. */
   turnTokens?: number
@@ -303,7 +303,9 @@ export function summarizeConversation(
     return null
   }
   const answer = items.slice(lastUserIndex + 1)
-  const reply = answer.findLast((item) => item.kind === 'assistant')?.text
+  // Ответ закончился ошибкой — она и есть итог; иначе итог — последний текст агента.
+  const ending = answer.findLast((item) => item.kind === 'assistant' || item.kind === 'error')
+  const reply = ending?.kind === 'error' ? ending.message : ending?.text
   const replyLine = reply
     ?.split('\n')
     .find((line) => line.trim())
