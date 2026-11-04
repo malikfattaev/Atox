@@ -276,6 +276,8 @@ export function registerIpcHandlers({
     }
   )
 
+  ipcMain.handle(IpcChannel.ConversationsSummaries, () => conversations.summaries())
+
   ipcMain.handle(IpcChannel.ConversationsSnapshot, (_event, chatId: string) =>
     conversations.snapshot(chatId)
   )

@@ -14,9 +14,11 @@ function createConversationEventHub() {
   const listeners = new Map<string, Set<Listener<ConversationEvent>>>()
   const runningListeners = new Set<(chatId: string, running: boolean) => void>()
   const waitingListeners = new Set<(chatId: string, waitingFor: UserRequestKind | null) => void>()
+  const anyListeners = new Set<() => void>()
 
   ipcRenderer.on(IpcChannel.ConversationsEvent, (_event, payload: ConversationEvent) => {
     listeners.get(payload.chatId)?.forEach((listener) => listener(payload))
+    anyListeners.forEach((listener) => listener())
     if (payload.type === 'running') {
       runningListeners.forEach((listener) => listener(payload.chatId, payload.running))
     }
@@ -35,6 +37,7 @@ function createConversationEventHub() {
     }
   const onRunningChange = subscribe(runningListeners)
   const onWaitingChange = subscribe(waitingListeners)
+  const onAnyEvent = subscribe(anyListeners)
 
   const onEvent = (chatId: string, listener: Listener<ConversationEvent>) => {
     const chatListeners = listeners.get(chatId) ?? new Set()
@@ -49,7 +52,7 @@ function createConversationEventHub() {
     }
   }
 
-  return { onEvent, onRunningChange, onWaitingChange }
+  return { onEvent, onAnyEvent, onRunningChange, onWaitingChange }
 }
 
 const conversationEvents = createConversationEventHub()
@@ -125,6 +128,7 @@ const api: AtoxApi = {
   },
   conversations: {
     snapshot: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsSnapshot, chatId),
+    summaries: () => ipcRenderer.invoke(IpcChannel.ConversationsSummaries),
     send: (chatId, text, images = []) =>
       ipcRenderer.invoke(IpcChannel.ConversationsSend, chatId, text, images),
     commands: (chatId) => ipcRenderer.invoke(IpcChannel.ConversationsCommands, chatId),
@@ -134,6 +138,7 @@ const api: AtoxApi = {
     answerRequest: (chatId, itemId, answer) =>
       ipcRenderer.invoke(IpcChannel.ConversationsAnswerRequest, chatId, itemId, answer),
     onEvent: conversationEvents.onEvent,
+    onAnyEvent: conversationEvents.onAnyEvent,
     onRunningChange: conversationEvents.onRunningChange,
     onWaitingChange: conversationEvents.onWaitingChange
   },

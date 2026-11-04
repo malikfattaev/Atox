@@ -7,6 +7,7 @@ import type {
   ChatConfiguration,
   ConversationEvent,
   ConversationSnapshot,
+  ConversationSummary,
   RequestAnswer,
   UserRequestKind
 } from './conversation'
@@ -126,6 +127,8 @@ export interface AtoxApi {
   conversations: {
     /** Лента чата и то, работает ли сейчас его агент. */
     snapshot(chatId: string): Promise<ConversationSnapshot>
+    /** Сводки всех начатых разговоров — для обзора агентов. */
+    summaries(): Promise<ConversationSummary[]>
     /** `images` — пути к картинкам, которые агент получит вместе с текстом. */
     send(chatId: string, text: string, images?: readonly string[]): Promise<void>
     /** Команды агента чата для подсказок после «/». */
@@ -138,6 +141,8 @@ export interface AtoxApi {
     answerRequest(chatId: string, itemId: string, answer: RequestAnswer): Promise<void>
     /** События ленты одного чата. */
     onEvent(chatId: string, listener: (event: ConversationEvent) => void): () => void
+    /** В каком-либо чате что-то произошло: пора обновить обзор агентов. */
+    onAnyEvent(listener: () => void): () => void
     /** Агент какого-либо чата начал или закончил работу. */
     onRunningChange(listener: (chatId: string, running: boolean) => void): () => void
     /** Агент какого-либо чата начал (`waitingFor`) или перестал (`null`) ждать ответа. */
@@ -248,6 +253,7 @@ export const IpcChannel = {
   ChatsConfigure: 'chats:configure',
   ProjectsChanged: 'projects:changed',
   ConversationsSnapshot: 'conversations:snapshot',
+  ConversationsSummaries: 'conversations:summaries',
   ConversationsSend: 'conversations:send',
   ConversationsInterrupt: 'conversations:interrupt',
   ConversationsAnswerRequest: 'conversations:answer-request',

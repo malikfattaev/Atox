@@ -263,6 +263,86 @@ export type ConversationEvent =
   /** Разговор начался заново (`/clear`): лента пуста, агент не помнит прошлого. */
   | { chatId: string; type: 'reset' }
 
+/** Чем агент занят прямо сейчас — по последнему элементу текущего ответа. */
+export type ConversationStep =
+  | { kind: 'tool'; tool: ToolKind; title: string }
+  | { kind: 'thinking' }
+  | { kind: 'writing' }
+  | { kind: 'compacting' }
+  | { kind: 'request'; request: UserRequestKind; title: string }
+
+/** Разговор чата одной строкой — для обзора всех агентов. */
+export interface ConversationSummary {
+  chatId: string
+  running: boolean
+  waitingFor?: UserRequestKind
+  /** Что агент делает сейчас; нет — агент не работает или ещё ничего не начал. */
+  step?: ConversationStep
+  /** Начало последнего ответа агента на сообщение пользователя, мс с начала эпохи. */
+  startedAt: number
+  /** Когда агент закончил последний ответ; нет — ещё работает. */
+  finishedAt?: number
+  /** Первая строка последнего ответа агента. */
+  reply?: string
+  /** Сколько токенов агент написал в текущем ответе. */
+  turnTokens?: number
+}
+
+/** Длина строки ответа в обзоре: дальше её всё равно обрежет ширина строки. */
+const SUMMARY_REPLY_LENGTH = 200
+
+/** Сводка разговора; `null` — пользователь в нём ещё ничего не писал. */
+export function summarizeConversation(
+  chatId: string,
+  snapshot: ConversationSnapshot
+): ConversationSummary | null {
+  const { items } = snapshot
+  const lastUserIndex = items.findLastIndex(({ kind }) => kind === 'user')
+  const lastUser = items[lastUserIndex]
+  if (lastUser?.kind !== 'user') {
+    return null
+  }
+  const answer = items.slice(lastUserIndex + 1)
+  const reply = answer.findLast((item) => item.kind === 'assistant')?.text
+  const replyLine = reply
+    ?.split('\n')
+    .find((line) => line.trim())
+    ?.trim()
+    .slice(0, SUMMARY_REPLY_LENGTH)
+  const step = snapshot.running ? currentStep(answer) : undefined
+  return {
+    chatId,
+    running: snapshot.running,
+    ...(snapshot.waitingFor && { waitingFor: snapshot.waitingFor }),
+    ...(step && { step }),
+    startedAt: lastUser.createdAt,
+    ...(lastUser.finishedAt !== undefined && { finishedAt: lastUser.finishedAt }),
+    ...(replyLine && { reply: replyLine }),
+    ...(snapshot.running && snapshot.turnTokens && { turnTokens: snapshot.turnTokens })
+  }
+}
+
+function currentStep(answer: readonly TimelineItem[]): ConversationStep | undefined {
+  const last = answer.at(-1)
+  switch (last?.kind) {
+    case 'tool':
+      return { kind: 'tool', tool: last.tool, title: last.title }
+    case 'reasoning':
+      return { kind: 'thinking' }
+    case 'assistant':
+      return { kind: 'writing' }
+    case 'compaction':
+      return last.status === 'running' ? { kind: 'compacting' } : undefined
+    case 'approval':
+    case 'question':
+      return last.status === 'pending'
+        ? { kind: 'request', request: last.kind, title: last.title }
+        : undefined
+    default:
+      return undefined
+  }
+}
+
 export const EMPTY_CONVERSATION: ConversationSnapshot = {
   items: [],
   running: false

@@ -5,6 +5,7 @@ import { findAgent, type AgentId } from '../../shared/agents'
 import {
   applyConversationEvent,
   pendingRequest,
+  summarizeConversation,
   titleFromMessage,
   type AgentCatalog,
   type AgentCommand,
@@ -12,6 +13,7 @@ import {
   type ChatConfiguration,
   type ConversationEvent,
   type ConversationSnapshot,
+  type ConversationSummary,
   type RequestAnswer,
   type StreamedField,
   type TimelineItem
@@ -184,6 +186,14 @@ export class ConversationManager {
       conversation.stale = true
       this.restartIfIdle(conversation)
     }
+  }
+
+  /** Сводки всех разговоров, в которых пользователь уже что-то писал. */
+  summaries(): ConversationSummary[] {
+    return [...this.conversations.entries()].flatMap(([chatId, { snapshot }]) => {
+      const summary = summarizeConversation(chatId, snapshot)
+      return summary ? [summary] : []
+    })
   }
 
   isRunning(chatId: string): boolean {
