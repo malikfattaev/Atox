@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, delimiter, join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { AgentDetector } from './agents'
+import { WorkingTreeReader } from './changes'
 import { claudeDriver } from './conversations/claude'
 import { ConversationManager } from './conversations/manager'
 import { installDesktopEntry } from './desktopEntry'
@@ -134,6 +135,7 @@ async function bootstrap(): Promise<void> {
     terminals,
     branches,
     repository: new RepositoryReader(shell),
+    workingTree: new WorkingTreeReader(shell),
     updater,
     agents,
     menu

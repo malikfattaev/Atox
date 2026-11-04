@@ -163,6 +163,11 @@ const api: AtoxApi = {
       return () => ipcRenderer.removeListener(IpcChannel.GitBranchesChanged, handler)
     }
   },
+  changes: {
+    list: (projectId) => ipcRenderer.invoke(IpcChannel.ChangesList, projectId),
+    diff: (projectId, path) => ipcRenderer.invoke(IpcChannel.ChangesDiff, projectId, path),
+    discard: (projectId, path) => ipcRenderer.invoke(IpcChannel.ChangesDiscard, projectId, path)
+  },
   repository: {
     commits: (projectId, loaded) =>
       ipcRenderer.invoke(IpcChannel.RepositoryCommits, projectId, loaded),

@@ -1,4 +1,5 @@
 import type { AgentId } from './agents'
+import type { ChangesResult, FileDiff } from './changes'
 import type { AppCommand } from './commands'
 import type {
   AgentCatalog,
@@ -170,6 +171,14 @@ export interface AtoxApi {
     branches(): Promise<GitBranches>
     subscribe(listener: (branches: GitBranches) => void): () => void
   }
+  /** Незакоммиченные изменения в папке проекта. */
+  changes: {
+    list(projectId: string): Promise<ChangesResult>
+    /** Изменения файла построчно; `null` — файл уже не изменён. */
+    diff(projectId: string, path: string): Promise<FileDiff | null>
+    /** Спрашивает подтверждение и возвращает файл к последнему коммиту; `false` — передумали. */
+    discard(projectId: string, path: string): Promise<boolean>
+  }
   repository: {
     /**
      * Последние коммиты текущей ветки проекта — из локального git, без сети. `loaded` — сколько
@@ -268,6 +277,9 @@ export const IpcChannel = {
   FilesSavePastedImage: 'files:save-pasted-image',
   GitBranches: 'git:branches',
   GitBranchesChanged: 'git:branches-changed',
+  ChangesList: 'changes:list',
+  ChangesDiff: 'changes:diff',
+  ChangesDiscard: 'changes:discard',
   RepositoryCommits: 'repository:commits',
   RepositoryMoreCommits: 'repository:more-commits',
   RepositoryGitHub: 'repository:github',

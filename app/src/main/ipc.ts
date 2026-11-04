@@ -1,3 +1,4 @@
+import { basename } from 'node:path'
 import {
   app,
   BrowserWindow,
@@ -31,6 +32,7 @@ import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
 import { findAgent, isAgentId, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
+import type { WorkingTreeReader } from './changes'
 import type { ConversationManager } from './conversations/manager'
 import { confirm, describeWorkingAgents } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
@@ -51,6 +53,7 @@ interface AppServices {
   terminals: TerminalManager
   branches: GitBranchTracker
   repository: RepositoryReader
+  workingTree: WorkingTreeReader
   agents: AgentDetector
   /** `null` — обновления недоступны, например при запуске из исходников. */
   updater: AppUpdater | null
@@ -64,6 +67,7 @@ export function registerIpcHandlers({
   terminals,
   branches,
   repository,
+  workingTree,
   agents,
   updater,
   menu
@@ -325,6 +329,33 @@ export function registerIpcHandlers({
   )
 
   ipcMain.handle(IpcChannel.GitBranches, () => branches.list())
+
+  ipcMain.handle(IpcChannel.ChangesList, (_event, projectId: string) =>
+    workingTree.list(store.getProject(projectId).path)
+  )
+  ipcMain.handle(IpcChannel.ChangesDiff, (_event, projectId: string, path: string) =>
+    workingTree.diff(store.getProject(projectId).path, path)
+  )
+  ipcMain.handle(IpcChannel.ChangesDiscard, async (event, projectId: string, path: string) => {
+    const projectPath = store.getProject(projectId).path
+    // Путь сверяется со списком изменений: окно не может откатить произвольный файл.
+    const change = await workingTree.find(projectPath, path)
+    if (!change) {
+      return false
+    }
+    const created = change.kind === 'untracked' || change.kind === 'added'
+    const confirmed = await confirm(BrowserWindow.fromWebContents(event.sender), {
+      message: `Discard changes to “${basename(change.path)}”?`,
+      detail: created
+        ? 'The new file will be moved to the Trash.'
+        : 'The file will go back to the last commit. Changes in it will be lost.',
+      confirmLabel: 'Discard'
+    })
+    if (confirmed) {
+      await workingTree.discard(projectPath, change)
+    }
+    return confirmed
+  })
 
   ipcMain.handle(IpcChannel.RepositoryCommits, (_event, projectId: string, loaded?: number) =>
     repository.commits(store.getProject(projectId).path, loaded)
