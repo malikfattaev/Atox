@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { ConversationStep, ConversationSummary } from '../../../shared/conversation'
-import type { Chat, Project } from '../../../shared/models'
+import type { Chat, Project, Space } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useConversationSummaries } from '../hooks/useConversationSummaries'
 import { useProjectsContext } from '../hooks/ProjectsContext'
@@ -31,6 +31,8 @@ interface AgentEntry {
   summary: ConversationSummary
   chat: Chat
   project: Project
+  /** Пространство проекта; нет — пространства ещё не загрузились. */
+  space?: Space
   /** Чат, агент которого запустил этого помощника. */
   parent?: Chat
 }
@@ -42,7 +44,7 @@ interface AgentsViewProps {
 
 /** Обзор всех агентов: кто ждёт ответа, кто работает и кто уже закончил. */
 export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
-  const { projects } = useProjectsContext()
+  const { projects, spaces } = useProjectsContext()
   const summaries = useConversationSummaries()
   const now = useClock()
 
@@ -61,7 +63,8 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
       const chat = project.chats.find(({ id }) => id === summary.chatId)
       if (chat) {
         const parent = project.chats.find(({ id }) => id === chat.parentChatId)
-        return [{ summary, chat, project, ...(parent && { parent }) }]
+        const space = spaces.find(({ id }) => id === project.spaceId)
+        return [{ summary, chat, project, ...(space && { space }), ...(parent && { parent }) }]
       }
     }
     // Чат уже удалён, а сводка пришла раньше обновления списка.
@@ -116,7 +119,11 @@ interface AgentRowProps {
   onOpen(chatId: string): void
 }
 
-function AgentRow({ entry: { summary, chat, project, parent }, now, onOpen }: AgentRowProps) {
+function AgentRow({
+  entry: { summary, chat, project, space, parent },
+  now,
+  onOpen
+}: AgentRowProps) {
   const status = useChatActivity(chat.id)
   const finishedAt = summary.running ? undefined : summary.finishedAt
   const activity = describe(summary)
@@ -136,7 +143,7 @@ function AgentRow({ entry: { summary, chat, project, parent }, now, onOpen }: Ag
         )}
         <span className="agent-row__detail" data-waiting={Boolean(summary.waitingFor)}>
           <span className="agent-row__place">
-            {parent ? `${project.name} · ${parent.title}` : project.name}
+            {[space?.name, project.name, parent?.title].filter(Boolean).join(' / ')}
           </span>
           {activity && <span className="agent-row__activity">{activity}</span>}
         </span>
