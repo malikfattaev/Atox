@@ -3,6 +3,7 @@ import type { ChatActivityStatus } from '../lib/chatActivity'
 const STATUS_LABELS: Record<ChatActivityStatus, string> = {
   idle: 'Idle',
   working: 'Working',
+  waiting: 'Waiting for you',
   unread: 'Finished'
 }
 
@@ -10,7 +11,10 @@ interface ChatStatusProps {
   status: ChatActivityStatus
 }
 
-/** Кружок состояния чата в колонке иконок: нейтральный, пульсирует во время работы, голубой — закончил. */
+/**
+ * Кружок состояния чата в колонке иконок: нейтральный, пульсирует во время работы, оранжевый —
+ * агент ждёт ответа, голубой — закончил.
+ */
 export function ChatStatus({ status }: ChatStatusProps) {
   return (
     <span className="chat-status" role="img" aria-label={STATUS_LABELS[status]}>

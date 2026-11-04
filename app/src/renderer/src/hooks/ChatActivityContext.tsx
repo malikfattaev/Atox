@@ -38,13 +38,32 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
   )
 
   // Работа агентов во всех чатах, в том числе тех, что сейчас не на экране.
-  useEffect(
-    () =>
-      window.atox.conversations.onRunningChange((chatId, running) =>
-        tracker.reportRunning(chatId, running)
-      ),
-    [tracker]
-  )
+  useEffect(() => {
+    const stopRunning = window.atox.conversations.onRunningChange((chatId, running) =>
+      tracker.reportRunning(chatId, running)
+    )
+    const stopWaiting = window.atox.conversations.onWaitingChange((chatId, waitingFor) =>
+      tracker.reportWaiting(chatId, waitingFor)
+    )
+    return () => {
+      stopRunning()
+      stopWaiting()
+    }
+  }, [tracker])
+
+  // Число на иконке в доке — сколько чатов ждут пользователя, как непрочитанные в почте.
+  useEffect(() => {
+    let shown: number | null = null
+    const sync = () => {
+      const count = tracker.attentionCount()
+      if (count !== shown) {
+        shown = count
+        window.atox.system.setBadgeCount(count)
+      }
+    }
+    sync()
+    return tracker.subscribe(sync)
+  }, [tracker])
 
   // Чаты на экране в окне, которое в фокусе, считаются просмотренными.
   const { visibleChatIds } = projects
@@ -116,9 +135,12 @@ export function useChatActivityTracker(): ChatActivityTracker {
   return tracker
 }
 
+/** Что важнее показать у чата, если у него и его помощников разные состояния. */
+const GROUP_STATUS_PRIORITY: readonly ChatActivityStatus[] = ['waiting', 'working']
+
 /**
- * Состояние чата для индикатора. `workerChatIds` — его помощники: пока работает хоть один,
- * индикатор чата показывает работу. У самих помощников индикатора нет.
+ * Состояние чата для индикатора. `workerChatIds` — его помощники: пока хоть один ждёт ответа
+ * или работает, индикатор чата показывает это. У самих помощников индикатора нет.
  */
 export function useChatActivity(
   chatId: string,
@@ -126,9 +148,10 @@ export function useChatActivity(
 ): ChatActivityStatus {
   const tracker = useChatActivityTracker()
   const subscribe = useCallback((listener: () => void) => tracker.subscribe(listener), [tracker])
-  return useSyncExternalStore(subscribe, () =>
-    workerChatIds.some((id) => tracker.status(id) === 'working')
-      ? 'working'
-      : tracker.status(chatId)
-  )
+  return useSyncExternalStore(subscribe, () => {
+    const statuses = [chatId, ...workerChatIds].map((id) => tracker.status(id))
+    return (
+      GROUP_STATUS_PRIORITY.find((status) => statuses.includes(status)) ?? tracker.status(chatId)
+    )
+  })
 }

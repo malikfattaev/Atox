@@ -7,7 +7,8 @@ import type {
   ChatConfiguration,
   ConversationEvent,
   ConversationSnapshot,
-  RequestAnswer
+  RequestAnswer,
+  UserRequestKind
 } from './conversation'
 import type { Project, SpacesState, UserProfile } from './models'
 import type {
@@ -139,6 +140,10 @@ export interface AtoxApi {
     onEvent(chatId: string, listener: (event: ConversationEvent) => void): () => void
     /** Агент какого-либо чата начал или закончил работу. */
     onRunningChange(listener: (chatId: string, running: boolean) => void): () => void
+    /** Агент какого-либо чата начал (`waitingFor`) или перестал (`null`) ждать ответа. */
+    onWaitingChange(
+      listener: (chatId: string, waitingFor: UserRequestKind | null) => void
+    ): () => void
   }
   /** Терминал проекта в панели справа от чатов: оболочка в папке проекта. */
   terminals: {
@@ -196,6 +201,8 @@ export interface AtoxApi {
     getUserProfile(): Promise<UserProfile>
     /** Выводит окно приложения на передний план, например по клику на уведомление. */
     focusWindow(): void
+    /** Число на иконке приложения в доке: сколько чатов ждут пользователя; 0 — убрать. */
+    setBadgeCount(count: number): void
   }
   settings: {
     get(): Promise<Settings>
@@ -264,6 +271,7 @@ export const IpcChannel = {
   UpdatesInstall: 'updates:install',
   SystemUserProfile: 'system:user-profile',
   SystemFocusWindow: 'system:focus-window',
+  SystemBadgeCount: 'system:badge-count',
   AppCommand: 'app:command',
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',

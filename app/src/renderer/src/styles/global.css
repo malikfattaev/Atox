@@ -106,6 +106,8 @@
   --color-search-active: #ff9f0a;
   --color-avatar: rgba(0, 0, 0, 0.12);
   --color-status-idle: rgba(0, 0, 0, 0.2);
+  /* Агент ждёт ответа пользователя — системный оранжевый macOS. */
+  --color-attention: #ff9500;
   --color-group: rgba(0, 0, 0, 0.03);
   --color-bubble: rgba(0, 0, 0, 0.05);
   --color-code: rgba(0, 0, 0, 0.04);
@@ -145,6 +147,7 @@
     --color-search-active: #a8620a;
     --color-avatar: rgba(255, 255, 255, 0.16);
     --color-status-idle: rgba(255, 255, 255, 0.22);
+    --color-attention: #ff9f0a;
     --color-group: rgba(255, 255, 255, 0.035);
     --color-bubble: rgba(255, 255, 255, 0.08);
     --color-code: rgba(255, 255, 255, 0.06);
@@ -531,6 +534,10 @@ ul {
 
 .chat-status__dot[data-status='unread'] {
   background: var(--color-accent);
+}
+
+.chat-status__dot[data-status='waiting'] {
+  background: var(--color-attention);
 }
 
 @keyframes status-pulse {

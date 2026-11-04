@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppCommand } from '../shared/commands'
 import type { Settings } from '../shared/settings'
-import type { ConversationEvent } from '../shared/conversation'
+import type { ConversationEvent, UserRequestKind } from '../shared/conversation'
 import { IpcChannel, type AtoxApi, type GitBranches } from '../shared/api'
 
 type Listener<Payload> = (payload: Payload) => void
@@ -13,20 +13,28 @@ type Listener<Payload> = (payload: Payload) => void
 function createConversationEventHub() {
   const listeners = new Map<string, Set<Listener<ConversationEvent>>>()
   const runningListeners = new Set<(chatId: string, running: boolean) => void>()
+  const waitingListeners = new Set<(chatId: string, waitingFor: UserRequestKind | null) => void>()
 
   ipcRenderer.on(IpcChannel.ConversationsEvent, (_event, payload: ConversationEvent) => {
     listeners.get(payload.chatId)?.forEach((listener) => listener(payload))
     if (payload.type === 'running') {
       runningListeners.forEach((listener) => listener(payload.chatId, payload.running))
     }
+    if (payload.type === 'waiting') {
+      waitingListeners.forEach((listener) => listener(payload.chatId, payload.waitingFor))
+    }
   })
 
-  const onRunningChange = (listener: (chatId: string, running: boolean) => void) => {
-    runningListeners.add(listener)
-    return () => {
-      runningListeners.delete(listener)
+  const subscribe =
+    <Listener>(set: Set<Listener>) =>
+    (listener: Listener) => {
+      set.add(listener)
+      return () => {
+        set.delete(listener)
+      }
     }
-  }
+  const onRunningChange = subscribe(runningListeners)
+  const onWaitingChange = subscribe(waitingListeners)
 
   const onEvent = (chatId: string, listener: Listener<ConversationEvent>) => {
     const chatListeners = listeners.get(chatId) ?? new Set()
@@ -41,7 +49,7 @@ function createConversationEventHub() {
     }
   }
 
-  return { onEvent, onRunningChange }
+  return { onEvent, onRunningChange, onWaitingChange }
 }
 
 const conversationEvents = createConversationEventHub()
@@ -126,7 +134,8 @@ const api: AtoxApi = {
     answerRequest: (chatId, itemId, answer) =>
       ipcRenderer.invoke(IpcChannel.ConversationsAnswerRequest, chatId, itemId, answer),
     onEvent: conversationEvents.onEvent,
-    onRunningChange: conversationEvents.onRunningChange
+    onRunningChange: conversationEvents.onRunningChange,
+    onWaitingChange: conversationEvents.onWaitingChange
   },
   terminals: {
     attach: (projectId, size) => ipcRenderer.invoke(IpcChannel.TerminalsAttach, projectId, size),
@@ -173,7 +182,8 @@ const api: AtoxApi = {
   },
   system: {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),
-    focusWindow: () => ipcRenderer.send(IpcChannel.SystemFocusWindow)
+    focusWindow: () => ipcRenderer.send(IpcChannel.SystemFocusWindow),
+    setBadgeCount: (count) => ipcRenderer.send(IpcChannel.SystemBadgeCount, count)
   },
   settings: {
     get: () => ipcRenderer.invoke(IpcChannel.SettingsGet),

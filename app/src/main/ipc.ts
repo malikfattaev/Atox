@@ -346,6 +346,10 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
 
+  ipcMain.on(IpcChannel.SystemBadgeCount, (_event, count: unknown) => {
+    app.setBadgeCount(typeof count === 'number' && Number.isSafeInteger(count) && count > 0 ? count : 0)
+  })
+
   ipcMain.on(IpcChannel.SystemFocusWindow, (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window) {
