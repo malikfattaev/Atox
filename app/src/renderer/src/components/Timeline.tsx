@@ -25,7 +25,8 @@ import {
   toolVerb,
   workingLabel
 } from '../lib/conversationText'
-import { imagePreview } from '../lib/attachments'
+import { fileName, imagePreview } from '../lib/attachments'
+import { ImageViewer } from './ImageViewer'
 import { AgentIcon } from './AgentIcon'
 import { ApprovalCard } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
@@ -102,6 +103,7 @@ export const Timeline = memo(function Timeline({
                 data-fresh={Date.now() - block.item.createdAt < FRESH_MESSAGE_MS || undefined}
               >
                 {block.item.images && <MessageImages paths={block.item.images} />}
+                {block.item.files && <MessageFiles paths={block.item.files} />}
                 {block.item.text && <div className="message message--user">{block.item.text}</div>}
               </div>
             )
@@ -152,18 +154,45 @@ export const Timeline = memo(function Timeline({
   )
 })
 
-/** Картинки, приложенные к сообщению; без превью — именем файла. */
+/** Картинки, приложенные к сообщению: клик открывает картинку на весь экран. */
 function MessageImages({ paths }: { paths: readonly string[] }) {
+  const [viewed, setViewed] = useState<string | null>(null)
   return (
     <ul className="message__images">
       {paths.map((path) => {
         const preview = imagePreview(path)
         return (
           <li key={path} className="message__image" title={path}>
-            {preview ? <img src={preview} alt="" /> : <ImageIcon className="icon" />}
+            {preview ? (
+              <button
+                type="button"
+                className="message__image-button"
+                aria-label="Open image"
+                onClick={() => setViewed(preview)}
+              >
+                <img src={preview} alt="" />
+              </button>
+            ) : (
+              <ImageIcon className="icon" />
+            )}
           </li>
         )
       })}
+      {viewed && <ImageViewer src={viewed} onClose={() => setViewed(null)} />}
+    </ul>
+  )
+}
+
+/** Файлы, приложенные к сообщению, — плашками с именем, как в поле ввода. */
+function MessageFiles({ paths }: { paths: readonly string[] }) {
+  return (
+    <ul className="message__files">
+      {paths.map((path) => (
+        <li key={path} className="message__file" title={path}>
+          <FileText className="icon" aria-hidden />
+          <span className="message__file-name">{fileName(path)}</span>
+        </li>
+      ))}
     </ul>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { ArrowUp, Square, X } from 'lucide-react'
+import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import {
   isChatCommand,
@@ -10,7 +10,7 @@ import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { LOCAL_COMMAND_ALIASES, useAgentCommands } from '../hooks/useAgentCommands'
-import { attachImage, isAttachableImage, type Attachment } from '../lib/attachments'
+import { attachFiles, attachPicked, fileName, type Attachment } from '../lib/attachments'
 import {
   currentModel,
   matchEffort,
@@ -18,6 +18,7 @@ import {
   modelConfiguration
 } from '../lib/modelSelection'
 import { CommandMenu, filterCommands } from './CommandMenu'
+import { ImageViewer } from './ImageViewer'
 import { ModelPicker } from './ModelPicker'
 import { UsageIndicator } from './UsageIndicator'
 
@@ -45,6 +46,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   const catalog = useAgentCatalog(chat.agent)
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [viewedImage, setViewedImage] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const canSend = text.trim().length > 0 || attachments.length > 0
 
@@ -161,11 +163,12 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       return
     }
     if (attachments.length > 0 || !runLocalCommand(message)) {
-      void atox.conversations.send(
-        chat.id,
-        message,
-        attachments.map(({ path }) => path)
-      )
+      const pathsOf = (kind: Attachment['kind']) =>
+        attachments.filter((attachment) => attachment.kind === kind).map(({ path }) => path)
+      void atox.conversations.send(chat.id, message, {
+        images: pathsOf('image'),
+        files: pathsOf('file')
+      })
       setAttachments([])
     }
     setText('')
@@ -181,20 +184,6 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       setText(`/${command.name} `)
     }
     inputRef.current?.focus()
-  }
-
-  const insert = (value: string) => {
-    const input = inputRef.current
-    if (!input) {
-      setText((current) => current + value)
-      return
-    }
-    const { selectionStart, selectionEnd } = input
-    const next = text.slice(0, selectionStart) + value + text.slice(selectionEnd)
-    setText(next)
-    requestAnimationFrame(() => {
-      input.selectionStart = input.selectionEnd = selectionStart + value.length
-    })
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -235,28 +224,30 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     }
   }
 
-  /**
-   * Картинки прикладываются к сообщению, остальные файлы вставляются в текст путями.
-   * `true` — среди файлов было что приложить или вставить.
-   */
+  /** Добавляет вложения в конец; файл, который уже приложен, второй раз не добавляется. */
+  const addAttachments = (added: readonly Attachment[]) =>
+    setAttachments((current) => [
+      ...current,
+      ...added.filter(({ path }) => !current.some((attachment) => attachment.path === path))
+    ])
+
+  /** Прикладывает вставленные или перетащенные файлы. `true` — среди них было что приложить. */
   const addFiles = (files: readonly File[]): boolean => {
-    const images = files.filter(isAttachableImage)
-    const paths = files
-      .filter((file) => !isAttachableImage(file))
-      .map((file) => atox.files.getPath(file))
-      .filter(Boolean)
-    if (images.length === 0 && paths.length === 0) {
+    if (files.length === 0) {
       return false
     }
-    if (paths.length > 0) {
-      insert(joinPaths(paths))
-    }
-    void Promise.all(images.map(attachImage))
-      .then((added) => setAttachments((current) => [...current, ...added]))
-      .catch((error) => console.error('Failed to attach the image', error))
+    void attachFiles(files)
+      .then(addAttachments)
+      .catch((error) => console.error('Failed to attach the files', error))
     inputRef.current?.focus()
     return true
   }
+
+  const pickFiles = async () => {
+    addAttachments((await atox.files.pick()).map(attachPicked))
+    inputRef.current?.focus()
+  }
+
   const addFilesRef = useRef(addFiles)
   addFilesRef.current = addFiles
 
@@ -320,13 +311,32 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       {attachments.length > 0 && (
         <ul className="composer__attachments">
           {attachments.map((attachment) => (
-            <li key={attachment.path} className="composer__attachment">
-              <img src={attachment.preview} alt="" />
+            <li
+              key={attachment.path}
+              className="composer__attachment"
+              data-kind={attachment.kind}
+              title={attachment.path}
+            >
+              {attachment.kind === 'image' ? (
+                <button
+                  type="button"
+                  className="composer__attachment-preview"
+                  aria-label="Open image"
+                  onClick={() => setViewedImage(attachment.preview)}
+                >
+                  <img src={attachment.preview} alt="" />
+                </button>
+              ) : (
+                <>
+                  <FileText className="icon composer__attachment-icon" aria-hidden />
+                  <span className="composer__attachment-name">{fileName(attachment.path)}</span>
+                </>
+              )}
               <button
                 type="button"
                 className="composer__attachment-remove"
-                aria-label="Remove image"
-                title="Remove image"
+                aria-label={`Remove ${fileName(attachment.path)}`}
+                title="Remove"
                 onClick={() =>
                   setAttachments((current) =>
                     current.filter(({ path }) => path !== attachment.path)
@@ -339,6 +349,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           ))}
         </ul>
       )}
+      {viewedImage && <ImageViewer src={viewedImage} onClose={() => setViewedImage(null)} />}
       <textarea
         ref={inputRef}
         className="composer__input"
@@ -350,7 +361,18 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
         onKeyDown={handleKeyDown}
       />
       <div className="composer__footer">
-        <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
+        <div className="composer__tools">
+          <button
+            type="button"
+            className="composer__attach"
+            aria-label="Attach files"
+            title="Attach files"
+            onClick={() => void pickFiles()}
+          >
+            <Plus className="icon" />
+          </button>
+          <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
+        </div>
         <div className="composer__actions">
           {usage && <UsageIndicator usage={usage} />}
           {running && !canSend ? (
@@ -378,11 +400,6 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       </div>
     </form>
   )
-}
-
-/** Пути через пробел; путь с пробелами — в кавычках, чтобы агент прочитал его целиком. */
-function joinPaths(paths: readonly string[]): string {
-  return paths.map((path) => (/\s/.test(path) ? `"${path}"` : path)).join(' ')
 }
 
 /** Высота поля ввода по его тексту. */

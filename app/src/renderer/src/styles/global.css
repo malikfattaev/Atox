@@ -1,3 +1,11 @@
+/*
+ * Полосы прокрутки не показываются нигде: при системной настройке «показывать всегда» они
+ * ложатся толстой серой полосой поверх интерфейса. Колесо и трекпад прокручивают как прежде.
+ */
+* {
+  scrollbar-width: none;
+}
+
 :root {
   --sidebar-padding: 10px;
   --sidebar-resizer-width: 8px;
@@ -80,8 +88,14 @@
   --composer-button-size: 30px;
   --message-radius: 16px;
   /* Миниатюры картинок: приложенных в поле ввода и в отправленном сообщении. */
-  --attachment-size: 56px;
+  --attachment-size: 64px;
   --message-image-size: 120px;
+  /* Приложенный файл — квадрат, как картинка: значок и имя. */
+  --attachment-file-icon-size: 18px;
+  --message-file-icon-size: 28px;
+  /* Сколько места оставить вокруг картинки, открытой на весь экран. */
+  --image-viewer-inset: 48px;
+  --image-viewer-duration: 160ms;
   --activity-indent: 24px;
   --details-max-height: 320px;
   --command-menu-max-height: 320px;
@@ -1984,12 +1998,17 @@ ul {
 
 /*
  * Терминал начинается от самого верха окна, без шапки: закрывают его кнопкой в шапке чата.
- * Справа место под полосу прокрутки xterm, снизу — чтобы последняя строка не липла к краю.
+ * Отступ снизу — чтобы последняя строка не липла к краю.
  */
 .terminal-view {
   flex: 1;
   min-height: 0;
-  padding: var(--terminal-padding) 4px var(--terminal-padding) var(--terminal-padding);
+  padding: var(--terminal-padding);
+}
+
+/* Полосу прокрутки xterm рисует сам, поэтому общее правило о полосах её не скрывает. */
+.xterm .xterm-scrollable-element > .scrollbar {
+  display: none;
 }
 
 .terminal-view[hidden] {
@@ -2110,6 +2129,109 @@ ul {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.message__image-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+/* Файлы сообщения — квадратами над его текстом, справа, как и картинки. */
+.message__files {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message__file,
+.composer__attachment[data-kind='file'] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  background: var(--color-hover);
+  text-align: center;
+}
+
+.message__file {
+  width: var(--message-image-size);
+  height: var(--message-image-size);
+  border-radius: var(--message-radius);
+  font-size: var(--font-size-small);
+}
+
+.message__file .icon {
+  flex-shrink: 0;
+  width: var(--message-file-icon-size);
+  height: var(--message-file-icon-size);
+  color: var(--color-text-muted);
+}
+
+.composer__attachment-icon {
+  flex-shrink: 0;
+  width: var(--attachment-file-icon-size);
+  height: var(--attachment-file-icon-size);
+  color: var(--color-text-muted);
+}
+
+/* Имя файла переносится по любому символу и обрезается на последней строке, которая влезла. */
+.message__file-name,
+.composer__attachment-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.2;
+}
+
+.composer__attachment-name {
+  font-size: 10px;
+  -webkit-line-clamp: 2;
+}
+
+/* Картинка на весь экран: тёмный фон, сама картинка по центру целиком. */
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--image-viewer-inset);
+  background: rgba(0, 0, 0, 0.82);
+  cursor: zoom-out;
+  animation: image-viewer-in var(--image-viewer-duration) ease-out;
+  -webkit-app-region: no-drag;
+}
+
+.image-viewer__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius);
+  user-select: none;
+}
+
+@keyframes image-viewer-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-viewer {
+    animation: none;
+  }
 }
 
 /* Только что отправленное сообщение всплывает снизу — быстро, чтобы не задерживать взгляд. */
@@ -2695,6 +2817,15 @@ ul {
   border-radius: var(--radius);
 }
 
+.composer__attachment-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: inherit;
+  cursor: zoom-in;
+}
+
 .composer__attachment img {
   width: 100%;
   height: 100%;
@@ -2749,6 +2880,29 @@ ul {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.composer__tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* «+» — приложить файлы, тихая кнопка слева, как выбор модели рядом. */
+.composer__attach {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: var(--composer-button-size);
+  height: var(--composer-button-size);
+  border-radius: 50%;
+  color: var(--color-text-muted);
+}
+
+.composer__attach:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
 }
 
 .composer__button {
