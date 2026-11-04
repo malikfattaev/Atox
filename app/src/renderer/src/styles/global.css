@@ -98,6 +98,8 @@
   /* Миниатюры картинок: приложенных в поле ввода и в отправленном сообщении. */
   --attachment-size: 64px;
   --message-image-size: 120px;
+  --generated-image-max-size: 420px;
+  --generated-image-placeholder-size: 240px;
   /* Приложенный файл — квадрат, как картинка: значок и имя. */
   --attachment-file-icon-size: 18px;
   --message-file-icon-size: 28px;
@@ -2371,6 +2373,40 @@ ul {
   .user-message[data-fresh] {
     animation: none;
   }
+}
+
+/* Картинка, которую нарисовал агент: целиком, в своих пропорциях, не шире колонки. */
+.generated-image {
+  align-self: flex-start;
+  display: block;
+  max-width: min(100%, var(--generated-image-max-size));
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--message-radius);
+  cursor: zoom-in;
+}
+
+.generated-image img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--generated-image-max-size);
+  object-fit: contain;
+}
+
+/* Пока картинка рисуется — квадрат её примерного размера со спиннером. */
+.generated-image__placeholder {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: var(--generated-image-placeholder-size);
+  height: var(--generated-image-placeholder-size);
+  border-radius: var(--message-radius);
+  background: var(--color-hover);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
 .message--error {

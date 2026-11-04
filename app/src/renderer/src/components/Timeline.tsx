@@ -25,6 +25,7 @@ import {
 } from '../lib/conversationText'
 import { fileName, useImagePreview } from '../lib/attachments'
 import { ImageViewer } from './ImageViewer'
+import { GeneratedImage } from './GeneratedImage'
 import { imageContextMenu, type ShownImage } from '../lib/imageActions'
 import { AgentIcon } from './AgentIcon'
 import { ApprovalCard } from './ApprovalCard'
@@ -45,6 +46,7 @@ type Block =
   | { type: 'limits'; item: Extract<TimelineItem, { kind: 'limits' }> }
   | { type: 'context'; item: Extract<TimelineItem, { kind: 'context' }> }
   | { type: 'compaction'; item: CompactionItem }
+  | { type: 'image'; item: Extract<TimelineItem, { kind: 'image' }> }
   | {
       type: 'agent-switch'
       item: Extract<TimelineItem, { kind: 'agent-switch' }>
@@ -135,6 +137,8 @@ export const Timeline = memo(function Timeline({
             return <ContextCard key={block.item.id} context={block.item.context} />
           case 'compaction':
             return <CompactionNotice key={block.item.id} item={block.item} />
+          case 'image':
+            return <GeneratedImage key={block.item.id} item={block.item} />
           case 'agent-switch':
             return (
               <div key={block.item.id} className="agent-switch">
@@ -261,6 +265,9 @@ function buildBlocks(items: readonly TimelineItem[]): Block[] {
         break
       case 'agent-switch':
         blocks.push({ type: 'agent-switch', item })
+        break
+      case 'image':
+        blocks.push({ type: 'image', item })
         break
     }
     turnItems.push(item)
