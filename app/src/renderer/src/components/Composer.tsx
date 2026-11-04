@@ -393,7 +393,8 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           )}
         </div>
       </div>
-      <div className="composer__footer">
+      {/* В пустом чате модель появляется, только когда начали писать: сначала — только поле. */}
+      <div className="composer__footer" data-hidden={!started && !canSend}>
         <ModelPicker chat={chat} started={started} openRequest={pickerRequest} />
         {usage && <UsageIndicator usage={usage} />}
       </div>

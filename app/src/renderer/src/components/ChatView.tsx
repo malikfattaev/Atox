@@ -1,5 +1,4 @@
 import { memo, useEffect, useLayoutEffect, useRef } from 'react'
-import { findAgent } from '../../../shared/agents'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useConversation } from '../hooks/useConversation'
 import { Composer } from './Composer'
@@ -98,7 +97,6 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
   }
 
   const started = conversation.items.length > 0
-  const agentName = findAgent(chat.agent)?.name ?? chat.agent
 
   return (
     <div className="chat-view" data-empty={!started && !conversation.loading}>
@@ -108,7 +106,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
         onScroll={(event) => trackScroll(event.currentTarget)}
       >
         <div ref={columnRef} className="chat-view__column">
-          {started ? (
+          {started && (
             <Timeline
               chatId={chat.id}
               items={conversation.items}
@@ -117,12 +115,6 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
               turnTokens={conversation.turnTokens ?? 0}
               visible={visible}
             />
-          ) : (
-            !conversation.loading && (
-              <h1 className="chat-view__greeting">
-                What should {agentName} do in {project.name}?
-              </h1>
-            )
           )}
         </div>
       </div>
