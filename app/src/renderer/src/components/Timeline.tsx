@@ -23,7 +23,7 @@ import {
   toolVerb,
   workingLabel
 } from '../lib/conversationText'
-import { fileName, imagePreview } from '../lib/attachments'
+import { fileName, useImagePreview } from '../lib/attachments'
 import { ImageViewer } from './ImageViewer'
 import { imageContextMenu, type ShownImage } from '../lib/imageActions'
 import { AgentIcon } from './AgentIcon'
@@ -172,26 +172,9 @@ function MessageAttachments({ images, files }: MessageAttachmentsProps) {
   const [viewed, setViewed] = useState<ShownImage | null>(null)
   return (
     <ul className="message__attachments">
-      {images.map((path) => {
-        const preview = imagePreview(path)
-        return (
-          <li key={path} className="message__image" title={path}>
-            {preview ? (
-              <button
-                type="button"
-                className="message__image-button"
-                aria-label="Open image"
-                onClick={() => setViewed({ src: preview, path })}
-                onContextMenu={imageContextMenu({ src: preview, path })}
-              >
-                <img src={preview} alt="" />
-              </button>
-            ) : (
-              <ImageIcon className="icon" />
-            )}
-          </li>
-        )
-      })}
+      {images.map((path) => (
+        <MessageImage key={path} path={path} onOpen={setViewed} />
+      ))}
       {files.map((path) => (
         <li key={path} className="message__file" title={path}>
           <FileText className="icon" aria-hidden />
@@ -200,6 +183,28 @@ function MessageAttachments({ images, files }: MessageAttachmentsProps) {
       ))}
       {viewed && <ImageViewer image={viewed} onClose={() => setViewed(null)} />}
     </ul>
+  )
+}
+
+/** Картинка из сообщения: превью, пока файл читается или пропал, — значок. */
+function MessageImage({ path, onOpen }: { path: string; onOpen(image: ShownImage): void }) {
+  const preview = useImagePreview(path)
+  return (
+    <li className="message__image" title={path}>
+      {preview ? (
+        <button
+          type="button"
+          className="message__image-button"
+          aria-label="Open image"
+          onClick={() => onOpen({ src: preview, path })}
+          onContextMenu={imageContextMenu({ src: preview, path })}
+        >
+          <img src={preview} alt="" />
+        </button>
+      ) : (
+        <ImageIcon className="icon" />
+      )}
+    </li>
   )
 }
 

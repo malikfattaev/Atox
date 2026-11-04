@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { isImageType, type PickedFile } from '../../../shared/attachments'
 
 const { atox } = window
@@ -14,13 +15,49 @@ export type Attachment =
   | { kind: 'file'; path: string }
 
 /**
- * Превью приложенных картинок по пути. Разговоры живут до выхода из Atox, а все их картинки
- * прикладывались в этом окне, поэтому превью для ленты берутся отсюда.
+ * Превью картинок по пути: приложенные в этом окне попадают сюда сразу, остальные (например,
+ * нарисованные агентом) читаются с диска один раз.
  */
 const previews = new Map<string, string>()
 
-export function imagePreview(path: string): string | undefined {
-  return previews.get(path)
+/** Картинки, которые сейчас читаются с диска: одна загрузка на путь. */
+const loading = new Map<string, Promise<string | null>>()
+
+function loadPreview(path: string): Promise<string | null> {
+  let pending = loading.get(path)
+  if (!pending) {
+    pending = atox.images.read(path).then((preview) => {
+      loading.delete(path)
+      if (preview) {
+        previews.set(path, preview)
+      }
+      return preview
+    })
+    loading.set(path, pending)
+  }
+  return pending
+}
+
+/**
+ * Превью картинки по пути к файлу: `undefined` — ещё читается, `null` — файла нет или это
+ * не картинка.
+ */
+export function useImagePreview(path: string): string | null | undefined {
+  const [loaded, setLoaded] = useState<{ path: string; preview: string | null }>()
+  const cached = previews.get(path)
+  useEffect(() => {
+    if (cached) {
+      return
+    }
+    let current = true
+    loadPreview(path)
+      .catch(() => null)
+      .then((preview) => current && setLoaded({ path, preview }))
+    return () => {
+      current = false
+    }
+  }, [path, cached])
+  return cached ?? (loaded?.path === path ? loaded.preview : undefined)
 }
 
 export function isAttachableImage(file: File): boolean {
