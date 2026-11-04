@@ -95,15 +95,18 @@ export function Workspace({
               projectName={activeChatProject.name}
             />
           )}
-          <WorkspaceToolbar
-            terminalOpen={terminalOpen}
-            changesOpen={changesShown}
-            projectAvailable={Boolean(currentProjectId)}
-            sidebarVisible={sidebarVisible}
-            onToggleTerminal={onToggleTerminal}
-            onToggleChanges={onToggleChanges}
-            onToggleSidebar={onToggleSidebar}
-          />
+          {/* Кнопки панелей относятся к чату: на страницах настроек, репозитория и агентов их нет. */}
+          {!pageOpen && (
+            <WorkspaceToolbar
+              terminalOpen={terminalOpen}
+              changesOpen={changesShown}
+              projectAvailable={Boolean(currentProjectId)}
+              sidebarVisible={sidebarVisible}
+              onToggleTerminal={onToggleTerminal}
+              onToggleChanges={onToggleChanges}
+              onToggleSidebar={onToggleSidebar}
+            />
+          )}
         </header>
         <div
           ref={chatsRef}
