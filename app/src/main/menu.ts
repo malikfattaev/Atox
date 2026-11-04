@@ -90,6 +90,7 @@ export class AppMenu {
         commandItem('Toggle Sidebar', 'toggleSidebar', { type: 'toggle-sidebar' }),
         commandItem('Toggle Terminal', 'toggleTerminal', { type: 'toggle-terminal' }),
         commandItem('Repository', 'toggleRepository', { type: 'toggle-repository' }),
+        commandItem('Agents', 'toggleAgents', { type: 'toggle-agents' }),
         { type: 'separator' },
         commandItem('Previous Chat', 'previousChat', { type: 'previous-chat' }),
         commandItem('Next Chat', 'nextChat', { type: 'next-chat' }),

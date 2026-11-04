@@ -16,6 +16,7 @@ interface AppCommandHandlers {
   toggleTerminal(): void
   openSettings(): void
   toggleRepository(): void
+  toggleAgents(): void
 }
 
 export function useAppCommands(handlers: AppCommandHandlers): void {
@@ -68,6 +69,9 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
           break
         case 'toggle-repository':
           handlersRef.current.toggleRepository()
+          break
+        case 'toggle-agents':
+          handlersRef.current.toggleAgents()
           break
       }
     }

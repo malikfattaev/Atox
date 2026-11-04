@@ -41,6 +41,10 @@ export const SHORTCUTS = {
     label: 'Commits, pull requests and issues',
     accelerator: byPlatform('CmdOrCtrl+Shift+G', 'Ctrl+Shift+G')
   },
+  toggleAgents: {
+    label: 'All agents',
+    accelerator: byPlatform('CmdOrCtrl+Shift+A', 'Ctrl+Shift+A')
+  },
   spaceByNumber: { label: 'Go to space by number', keys: byPlatform('⌃1 – ⌃9', 'Ctrl+1 – Ctrl+9') },
   openSettings: { label: 'Settings', accelerator: byPlatform('CmdOrCtrl+,', 'Ctrl+,') }
 } as const satisfies Record<string, Shortcut>
@@ -75,6 +79,7 @@ export const SHORTCUT_GROUPS: ReadonlyArray<{ title: string; shortcuts: readonly
       'toggleSidebar',
       'toggleTerminal',
       'toggleRepository',
+      'toggleAgents',
       'openSettings'
     ]
   }

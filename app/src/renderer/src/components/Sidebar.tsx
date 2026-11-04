@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FolderPlus, GitPullRequest, SquarePen } from 'lucide-react'
+import { Bot, FolderPlus, GitPullRequest, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
 import { useSettings } from '../hooks/SettingsContext'
@@ -14,15 +14,20 @@ import { SpacePicker } from './SpacePicker'
 interface SidebarProps {
   /** Открыта страница репозитория — её кнопка подсвечена. */
   repositoryOpen: boolean
+  /** Открыт обзор агентов. */
+  agentsOpen: boolean
   onOpenSettings(): void
   onToggleRepository(): void
+  onToggleAgents(): void
   onOpenRepository(projectId: string): void
 }
 
 export function Sidebar({
   repositoryOpen,
+  agentsOpen,
   onOpenSettings,
   onToggleRepository,
+  onToggleAgents,
   onOpenRepository
 }: SidebarProps) {
   const {
@@ -60,6 +65,7 @@ export function Sidebar({
           disabled={!currentProjectId}
           onClick={onToggleRepository}
         />
+        <SidebarButton icon={Bot} label="Agents" active={agentsOpen} onClick={onToggleAgents} />
       </nav>
 
       <div className="sidebar__spaces">

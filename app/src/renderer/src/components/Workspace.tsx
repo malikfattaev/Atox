@@ -4,6 +4,7 @@ import { DEFAULT_SPLIT_POSITION } from '../../../shared/split'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
 import type { TerminalPanelState } from '../hooks/useTerminalPanel'
+import { AgentsView } from './AgentsView'
 import { ChatView } from './ChatView'
 import { RepositoryView, type RepositorySection } from './RepositoryView'
 import { SettingsView } from './SettingsView'
@@ -13,13 +14,17 @@ import { WorkspaceTitle } from './WorkspaceTitle'
 import { WorkspaceToolbar } from './WorkspaceToolbar'
 
 /** Страница, открытая поверх чатов. */
-export type WorkspacePage = { kind: 'settings' } | { kind: 'repository'; projectId: string }
+export type WorkspacePage =
+  | { kind: 'settings' }
+  | { kind: 'agents' }
+  | { kind: 'repository'; projectId: string }
 
 interface WorkspaceProps {
   page: WorkspacePage | null
   repositorySection: RepositorySection
   onRepositorySectionChange(section: RepositorySection): void
   onClosePage(): void
+  onOpenChat(chatId: string): void
   terminals: TerminalPanelState
   sidebarVisible: boolean
   onToggleSidebar(): void
@@ -31,6 +36,7 @@ export function Workspace({
   repositorySection,
   onRepositorySectionChange,
   onClosePage,
+  onOpenChat,
   terminals,
   sidebarVisible,
   onToggleSidebar,
@@ -55,7 +61,8 @@ export function Workspace({
   // Проект страницы репозитория могли убрать из списка — тогда и страницы нет.
   const repositoryProject =
     page?.kind === 'repository' ? projects.find(({ id }) => id === page.projectId) : undefined
-  const pageOpen = page?.kind === 'settings' || Boolean(repositoryProject)
+  const pageOpen =
+    page?.kind === 'settings' || page?.kind === 'agents' || Boolean(repositoryProject)
   const isSplit = !pageOpen && visibleChatIds.length > 1
   // Терминалы убранных проектов main-процесс уже остановил.
   const terminalProjectIds = terminals.openProjectIds.filter((id) =>
@@ -73,7 +80,7 @@ export function Workspace({
     <main className="workspace">
       <div className="workspace__main">
         <header className="workspace__header">
-          {/* У страниц настроек и репозитория свои заголовки. */}
+          {/* У страниц поверх чатов свои заголовки. */}
           {!pageOpen && activeChatId && activeChatProject && (
             <WorkspaceTitle
               chatTitle={chatTitles.get(activeChatId) ?? ''}
@@ -146,6 +153,7 @@ export function Workspace({
         onClose={terminals.close}
       />
       {page?.kind === 'settings' && <SettingsView onClose={onClosePage} />}
+      {page?.kind === 'agents' && <AgentsView onOpenChat={onOpenChat} onClose={onClosePage} />}
       {repositoryProject && (
         <RepositoryView
           // У каждого проекта свои фильтры и данные: при смене проекта страница начинается заново.

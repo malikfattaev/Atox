@@ -10,3 +10,4 @@ export type AppCommand =
   | { type: 'find' }
   | { type: 'open-settings' }
   | { type: 'toggle-repository' }
+  | { type: 'toggle-agents' }

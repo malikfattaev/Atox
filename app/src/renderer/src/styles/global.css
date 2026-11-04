@@ -63,6 +63,9 @@
   --repository-badge-height: 18px;
   --repository-small-icon-size: 13px;
   --repository-time-width: 44px;
+  /* Обзор агентов: колонка уже репозитория — в строке меньше текста. */
+  --agents-width: 720px;
+  --agents-row-padding: 10px;
 
   --chat-column-width: 768px;
   --chat-gutter: 24px;
@@ -754,6 +757,167 @@ ul {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-text-muted);
+}
+
+/* Обзор агентов: кто ждёт ответа, кто работает, кто закончил */
+
+.agents {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(var(--workspace-header-height) + 8px);
+  background: var(--color-surface);
+  user-select: none;
+}
+
+.agents__header,
+.agents__body > * {
+  width: 100%;
+  max-width: var(--agents-width);
+  margin-inline: auto;
+  padding-inline: var(--repository-gutter);
+}
+
+.agents__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.agents__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.agents__body {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 32px;
+  overflow-y: auto;
+}
+
+.agents__group {
+  margin-top: 16px;
+}
+
+.agents__group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.agents__group-count {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Строки выступают в отступ страницы: текст выровнен с заголовками разделов. */
+.agents__list {
+  margin: 0 calc(-1 * var(--agents-row-padding));
+  padding: 0;
+  list-style: none;
+}
+
+.agents__empty {
+  margin-top: 48px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.agents__empty-title {
+  margin: 0;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.agents__empty-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.agent-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'status title time'
+    '. detail tokens';
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+  width: 100%;
+  padding: 8px var(--agents-row-padding);
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+.agent-row:hover {
+  background: var(--color-hover);
+}
+
+.agent-row .chat-status {
+  grid-area: status;
+  width: var(--status-dot-size);
+}
+
+.agent-row__title {
+  grid-area: title;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-row__time,
+.agent-row__tokens {
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.agent-row__time {
+  grid-area: time;
+}
+
+.agent-row__tokens {
+  grid-area: tokens;
+}
+
+.agent-row__detail {
+  grid-area: detail;
+  display: flex;
+  min-width: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.agent-row__place {
+  flex-shrink: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-row__activity {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-row__activity::before {
+  content: '·';
+  margin: 0 6px;
+}
+
+.agent-row__detail[data-waiting='true'] .agent-row__activity {
+  color: var(--color-attention);
 }
 
 /* Настройки */

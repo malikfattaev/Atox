@@ -31,6 +31,18 @@ function Layout() {
 
   const toggleSidebar = useCallback(() => setSidebarVisible((visible) => !visible), [])
   const openSettings = useCallback(() => setPage({ kind: 'settings' }), [])
+  const toggleAgents = useCallback(
+    () => setPage((current) => (current?.kind === 'agents' ? null : { kind: 'agents' })),
+    []
+  )
+  // Выбранный в обзоре чат мог уже быть активным — тогда страница сама не закроется.
+  const openChat = useCallback(
+    (chatId: string) => {
+      projects.selectChat(chatId)
+      setPage(null)
+    },
+    [projects.selectChat]
+  )
   const closePage = useCallback(() => setPage(null), [])
   const openRepository = useCallback(
     (projectId: string) => setPage({ kind: 'repository', projectId }),
@@ -56,7 +68,14 @@ function Layout() {
   // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает страницу поверх чатов.
   useEffect(closePage, [projects.activeChatId, closePage])
 
-  useAppCommands({ projects, toggleSidebar, toggleTerminal, openSettings, toggleRepository })
+  useAppCommands({
+    projects,
+    toggleSidebar,
+    toggleTerminal,
+    openSettings,
+    toggleRepository,
+    toggleAgents
+  })
   useChatsCovered(page !== null)
 
   return (
@@ -64,8 +83,10 @@ function Layout() {
       {sidebarVisible && (
         <Sidebar
           repositoryOpen={page?.kind === 'repository'}
+          agentsOpen={page?.kind === 'agents'}
           onOpenSettings={openSettings}
           onToggleRepository={toggleRepository}
+          onToggleAgents={toggleAgents}
           onOpenRepository={openRepository}
         />
       )}
@@ -74,6 +95,7 @@ function Layout() {
         repositorySection={repositorySection}
         onRepositorySectionChange={setRepositorySection}
         onClosePage={closePage}
+        onOpenChat={openChat}
         terminals={terminals}
         sidebarVisible={sidebarVisible}
         onToggleSidebar={toggleSidebar}
