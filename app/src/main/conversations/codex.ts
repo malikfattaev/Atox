@@ -11,6 +11,8 @@ import {
   type TimelineItem,
   type ToolStatus
 } from '../../shared/conversation'
+import { imageTypeOfData } from '../images'
+import { savePastedImage } from '../pastedImages'
 import { displayPath, errorMessage } from './display'
 import { elicitationContent, elicitationFields } from './elicitation'
 import { JsonRpcProcess } from './jsonRpc'
@@ -79,6 +81,20 @@ type CodexItem =
       status: ItemStatus
     }
   | { type: 'webSearch'; id: string; query?: string }
+  | {
+      type: 'imageGeneration'
+      id: string
+      /** `in_progress`, `completed` или `failed`. */
+      status: string
+      /** Картинка в base64; пустая строка — её ещё нет. */
+      result?: string
+      /** Куда Codex сохранил картинку. */
+      savedPath?: string
+      failure?: { type: string } | null
+    }
+
+type GeneratedImage = Extract<CodexItem, { type: 'imageGeneration' }>
+type ImageItem = Extract<TimelineItem, { kind: 'image' }>
 
 /** Остальные виды элементов (план, сжатие контекста и т. п.) в ленту не попадают. */
 type AnyCodexItem = CodexItem | { type: string; id: string }
@@ -496,9 +512,13 @@ class CodexSession implements AgentSession {
       }
       case 'item/started':
       case 'item/completed': {
-        const item = toTimelineItem((params as { item: AnyCodexItem }).item, this.options.cwd)
+        const source = (params as { item: AnyCodexItem }).item
+        const item = toTimelineItem(source, this.options.cwd)
         if (item) {
           this.events.item(item)
+        }
+        if (item?.kind === 'image' && item.status === 'done' && !item.path) {
+          void this.saveGeneratedImage(item, source as GeneratedImage)
         }
         break
       }
@@ -526,6 +546,24 @@ class CodexSession implements AgentSession {
         this.events.delta(itemId, 'output', delta)
         break
       }
+    }
+  }
+
+  /**
+   * Codex не сохранил картинку файлом (так бывает у старых версий) — Atox сохраняет её сам:
+   * окно показывает картинки из файлов, а агенты получают их путями.
+   */
+  private async saveGeneratedImage(item: ImageItem, source: GeneratedImage): Promise<void> {
+    try {
+      const data = Buffer.from(source.result ?? '', 'base64')
+      const type = imageTypeOfData(data)
+      if (!type) {
+        throw new Error('Codex returned an image in an unknown format.')
+      }
+      const path = await savePastedImage(data, type)
+      this.events.item({ ...item, path })
+    } catch (error) {
+      this.events.item({ ...item, status: 'failed', error: errorMessage(error) })
     }
   }
 
@@ -584,8 +622,34 @@ function toTimelineItem(source: AnyCodexItem, cwd: string): TimelineItem | null 
         title: item.query || 'Web search',
         status: 'done'
       }
+    case 'imageGeneration':
+      return imageItem(item)
     default:
       return null
+  }
+}
+
+function imageItem(item: GeneratedImage): ImageItem {
+  switch (item.status) {
+    case 'completed':
+      return {
+        kind: 'image',
+        id: item.id,
+        status: 'done',
+        ...(item.savedPath && { path: item.savedPath })
+      }
+    case 'failed':
+      return {
+        kind: 'image',
+        id: item.id,
+        status: 'failed',
+        error:
+          item.failure?.type === 'usageLimitExceeded'
+            ? 'The image generation limit is reached.'
+            : 'Codex could not generate the image.'
+      }
+    default:
+      return { kind: 'image', id: item.id, status: 'running' }
   }
 }
 

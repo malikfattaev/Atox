@@ -215,6 +215,16 @@ export type TimelineItem =
   | { kind: 'error'; id: string; message: string }
   /** Сообщения в чате начал получать другой агент — строка перед первым из них. */
   | { kind: 'agent-switch'; id: string; agent: AgentId }
+  | {
+      /** Картинка, которую нарисовал агент. */
+      kind: 'image'
+      id: string
+      status: ToolStatus
+      /** Файл картинки; нет — она ещё рисуется или не получилась. */
+      path?: string
+      /** Почему картинка не получилась. */
+      error?: string
+    }
 
 export type CompactionStatus = 'running' | 'done' | 'failed'
 

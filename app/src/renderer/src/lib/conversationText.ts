@@ -123,6 +123,11 @@ export function workingLabel(items: readonly TimelineItem[], seed: string): stri
         return 'Compacting'
       }
       break
+    case 'image':
+      if (last.status === 'running') {
+        return 'Generating image'
+      }
+      break
   }
   return WORKING_VERBS[hashString(seed) % WORKING_VERBS.length]!
 }

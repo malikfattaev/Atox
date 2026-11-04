@@ -12,7 +12,10 @@ const PASTED_IMAGES_DIR = 'pasted-images'
  * Сохраняет вставленную картинку во временный файл и возвращает путь к нему.
  * Агент получает картинку из файла: буфер обмена приложения ему недоступен.
  */
-export async function savePastedImage(data: ArrayBuffer, type: string): Promise<string> {
+export async function savePastedImage(
+  data: ArrayBuffer | Uint8Array,
+  type: string
+): Promise<string> {
   // Буфер обмена Chromium отдаёт картинки как PNG, перетащенные — в их собственном формате.
   const extension = IMAGE_FORMATS.find((format) => format.type === type)?.extensions[0]
   if (!extension) {
@@ -21,6 +24,6 @@ export async function savePastedImage(data: ArrayBuffer, type: string): Promise<
   const directory = join(app.getPath('temp'), app.getName(), PASTED_IMAGES_DIR)
   await mkdir(directory, { recursive: true })
   const path = join(directory, `${randomUUID()}.${extension}`)
-  await writeFile(path, Buffer.from(data))
+  await writeFile(path, data instanceof Uint8Array ? data : Buffer.from(data))
   return path
 }

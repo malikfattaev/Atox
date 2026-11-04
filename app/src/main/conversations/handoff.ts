@@ -45,6 +45,8 @@ function describe(item: TimelineItem): string[] {
       return [`(assistant used ${item.name}: ${shorten(item.title)})`]
     case 'error':
       return [`(error: ${shorten(item.message)})`]
+    case 'image':
+      return item.path ? [`(assistant generated an image: ${item.path})`] : []
     default:
       return []
   }
