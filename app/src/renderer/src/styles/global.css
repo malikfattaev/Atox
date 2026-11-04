@@ -66,6 +66,10 @@
   /* Обзор агентов: колонка уже репозитория — в строке меньше текста. */
   --agents-width: 720px;
   --agents-row-padding: 10px;
+  --changed-file-height: 30px;
+  --changed-file-icon-size: 14px;
+  --diff-font-size: 12px;
+  --diff-sign-width: 20px;
 
   --chat-column-width: 768px;
   --chat-gutter: 24px;
@@ -122,6 +126,9 @@
   --color-git-merged: #8250df;
   --color-git-closed: #cf222e;
   --color-git-pending: #9a6700;
+  /* Фон добавленных и удалённых строк diff. */
+  --color-diff-added: rgba(26, 127, 55, 0.1);
+  --color-diff-removed: rgba(207, 34, 46, 0.1);
   --color-segment-selected: #ffffff;
   --shadow-segment-selected: 0 1px 2px rgba(0, 0, 0, 0.12);
 
@@ -161,6 +168,8 @@
     --color-git-merged: #a371f7;
     --color-git-closed: #f85149;
     --color-git-pending: #d29922;
+    --color-diff-added: rgba(46, 160, 67, 0.16);
+    --color-diff-removed: rgba(248, 81, 73, 0.16);
     --color-segment-selected: rgba(255, 255, 255, 0.12);
     --shadow-segment-selected: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
@@ -918,6 +927,263 @@ ul {
 
 .agent-row__detail[data-waiting='true'] .agent-row__activity {
   color: var(--color-attention);
+}
+
+/* Изменения проекта: файлы и их diff */
+
+.changes-panel__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  height: var(--workspace-header-height);
+  padding: 0 var(--workspace-header-padding) 0 16px;
+  -webkit-app-region: drag;
+}
+
+.changes-panel__title {
+  margin: 0;
+  font-size: var(--font-size);
+  font-weight: 600;
+}
+
+.changes-panel__count {
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* В шапке итог изменений стоит сразу за их числом, а не у правого края. */
+.changes-panel__header .diff-stat {
+  margin-left: 0;
+}
+
+.changes-panel__refresh {
+  width: var(--toolbar-button-size);
+  height: var(--toolbar-button-size);
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+
+.changes-panel__body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 16px;
+  overflow-y: auto;
+}
+
+.changes-panel__message {
+  margin: 32px 16px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.changes-panel__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changed-file__row {
+  position: relative;
+}
+
+.changed-file__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: var(--changed-file-height);
+  padding: 0 8px 0 4px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  text-align: left;
+}
+
+.changed-file__toggle:hover {
+  background: var(--color-hover);
+}
+
+.changed-file__chevron {
+  flex-shrink: 0;
+  width: var(--changed-file-icon-size);
+  height: var(--changed-file-icon-size);
+  color: var(--color-text-muted);
+  transition: rotate 150ms var(--collapse-easing);
+}
+
+.changed-file[data-expanded='true'] .changed-file__chevron {
+  rotate: 90deg;
+}
+
+.changed-file__name {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-file__directory {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.diff-stat {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  margin-left: auto;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-stat__added {
+  color: var(--color-git-open);
+}
+
+.diff-stat__removed {
+  color: var(--color-git-closed);
+}
+
+.changed-file__binary {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.changed-file__kind {
+  flex-shrink: 0;
+  width: var(--changed-file-icon-size);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  text-align: center;
+}
+
+.changed-file__kind[data-kind='modified'] {
+  color: var(--color-git-pending);
+}
+
+.changed-file__kind[data-kind='added'],
+.changed-file__kind[data-kind='untracked'] {
+  color: var(--color-git-open);
+}
+
+.changed-file__kind[data-kind='deleted'] {
+  color: var(--color-git-closed);
+}
+
+.changed-file__kind[data-kind='renamed'] {
+  color: var(--color-accent);
+}
+
+/* Отмена появляется при наведении на месте буквы вида изменения. */
+.changed-file__discard {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: calc(var(--changed-file-height) - 6px);
+  height: calc(var(--changed-file-height) - 6px);
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--color-text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.changed-file__discard .icon {
+  width: var(--changed-file-icon-size);
+  height: var(--changed-file-icon-size);
+}
+
+.changed-file__row:hover .changed-file__discard,
+.changed-file__discard:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.changed-file__discard:hover {
+  color: var(--color-text);
+  background: var(--color-active);
+}
+
+.changed-file__row:hover .changed-file__kind {
+  visibility: hidden;
+}
+
+.diff {
+  margin: 2px 0 8px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--diff-font-size);
+  line-height: 1.5;
+  user-select: text;
+}
+
+/* Фон строк тянется на всю ширину прокрутки, а не только видимой части. */
+.diff__lines {
+  width: max-content;
+  min-width: 100%;
+  padding-block: 4px;
+}
+
+.diff__line {
+  position: relative;
+  min-height: 1.5em;
+  padding: 0 12px 0 var(--diff-sign-width);
+  white-space: pre;
+  tab-size: 4;
+}
+
+.diff__line::before {
+  position: absolute;
+  left: 0;
+  width: var(--diff-sign-width);
+  text-align: center;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.diff__line[data-kind='added'] {
+  background: var(--color-diff-added);
+}
+
+.diff__line[data-kind='added']::before {
+  content: '+';
+}
+
+.diff__line[data-kind='removed'] {
+  background: var(--color-diff-removed);
+}
+
+.diff__line[data-kind='removed']::before {
+  content: '−';
+}
+
+.diff__hunk {
+  min-height: 1.5em;
+  margin-block: 4px;
+  padding: 0 12px 0 var(--diff-sign-width);
+  white-space: pre;
+  color: var(--color-text-muted);
+  background: var(--color-group);
+}
+
+.diff__note {
+  margin: 4px 8px 8px calc(var(--changed-file-icon-size) + 10px);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
 }
 
 /* Настройки */
@@ -1701,7 +1967,9 @@ ul {
 
 /* Терминал справа от чатов */
 
-.terminal-panel {
+/* Панели справа от чатов — терминал и изменения — занимают одно место и одну ширину. */
+.terminal-panel,
+.changes-panel {
   position: relative;
   display: flex;
   flex-direction: column;
