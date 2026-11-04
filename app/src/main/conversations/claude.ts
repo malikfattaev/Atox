@@ -80,6 +80,18 @@ const INTERNAL_COMMAND_PREFIX = '__'
 /** Полные идентификаторы закреплённых версий: в меню они убраны в подменю. */
 const PINNED_MODEL_PREFIX = 'claude-'
 
+/**
+ * Встроенные субагенты Claude работают невидимо для пользователя. В Atox помощники запускаются
+ * командой `atox` — тогда каждый из них виден в сайдбаре отдельным чатом.
+ */
+const HIDDEN_AGENT_TOOLS = ['Agent', 'Workflow']
+
+const ATOX_DELEGATION_PROMPT =
+  'You run inside Atox, where every agent is a chat the user can see in the sidebar. ' +
+  'To hand work to other agents or run them in parallel, use the atox skill ' +
+  '(`atox start`, then `atox send` to talk to them); ' +
+  'built-in subagents are not available here.'
+
 function launchOptions({ executable, env, cwd }: AgentLaunch): Options {
   return {
     cwd,
@@ -87,7 +99,8 @@ function launchOptions({ executable, env, cwd }: AgentLaunch): Options {
     pathToClaudeCodeExecutable: executable,
     // Те же настройки, CLAUDE.md, навыки и хуки, что у Claude Code в терминале.
     settingSources: ['user', 'project', 'local'],
-    systemPrompt: { type: 'preset', preset: 'claude_code' }
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: ATOX_DELEGATION_PROMPT },
+    disallowedTools: HIDDEN_AGENT_TOOLS
   }
 }
 
