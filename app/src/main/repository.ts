@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process'
 import type {
   CheckStatus,
   Commit,
@@ -16,6 +15,7 @@ import type {
   RepositoryResult,
   ReviewDecision
 } from '../shared/repository'
+import { CommandError, errorMessage, runCommand } from './processes'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Сколько коммитов загружать за раз: дальше список подгружается при прокрутке. */
@@ -27,11 +27,6 @@ const COMMIT_PAGE_SIZE = 100
 const GITHUB_PAGE_SIZE = 50
 /** Сколько меток issue показывать. */
 const LABEL_LIMIT = 4
-
-/** Сколько ждать ответа git и GitHub, прежде чем считать запрос неудавшимся. */
-const COMMAND_TIMEOUT_MS = 20_000
-/** Ответ GitHub со страницами PR и issue — до нескольких сотен килобайт. */
-const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
 /** Разделители полей и записей в выводе `git log`: в сообщениях коммитов они не встречаются. */
 const FIELD_SEPARATOR = '\x1f'
@@ -211,16 +206,6 @@ type OverviewRepository = { url: string; nameWithOwner: string } & Record<
   ListAlias,
   Connection<GitHubNodes[GitHubKind]>
 >
-
-/** Ошибка запуска программы: код выхода и то, что она написала в stderr. */
-class CommandError extends Error {
-  constructor(
-    readonly code: string | number | undefined,
-    readonly stderr: string
-  ) {
-    super(stderr.trim() || `Command failed with code ${code}`)
-  }
-}
 
 /**
  * Коммиты, pull request'ы и issue репозитория в папке проекта. Коммиты читаются локально
@@ -552,21 +537,7 @@ export class RepositoryReader {
     input?: string
   ): Promise<string> {
     const env = { ...(await this.shell.get()), ...extraEnvironment }
-    return new Promise((resolve, reject) => {
-      const child = execFile(
-        program,
-        args,
-        { cwd, env, timeout: COMMAND_TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES },
-        (error, stdout, stderr) => {
-          if (error) {
-            reject(new CommandError(error.code, String(stderr)))
-          } else {
-            resolve(String(stdout))
-          }
-        }
-      )
-      child.stdin?.end(input)
-    })
+    return runCommand(program, args, { cwd, env, ...(input !== undefined && { input }) })
   }
 }
 
@@ -711,11 +682,4 @@ function classifyGitHubError(error: unknown): RepositoryError {
     }
   }
   return { kind: 'failed', message: errorMessage(error) }
-}
-
-/** Первая содержательная строка ошибки — без префиксов `gh:` и `fatal:`. */
-function errorMessage(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error)
-  const line = text.split('\n').find((candidate) => candidate.trim()) ?? text
-  return line.replace(/^(gh|fatal|error):\s*/i, '').trim()
 }
