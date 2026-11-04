@@ -7,24 +7,25 @@ interface ProfileBarProps {
   onOpenSettings(): void
 }
 
+/** Таблетка внизу сайдбара: кто работает, обновление приложения и вход в настройки. */
 export function ProfileBar({ onOpenSettings }: ProfileBarProps) {
   const profile = useUserProfile()
   const initial = profile?.name.charAt(0).toUpperCase()
   const update = useUpdateState()
 
   return (
-    <footer className="profile-bar">
-      <div className="profile-bar__user">
-        <span className="profile-bar__avatar" aria-hidden>
+    <footer className="profile-card">
+      <div className="profile-card__user">
+        <span className="profile-card__avatar" aria-hidden>
           {initial}
         </span>
-        <span className="profile-bar__name">{profile?.name}</span>
+        <span className="profile-card__name">{profile?.name}</span>
       </div>
-      <div className="profile-bar__actions">
+      <div className="profile-card__actions">
         {update && <UpdateButton update={update} />}
         <button
           type="button"
-          className="icon-button"
+          className="profile-card__action"
           aria-label="Settings"
           onClick={onOpenSettings}
         >
@@ -61,7 +62,7 @@ function UpdateButton({ update }: { update: NonNullable<UpdateState> }) {
   return (
     <button
       type="button"
-      className="icon-button update-button"
+      className="profile-card__action update-button"
       aria-label={label}
       title={label}
       onClick={() => window.atox.updates.install()}
