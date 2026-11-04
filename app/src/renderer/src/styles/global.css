@@ -37,7 +37,8 @@
   --collapse-easing: cubic-bezier(0.2, 0, 0, 1);
   --icon-size: 17px;
   --avatar-size: 26px;
-  --profile-actions-gap: 6px;
+  /* Кнопка обновления уже кнопки настроек, чтобы стоять к ней ближе. */
+  --update-button-width: 26px;
   --status-dot-size: 8px;
   --status-gap: 8px;
   --chat-row-padding: 7px;
@@ -759,16 +760,16 @@ ul {
 .profile-bar__actions {
   display: flex;
   align-items: center;
-  gap: var(--profile-actions-gap);
   flex-shrink: 0;
 }
 
 /*
  * Кнопка появляется, когда новая версия скачана и проверена: по клику приложение перезапускается.
- * Такая же, как кнопка настроек рядом, только синяя.
+ * Такая же, как кнопка настроек, только синяя и вплотную к ней.
  */
 .update-button,
 .update-button:hover {
+  width: var(--update-button-width);
   color: var(--color-accent);
 }
 
@@ -2066,14 +2067,6 @@ ul {
   overflow: visible;
 }
 
-.chat-view__greeting {
-  margin: 0 0 8px;
-  font-size: 24px;
-  font-weight: 600;
-  text-align: center;
-  letter-spacing: -0.01em;
-}
-
 .timeline {
   display: flex;
   flex-direction: column;
@@ -2707,7 +2700,15 @@ ul {
 
 /* Агент работает: значок крутится, подпись переливается, рядом секундомер и токены. */
 .turn-status[data-working] {
+  max-width: 100%;
   font-size: var(--font-size);
+  text-align: left;
+}
+
+/* Строку работы можно раскрыть в список действий, если агент уже что-то делал. */
+.turn-status[data-working]:not(:disabled):hover .turn-status__verb {
+  animation-play-state: paused;
+  color: var(--color-text);
 }
 
 .turn-status__glyph {
@@ -2885,6 +2886,15 @@ ul {
   min-height: var(--composer-footer-height);
   padding: 0;
   font-size: 13px;
+  transition:
+    opacity var(--collapse-duration) var(--collapse-easing),
+    visibility var(--collapse-duration);
+}
+
+/* Место под строкой остаётся, чтобы поле не прыгало, когда она появляется. */
+.composer__footer[data-hidden='true'] {
+  visibility: hidden;
+  opacity: 0;
 }
 
 /* «+» — приложить файлы, тихая кнопка слева от текста. */
