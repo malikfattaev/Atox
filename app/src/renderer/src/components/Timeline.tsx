@@ -25,6 +25,7 @@ import {
 } from '../lib/conversationText'
 import { fileName, imagePreview } from '../lib/attachments'
 import { ImageViewer } from './ImageViewer'
+import { imageContextMenu, type ShownImage } from '../lib/imageActions'
 import { AgentIcon } from './AgentIcon'
 import { ApprovalCard } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
@@ -168,7 +169,7 @@ interface MessageAttachmentsProps {
  * открывает её на весь экран.
  */
 function MessageAttachments({ images, files }: MessageAttachmentsProps) {
-  const [viewed, setViewed] = useState<string | null>(null)
+  const [viewed, setViewed] = useState<ShownImage | null>(null)
   return (
     <ul className="message__attachments">
       {images.map((path) => {
@@ -180,7 +181,8 @@ function MessageAttachments({ images, files }: MessageAttachmentsProps) {
                 type="button"
                 className="message__image-button"
                 aria-label="Open image"
-                onClick={() => setViewed(preview)}
+                onClick={() => setViewed({ src: preview, path })}
+                onContextMenu={imageContextMenu({ src: preview, path })}
               >
                 <img src={preview} alt="" />
               </button>
@@ -196,7 +198,7 @@ function MessageAttachments({ images, files }: MessageAttachmentsProps) {
           <span className="message__file-name">{fileName(path)}</span>
         </li>
       ))}
-      {viewed && <ImageViewer src={viewed} onClose={() => setViewed(null)} />}
+      {viewed && <ImageViewer image={viewed} onClose={() => setViewed(null)} />}
     </ul>
   )
 }

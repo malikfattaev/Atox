@@ -13,6 +13,7 @@ import { attachFiles, attachPicked, fileName, type Attachment } from '../lib/att
 import { currentModel, matchEffort, matchModel, modelConfiguration } from '../lib/modelSelection'
 import { CommandMenu, filterCommands } from './CommandMenu'
 import { ImageViewer } from './ImageViewer'
+import { imageContextMenu, type ShownImage } from '../lib/imageActions'
 import { ModelPicker } from './ModelPicker'
 import { UsageIndicator } from './UsageIndicator'
 
@@ -40,7 +41,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   const catalog = useAgentCatalog(chat.agent)
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
-  const [viewedImage, setViewedImage] = useState<string | null>(null)
+  const [viewedImage, setViewedImage] = useState<ShownImage | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const canSend = text.trim().length > 0 || attachments.length > 0
 
@@ -296,7 +297,13 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
                     type="button"
                     className="composer__attachment-preview"
                     aria-label="Open image"
-                    onClick={() => setViewedImage(attachment.preview)}
+                    onClick={() =>
+                      setViewedImage({ src: attachment.preview, path: attachment.path })
+                    }
+                    onContextMenu={imageContextMenu({
+                      src: attachment.preview,
+                      path: attachment.path
+                    })}
                   >
                     <img src={attachment.preview} alt="" />
                   </button>
@@ -367,7 +374,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
         <ModelPicker chat={chat} openRequest={pickerRequest} />
         {usage && <UsageIndicator usage={usage} />}
       </div>
-      {viewedImage && <ImageViewer src={viewedImage} onClose={() => setViewedImage(null)} />}
+      {viewedImage && <ImageViewer image={viewedImage} onClose={() => setViewedImage(null)} />}
     </form>
   )
 }

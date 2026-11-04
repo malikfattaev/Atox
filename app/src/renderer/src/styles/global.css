@@ -103,6 +103,7 @@
   --message-file-icon-size: 28px;
   /* Сколько места оставить вокруг картинки, открытой на весь экран. */
   --image-viewer-inset: 48px;
+  --image-viewer-actions-offset: 6px;
   --image-viewer-duration: 160ms;
   --activity-indent: 24px;
   --details-max-height: 320px;
@@ -2267,10 +2268,11 @@ ul {
 }
 
 /* Картинка на весь экран: тёмный фон, сама картинка по центру целиком. */
+/* Под слоем меню: правый клик по картинке открывает меню поверх неё. */
 .image-viewer {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 90;
   display: grid;
   place-items: center;
   padding: var(--image-viewer-inset);
@@ -2286,10 +2288,43 @@ ul {
   border-radius: var(--radius);
   user-select: none;
   opacity: 0;
+  cursor: default;
 }
 
 .image-viewer__image[data-ready] {
   opacity: 1;
+}
+
+/*
+ * Кнопки «скопировать», «сохранить», «закрыть» — плашкой внизу по центру, в отступе под
+ * картинкой: не закрывают её и не ложатся поверх кнопок окна в углу.
+ */
+.image-viewer__actions {
+  position: absolute;
+  bottom: var(--image-viewer-actions-offset);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: calc(var(--radius) + 2px);
+  background: rgba(30, 30, 32, 0.9);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  cursor: default;
+}
+
+.image-viewer__action {
+  display: grid;
+  place-items: center;
+  width: var(--row-height);
+  height: var(--row-height);
+  border-radius: var(--radius);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.image-viewer__action:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 @keyframes image-viewer-in {
