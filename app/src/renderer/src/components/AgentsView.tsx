@@ -143,7 +143,7 @@ function AgentRow({
         )}
         <span className="agent-row__detail" data-waiting={Boolean(summary.waitingFor)}>
           <span className="agent-row__place">
-            {[space?.name, project.name, parent?.title].filter(Boolean).join(' / ')}
+            {[space?.name, project.name, parent?.title].filter(Boolean).join(' | ')}
           </span>
           {activity && <span className="agent-row__activity">{activity}</span>}
         </span>
