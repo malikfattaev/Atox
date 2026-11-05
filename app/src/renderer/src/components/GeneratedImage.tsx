@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { CircleAlert, ImageOff, LoaderCircle } from 'lucide-react'
 import type { TimelineItem } from '../../../shared/conversation'
 import { useImagePreview } from '../lib/attachments'
@@ -29,26 +29,40 @@ export function GeneratedImage({ item }: { item: ImageItem }) {
       </div>
     )
   }
-  return <SavedImage path={item.path} />
+  return <LocalImage path={item.path} />
 }
 
-function SavedImage({ path }: { path: string }) {
+/**
+ * Картинка с диска по пути: и нарисованная агентом, и та, на которую он сослался в ответе.
+ * Разметка строчная (span), чтобы картинка могла стоять внутри абзаца Markdown.
+ */
+export function LocalImage({
+  path,
+  fallback
+}: {
+  path: string
+  /** Что показать, если картинки нет: по умолчанию — ошибка «файла нет». */
+  fallback?: ReactNode
+}) {
   const preview = useImagePreview(path)
   const [viewed, setViewed] = useState<ShownImage | null>(null)
 
   if (preview === undefined) {
     return (
-      <div className="generated-image__placeholder" role="status">
+      <span className="generated-image__placeholder" role="status">
         <LoaderCircle className="icon activity__spinner" />
-      </div>
+      </span>
     )
   }
   if (preview === null) {
+    if (fallback !== undefined) {
+      return fallback
+    }
     return (
-      <div className="message message--error" title={path}>
+      <span className="message message--error" title={path}>
         <ImageOff className="icon" />
         <span>The image file is missing.</span>
-      </div>
+      </span>
     )
   }
   const image = { src: preview, path }
