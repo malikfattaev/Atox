@@ -1,5 +1,6 @@
 import type { AgentId } from './agents'
 import type { ProjectColor } from './projectColors'
+import type { ProjectIcon } from './projectIcons'
 
 export interface Chat {
   id: string
@@ -50,6 +51,8 @@ export interface Project {
   spaceId: string
   /** Цвет папки в сайдбаре; нет — обычная папка. */
   color?: ProjectColor
+  /** Значок вместо папки в сайдбаре, в цвете проекта; нет — обычная папка. */
+  icon?: ProjectIcon
   /** Чаты, открытые рядом: у каждого проекта свои. */
   split?: ProjectSplit
   chats: Chat[]

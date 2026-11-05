@@ -13,6 +13,7 @@ import {
 import { moveItemWithinGroup } from '../shared/list'
 import type { Chat, Project, Space, SpacesState } from '../shared/models'
 import type { ProjectColor } from '../shared/projectColors'
+import type { ProjectIcon } from '../shared/projectIcons'
 import { clampSplitPosition, DEFAULT_SPLIT_POSITION } from '../shared/split'
 import { JsonFileWriter, readVersionedJson } from './jsonFile'
 
@@ -211,6 +212,20 @@ export class ProjectStore {
       project.color = color
     } else {
       delete project.color
+    }
+    this.persist()
+  }
+
+  /** Задаёт значок папки проекта; `null` возвращает обычную папку. */
+  setProjectIcon(projectId: string, icon: ProjectIcon | null): void {
+    const project = this.getProject(projectId)
+    if ((project.icon ?? null) === icon) {
+      return
+    }
+    if (icon) {
+      project.icon = icon
+    } else {
+      delete project.icon
     }
     this.persist()
   }
