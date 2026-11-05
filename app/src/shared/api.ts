@@ -98,6 +98,15 @@ export interface AtoxApi {
      */
     create(projectId: string, agent?: AgentId): Promise<{ projects: Project[]; chatId: string }>
     remove(chatId: string): Promise<Project[]>
+    /**
+     * Убирает чат в архив вместе с его помощниками (после подтверждения, если их агенты
+     * работают — архив их останавливает). История чата остаётся.
+     */
+    archive(chatId: string): Promise<Project[]>
+    /** Возвращает чат из архива наверх списка его проекта. */
+    restore(chatId: string): Promise<Project[]>
+    /** Удаляет чат из архива вместе с историей — после подтверждения. */
+    removeArchived(chatId: string): Promise<Project[]>
     /** Переименование пользователем: после него первое сообщение название не меняет. */
     rename(chatId: string, title: string): Promise<Project[]>
     /** Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта. */
@@ -244,6 +253,9 @@ export const IpcChannel = {
   AgentsIntegrations: 'agents:integrations',
   ChatsCreate: 'chats:create',
   ChatsRemove: 'chats:remove',
+  ChatsArchive: 'chats:archive',
+  ChatsRestore: 'chats:restore',
+  ChatsRemoveArchived: 'chats:remove-archived',
   ChatsRename: 'chats:rename',
   ChatsMove: 'chats:move',
   ChatsConfigure: 'chats:configure',
