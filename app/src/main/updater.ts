@@ -9,6 +9,7 @@ import {
   isSafeReleaseFileName,
   UPDATE_PLATFORMS,
   updateSignaturePayload,
+  type UpdateCheckResult,
   type UpdateFile,
   type UpdateManifest,
   type UpdateState
@@ -23,13 +24,13 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000
 const FOCUS_CHECK_INTERVAL_MS = 30 * 1000
 /** Прогресс скачивания сообщается шагами по проценту, а не на каждый пришедший кусок. */
 const PROGRESS_STEP = 0.01
-
 /**
- * Чем закончилась проверка: `busy` — проверка уже идёт, `unsupported` — приложение нельзя
- * заменить на месте (например, запущено из образа диска), `current` — новее версии нет,
- * `available` — новая версия скачана или уже была готова.
+ * Сколько ждать ответа сервера. Без предела запрос, начатый перед сном компьютера или сменой
+ * сети, мог висеть вечно, а вместе с ним — и все следующие проверки.
  */
-export type UpdateCheckResult = 'busy' | 'unsupported' | 'current' | 'available'
+const REQUEST_TIMEOUT_MS = 30_000
+/** Скачивание обрывается, если данные перестали приходить на это время. */
+const DOWNLOAD_STALL_TIMEOUT_MS = 60_000
 
 interface ReadyUpdate {
   version: string
@@ -52,7 +53,8 @@ interface AppUpdaterOptions {
 export class AppUpdater {
   private readyUpdate: ReadyUpdate | null = null
   private currentState: UpdateState = null
-  private checking = false
+  /** Идущая проверка: повторные просьбы дожидаются её, а не запускают вторую. */
+  private checking: Promise<UpdateCheckResult> | null = null
   private relaunchAfterInstall = false
   private installerStarted = false
   private lastCheckAt = 0
@@ -75,7 +77,7 @@ export class AppUpdater {
     }
   }
 
-  /** Проверка по просьбе пользователя — из меню приложения; ошибки достаются вызывающему. */
+  /** Проверка по просьбе пользователя — из меню или настроек; ошибки достаются вызывающему. */
   checkNow(): Promise<UpdateCheckResult> {
     this.lastCheckAt = Date.now()
     return this.check()
@@ -115,48 +117,48 @@ export class AppUpdater {
     }
   }
 
-  private async check(): Promise<UpdateCheckResult> {
+  private check(): Promise<UpdateCheckResult> {
+    this.checking ??= this.runCheckOnce().finally(() => {
+      this.checking = null
+    })
+    return this.checking
+  }
+
+  private async runCheckOnce(): Promise<UpdateCheckResult> {
     const { installer } = this.options
-    if (this.checking) {
-      return 'busy'
-    }
     if (!(await installer.canInstall())) {
       return 'unsupported'
     }
-    this.checking = true
-    try {
-      const manifest = await this.fetchManifest()
-      const isNewer = compareVersions(manifest.version, app.getVersion()) > 0
-      const file = manifest.files[process.arch]
-      if (!isNewer || !file) {
-        return 'current'
-      }
-      if (manifest.version === this.readyUpdate?.version) {
-        return 'available'
-      }
-      let path: string
-      try {
-        path = await this.download(manifest, file)
-      } catch (error) {
-        // Скачивание сорвалось — показываем готовое ранее обновление, если оно есть.
-        this.setState(this.readyUpdate && { phase: 'ready', version: this.readyUpdate.version })
-        throw error
-      }
-      this.readyUpdate = { version: manifest.version, path }
-      this.setState({ phase: 'ready', version: manifest.version })
-      // Прежние скачивания удаляются, только когда готовым стало новое: до этого на одно
-      // из них могло указывать обновление, ожидающее установки.
-      await removeOtherDownloads(installer.downloadsRoot(), manifest.version)
-      return 'available'
-    } finally {
-      this.checking = false
+    const manifest = await this.fetchManifest()
+    const isNewer = compareVersions(manifest.version, app.getVersion()) > 0
+    const file = manifest.files[process.arch]
+    if (!isNewer || !file) {
+      return 'current'
     }
+    if (manifest.version === this.readyUpdate?.version) {
+      return 'available'
+    }
+    let path: string
+    try {
+      path = await this.download(manifest, file)
+    } catch (error) {
+      // Скачивание сорвалось — показываем готовое ранее обновление, если оно есть.
+      this.setState(this.readyUpdate && { phase: 'ready', version: this.readyUpdate.version })
+      throw error
+    }
+    this.readyUpdate = { version: manifest.version, path }
+    this.setState({ phase: 'ready', version: manifest.version })
+    // Прежние скачивания удаляются, только когда готовым стало новое: до этого на одно
+    // из них могло указывать обновление, ожидающее установки.
+    await removeOtherDownloads(installer.downloadsRoot(), manifest.version)
+    return 'available'
   }
 
   private async fetchManifest(): Promise<UpdateManifest> {
     const manifestName = UPDATE_PLATFORMS[this.options.installer.platform].manifest
     const response = await net.fetch(`${this.options.feedUrl}/${manifestName}`, {
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     })
     if (!response.ok) {
       throw new Error(`Update manifest request failed: ${response.status}`)
@@ -183,8 +185,15 @@ export class AppUpdater {
     await fs.rm(directory, { recursive: true, force: true })
     await fs.mkdir(directory, { recursive: true })
 
-    const response = await net.fetch(`${this.options.feedUrl}/${file.name}`)
+    const stall = new StallTimer(DOWNLOAD_STALL_TIMEOUT_MS)
+    const response = await net
+      .fetch(`${this.options.feedUrl}/${file.name}`, { signal: stall.signal })
+      .catch((error: unknown) => {
+        stall.stop()
+        throw error
+      })
     if (!response.ok || !response.body) {
+      stall.stop()
       throw new Error(`Update download failed: ${response.status}`)
     }
     const filePath = join(directory, file.name)
@@ -194,6 +203,7 @@ export class AppUpdater {
     this.setState({ phase: 'downloading', version: manifest.version, progress: 0 })
     const measure = new Transform({
       transform: (chunk: Buffer, _encoding, callback) => {
+        stall.reset()
         hash.update(chunk)
         size += chunk.length
         const progress = Math.min(1, size / file.size)
@@ -204,7 +214,11 @@ export class AppUpdater {
         callback(null, chunk)
       }
     })
-    await pipeline(Readable.fromWeb(response.body), measure, createWriteStream(filePath))
+    try {
+      await pipeline(Readable.fromWeb(response.body), measure, createWriteStream(filePath))
+    } finally {
+      stall.stop()
+    }
     if (size !== file.size || hash.digest('base64') !== file.sha512) {
       throw new Error('Downloaded update does not match the signed manifest')
     }
@@ -215,6 +229,36 @@ export class AppUpdater {
   private setState(state: UpdateState): void {
     this.currentState = state
     this.options.onStateChange(state)
+  }
+}
+
+/** Отменяет запрос, если между событиями прошло больше заданного времени. */
+class StallTimer {
+  private readonly controller = new AbortController()
+  private timer: NodeJS.Timeout
+
+  constructor(private readonly timeoutMs: number) {
+    this.timer = this.schedule()
+  }
+
+  get signal(): AbortSignal {
+    return this.controller.signal
+  }
+
+  reset(): void {
+    clearTimeout(this.timer)
+    this.timer = this.schedule()
+  }
+
+  stop(): void {
+    clearTimeout(this.timer)
+  }
+
+  private schedule(): NodeJS.Timeout {
+    return setTimeout(
+      () => this.controller.abort(new Error('Update download stalled')),
+      this.timeoutMs
+    )
   }
 }
 

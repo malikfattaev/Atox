@@ -27,7 +27,7 @@ import type {
 } from './repository'
 import type { ProjectColor } from './projectColors'
 import type { Settings } from './settings'
-import type { UpdateState } from './update'
+import type { UpdateCheckResult, UpdateState } from './update'
 
 /** Размер терминала в символах. */
 export interface TerminalSize {
@@ -181,6 +181,10 @@ export interface AtoxApi {
     /** Скачивается ли новая версия или она уже готова к установке; `null` — обновлений нет. */
     state(): Promise<UpdateState>
     subscribe(listener: (state: UpdateState) => void): () => void
+    /** Версия запущенного приложения. */
+    currentVersion(): Promise<string>
+    /** Проверяет обновления сейчас; новая версия сразу начинает скачиваться. */
+    check(): Promise<UpdateCheckResult>
     /** Перезапускает приложение с установкой обновления. */
     install(): void
   }
@@ -262,6 +266,8 @@ export const IpcChannel = {
   UpdatesState: 'updates:state',
   UpdatesStateChanged: 'updates:state-changed',
   UpdatesInstall: 'updates:install',
+  UpdatesCheck: 'updates:check',
+  UpdatesCurrentVersion: 'updates:current-version',
   SystemUserProfile: 'system:user-profile',
   SystemFocusWindow: 'system:focus-window',
   SystemBadgeCount: 'system:badge-count',

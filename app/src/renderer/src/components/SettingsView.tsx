@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useSettings } from '../hooks/SettingsContext'
 import { ShortcutList } from './ShortcutList'
+import { UpdateSettings } from './UpdateSettings'
 
 const { atox } = window
 
@@ -34,6 +35,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       </header>
 
       <div className="settings__group">
+        <UpdateSettings />
         <section className="settings__subgroup" aria-label="Privacy">
           <h3 className="settings__subgroup-title">Privacy</h3>
           <div className="settings__card">

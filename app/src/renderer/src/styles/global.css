@@ -1366,6 +1366,29 @@ ul {
   color: var(--color-text-muted);
 }
 
+.settings__button {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--color-active);
+}
+
+.settings__button:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.settings__button:disabled {
+  opacity: 0.5;
+}
+
+.settings__button--primary {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
 /* Переключатель в духе macOS поверх обычного чекбокса: работает с клавиатуры и читалками. */
 .switch {
   --switch-width: 32px;

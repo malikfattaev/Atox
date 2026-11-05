@@ -370,6 +370,8 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.UpdatesState, () => updater?.state ?? null)
   ipcMain.on(IpcChannel.UpdatesInstall, () => updater?.installAndRelaunch())
+  ipcMain.handle(IpcChannel.UpdatesCurrentVersion, () => app.getVersion())
+  ipcMain.handle(IpcChannel.UpdatesCheck, () => updater?.checkNow() ?? 'unsupported')
 
   ipcMain.handle(IpcChannel.SystemUserProfile, getUserProfile)
 

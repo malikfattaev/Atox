@@ -190,6 +190,8 @@ const api: AtoxApi = {
       ipcRenderer.on(IpcChannel.UpdatesStateChanged, handler)
       return () => ipcRenderer.removeListener(IpcChannel.UpdatesStateChanged, handler)
     },
+    currentVersion: () => ipcRenderer.invoke(IpcChannel.UpdatesCurrentVersion),
+    check: () => ipcRenderer.invoke(IpcChannel.UpdatesCheck),
     install: () => ipcRenderer.send(IpcChannel.UpdatesInstall)
   },
   shortcuts: {

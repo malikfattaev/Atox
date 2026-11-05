@@ -59,6 +59,13 @@ export function isSafeReleaseFileName(name: string): boolean {
 }
 
 /**
+ * Чем закончилась проверка: `unsupported` — приложение нельзя заменить на месте (например,
+ * запущено из образа диска или это сборка для разработки), `current` — новее версии нет,
+ * `available` — новая версия скачана или уже была готова.
+ */
+export type UpdateCheckResult = 'unsupported' | 'current' | 'available'
+
+/**
  * Что сейчас с обновлением: новая версия скачивается (`progress` от 0 до 1) или уже готова
  * к установке; `null` — обновлений нет.
  */
