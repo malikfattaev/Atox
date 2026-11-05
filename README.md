@@ -35,7 +35,9 @@
 - **Any agent, any moment.** Claude Code, Codex and more in one chat. Switch whenever you like.
 - **Agents team up.** Claude can ask Codex for a review, and the answer comes back to the same chat.
 - **Real terminals.** Every chat is a shell in your project folder, nothing is hidden.
-- **Projects and spaces.** A project is a folder, its chats live inside.
+- **Chats remember.** Close Atox, come back, and every chat picks up where it left off.
+- **Archive, don't lose.** Archived chats leave the sidebar but keep their history, ready to restore.
+- **Projects and spaces.** A project is a folder, its chats live inside. Give it a color and an icon.
 - **Updates itself.** A new version is one click away.
 
 ## Install
