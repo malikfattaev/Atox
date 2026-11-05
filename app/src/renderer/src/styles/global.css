@@ -467,10 +467,15 @@ ul {
 
 /*
  * Цветная папка проекта: контур в цвете и полупрозрачная заливка, как у цветных папок Finder.
- * Сам цвет приходит из строки проекта в --project-color.
+ * Сам цвет приходит из строки проекта в --project-color. Заливка — только у обычной папки:
+ * у других значков линии не замкнуты, и заливка их портит.
  */
 .row--project[data-colored='true'] .project-icon {
   color: var(--project-color);
+}
+
+.row--project[data-colored='true'] .project-icon--folder,
+.icon-picker[data-colored='true'] .project-icon--folder {
   fill: color-mix(in srgb, var(--project-color) var(--project-icon-fill), transparent);
 }
 
