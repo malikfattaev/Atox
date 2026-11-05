@@ -69,7 +69,8 @@ function normalize(settings: Settings): Settings {
     agentModels: normalizeAgentModels(settings.agentModels),
     sidebarWidth: clampWidth(settings.sidebarWidth, SIDEBAR_WIDTH),
     terminalWidth: clampWidth(settings.terminalWidth, TERMINAL_WIDTH),
-    shortcuts: normalizeShortcuts(settings.shortcuts)
+    shortcuts: normalizeShortcuts(settings.shortcuts),
+    shareUsageStats: settings.shareUsageStats !== false
   }
 }
 

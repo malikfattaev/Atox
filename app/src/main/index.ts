@@ -30,10 +30,12 @@ import { TerminalManager } from './terminals'
 import { checkForUpdatesFromMenu } from './updateCheck'
 import { createUpdateInstaller } from './updateInstallers'
 import { AppUpdater } from './updater'
+import { UsageStats } from './usageStats'
 import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
+const USAGE_STATS_FILE_NAME = 'usage-stats.json'
 /**
  * Каталог, где прежние версии хранили ленты чатов. Теперь разговоры живут до выхода
  * из Atox, а оставшиеся файлы удаляются.
@@ -158,10 +160,22 @@ async function bootstrap(): Promise<void> {
   app.on('will-quit', () => branches.dispose())
   menu.install()
 
+  // Статистика не должна мешать запуску: без неё приложение работает как обычно.
+  const usageStats = await UsageStats.load({
+    appKey: process.env['ATOX_USAGE_STATS_APP_KEY'] ?? __USAGE_STATS_APP_KEY__,
+    filePath: join(userData, USAGE_STATS_FILE_NAME),
+    settings
+  }).catch((error) => {
+    console.error('Failed to load usage stats', error)
+    return null
+  })
+  usageStats?.start()
+  app.on('will-quit', () => usageStats?.stop())
+
   const quitHandling = setupQuitHandling({
     conversations,
     terminals,
-    stores: [store, settings]
+    stores: usageStats ? [store, settings, usageStats] : [store, settings]
   })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())

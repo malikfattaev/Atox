@@ -49,6 +49,12 @@ The first time, macOS says it can't verify the developer: open System Settings �
 chmod +x Atox-*.AppImage && ./Atox-*.AppImage
 ```
 
+## Privacy
+
+Atox sends anonymous usage stats to [Aptabase](https://aptabase.com) so we know how many people use it: an install event once, then one event per day, week and month the app is open. Each event carries only the app version, OS name and version, and locale. No IDs, projects, files, chats or IP addresses are stored.
+
+Turn it off any time in Settings → Privacy.
+
 ## License
 
 [MIT](LICENSE) © Malik Fattaev

@@ -13,6 +13,8 @@ export interface Settings {
   terminalWidth: number
   /** Свои горячие клавиши вместо стандартных. */
   shortcuts: ShortcutOverrides
+  /** Отправлять анонимную статистику: установки и активные дни, без данных о проектах и чатах. */
+  shareUsageStats: boolean
 }
 
 /** Сайдбар по умолчанию самый узкий: его можно только расширить. */
@@ -41,7 +43,8 @@ export const DEFAULT_SETTINGS: Settings = {
   agentModels: {},
   sidebarWidth: SIDEBAR_WIDTH.default,
   terminalWidth: TERMINAL_WIDTH.default,
-  shortcuts: {}
+  shortcuts: {},
+  shareUsageStats: true
 }
 
 /** Приводит ширину панели к целому числу пикселей в её пределах. */
