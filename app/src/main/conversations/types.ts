@@ -10,6 +10,7 @@ import type {
   StreamedField,
   TimelineItem
 } from '../../shared/conversation'
+import type { McpServerInfo, PluginInfo, SkillInfo } from '../../shared/integrations'
 
 /** Как запустить программу агента. */
 export interface AgentLaunch {
@@ -68,6 +69,12 @@ export interface AgentDriver {
   catalog(launch: AgentLaunch): Promise<AgentCatalog>
   /** Команды, которые агент выполняет из сообщения вида `/команда`, — в папке проекта. */
   commands(launch: AgentLaunch): Promise<AgentCommand[]>
+  /** Плагины, которые агент загружает в папке проекта. */
+  plugins(launch: AgentLaunch): Promise<PluginInfo[]>
+  /** Скиллы пользователя, проекта и плагинов — без встроенных в самого агента. */
+  skills(launch: AgentLaunch): Promise<SkillInfo[]>
+  /** Серверы MCP и их состояние после попытки подключиться. */
+  mcpServers(launch: AgentLaunch): Promise<McpServerInfo[]>
   start(options: SessionOptions, events: SessionEvents): AgentSession
   /** Лимиты подписки, когда в чате ещё нет запущенной сессии. */
   limits(launch: AgentLaunch): Promise<PlanLimit[]>

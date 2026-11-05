@@ -30,6 +30,7 @@ import {
   type ToolKind
 } from '../../shared/conversation'
 import { AsyncQueue } from './asyncQueue'
+import { readClaudeMcpServers, readClaudePlugins, readClaudeSkills } from './claudeIntegrations'
 import { displayPath, errorMessage } from './display'
 import { elicitationContent, elicitationFields } from './elicitation'
 import { UserRequests } from './userRequests'
@@ -121,6 +122,18 @@ export const claudeDriver: AgentDriver = {
           ...(argumentHint && { argumentHint })
         }))
     )
+  },
+
+  plugins(launch) {
+    return withIdleSession(launch, readClaudePlugins)
+  },
+
+  skills(launch) {
+    return withIdleSession(launch, readClaudeSkills)
+  },
+
+  mcpServers(launch) {
+    return withIdleSession(launch, readClaudeMcpServers)
   },
 
   start(options, events) {

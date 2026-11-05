@@ -14,6 +14,7 @@ import {
   type InputValue,
   type RequestAnswer
 } from '../shared/conversation'
+import { isIntegrationKind } from '../shared/integrations'
 import type { Project } from '../shared/models'
 import { isProjectColor } from '../shared/projectColors'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
@@ -193,6 +194,19 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.AgentsAvailable, () => agents.list())
   ipcMain.handle(IpcChannel.AgentsCatalog, (_event, agent: unknown) =>
     isAgentId(agent) ? conversations.catalog(agent) : null
+  )
+  ipcMain.handle(
+    IpcChannel.AgentsIntegrations,
+    (_event, agent: unknown, kind: unknown, projectId: unknown) => {
+      if (!isAgentId(agent) || !isIntegrationKind(kind)) {
+        throw new Error('Unknown agent or list')
+      }
+      return conversations.integrations(
+        agent,
+        kind,
+        typeof projectId === 'string' ? projectId : null
+      )
+    }
   )
 
   /** Агент по умолчанию, если он установлен, иначе первый установленный. */

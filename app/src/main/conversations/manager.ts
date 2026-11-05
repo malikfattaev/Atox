@@ -19,6 +19,11 @@ import {
   type StreamedField,
   type TimelineItem
 } from '../../shared/conversation'
+import type {
+  IntegrationItems,
+  IntegrationKind,
+  IntegrationList
+} from '../../shared/integrations'
 import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
@@ -30,6 +35,18 @@ import type { AgentDriver, AgentLaunch, AgentSession } from './types'
  * событие на каждое слово заставляло бы окно перерисовываться сотни раз в секунду.
  */
 const STREAM_FLUSH_MS = 50
+
+/** Каким вопросом к драйверу узнаётся каждый список на странице настроек. */
+const INTEGRATION_READERS: {
+  [Kind in IntegrationKind]: (
+    driver: AgentDriver,
+    launch: AgentLaunch
+  ) => Promise<IntegrationItems[Kind]>
+} = {
+  plugins: (driver, launch) => driver.plugins(launch),
+  skills: (driver, launch) => driver.skills(launch),
+  mcp: (driver, launch) => driver.mcpServers(launch)
+}
 
 type EventPayload = ConversationEvent extends infer Event
   ? Event extends ConversationEvent
@@ -307,6 +324,31 @@ export class ConversationManager {
       console.error(`Failed to list ${agent} models`, error)
       return null
     })
+  }
+
+  /**
+   * Плагины, скиллы или серверы MCP агента. Агента спрашивают в папке проекта, чтобы в ответ
+   * попали и настройки проекта; без проекта — в домашней папке.
+   */
+  async integrations<Kind extends IntegrationKind>(
+    agent: AgentId,
+    kind: Kind,
+    projectId: string | null
+  ): Promise<IntegrationList<Kind>> {
+    const executable = await this.services.agents.executable(agent)
+    if (!executable) {
+      return { status: 'not-installed' }
+    }
+    const projectPath = projectId ? this.services.store.findProject(projectId)?.path : undefined
+    const cwd = projectPath && existsSync(projectPath) ? projectPath : homedir()
+    const read: (typeof INTEGRATION_READERS)[Kind] = INTEGRATION_READERS[kind]
+    try {
+      const launch = { executable, cwd, env: await this.services.environment() }
+      return { status: 'ok', items: await read(this.services.drivers[agent], launch) }
+    } catch (error) {
+      console.error(`Failed to list ${agent} ${kind}`, error)
+      return { status: 'failed', message: errorMessage(error) }
+    }
   }
 
   /** Без запущенной сессии лимиты и контекст читает отдельный процесс агента. */
