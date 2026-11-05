@@ -17,6 +17,7 @@ import { findProjectColor } from '../../../shared/projectColors'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
 import { showMenu } from '../lib/menu'
+import { projectIconComponent } from '../lib/projectIcons'
 import { ChatItem } from './ChatItem'
 import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
@@ -52,7 +53,10 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
   const [renaming, setRenaming] = useState(false)
   // Проект тянут за его строку, а переносится он вместе со своими чатами.
   const { itemProps, handleProps } = useSortableItem(project.id, renaming)
-  const FolderIcon = expanded ? FolderOpen : Folder
+  // Свой значок проекта заменяет папку; без него папка открыта, когда видны чаты.
+  const CustomIcon = projectIconComponent(project.icon)
+  const ProjectGlyph = CustomIcon ?? (expanded ? FolderOpen : Folder)
+  const glyphClass = `icon project-icon${CustomIcon ? '' : ' project-icon--folder'}`
   const chatsId = useId()
 
 
@@ -163,7 +167,7 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
       >
         {renaming ? (
           <div className="row__main">
-            <FolderIcon className="icon project-icon" />
+            <ProjectGlyph className={glyphClass} />
             <InlineRename
               value={project.name}
               label="Project name"
@@ -182,7 +186,7 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
             aria-controls={chatsId}
             onClick={() => setExpanded((value) => !value)}
           >
-            <FolderIcon className="icon project-icon" />
+            <ProjectGlyph className={glyphClass} />
             <span className="row__label">{project.name}</span>
           </button>
         )}
