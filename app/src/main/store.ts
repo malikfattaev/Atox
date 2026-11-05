@@ -50,7 +50,7 @@ export class ProjectStore {
       if (!isAgentId(chat.agent)) {
         chat.agent = DEFAULT_AGENT_ID
       }
-      // Прежние версии продолжали разговор после перезапуска; теперь каждый запуск — новый.
+      // Прежние версии хранили разговор на стороне агента в чате; теперь он в файле ленты.
       delete (chat as { sessionId?: string }).sessionId
     }
     const saved = Array.isArray(data?.spaces) ? data.spaces : []
