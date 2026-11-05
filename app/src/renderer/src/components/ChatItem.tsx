@@ -1,5 +1,5 @@
 import { useId, useMemo, useState, type MouseEvent } from 'react'
-import { ChevronDown, Columns2, GitBranch, Pencil, Trash2 } from 'lucide-react'
+import { Archive, ChevronDown, Columns2, GitBranch, Pencil, Trash2 } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
 import { isCommandClick } from '../../../shared/shortcuts'
@@ -121,6 +121,7 @@ function ChatRow({
     selectChat,
     openChatBeside,
     renameChat,
+    archiveChat,
     removeChat
   } = useProjectsContext()
   const visible = visibleChatIds.includes(chat.id)
@@ -143,6 +144,7 @@ function ChatRow({
           : []),
         { action: 'rename', label: 'Rename', icon: <Pencil /> },
         { type: 'separator' },
+        { action: 'archive', label: 'Archive chat', icon: <Archive /> },
         { action: 'remove', label: 'Delete chat', icon: <Trash2 />, destructive: true }
       ],
       event
@@ -151,6 +153,8 @@ function ChatRow({
       openChatBeside(chat.id)
     } else if (action === 'rename') {
       onRenamingChange(true)
+    } else if (action === 'archive') {
+      void archiveChat(chat.id)
     } else if (action === 'remove') {
       void removeChat(chat.id)
     }
