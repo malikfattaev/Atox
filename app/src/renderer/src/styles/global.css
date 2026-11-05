@@ -129,6 +129,11 @@
   --menu-swatch-size: 10px;
   --menu-separator-gap: 4px;
   --menu-out-duration: 90ms;
+  --icon-picker-cell-size: 30px;
+  --icon-picker-gap: 2px;
+  --icon-picker-list-height: 320px;
+  --icon-picker-heading-size: 11px;
+  --icon-picker-ring: 1.5px;
   --working-spin-duration: 3s;
   --message-in-duration: 180ms;
   --working-shimmer-duration: 2s;
@@ -3531,6 +3536,102 @@ ul {
   height: 1px;
   margin: var(--menu-separator-gap) var(--menu-item-padding);
   background: var(--color-border);
+}
+
+/*
+ * Выбор значка проекта — панель меню с поиском и сеткой значков по группам. Значки показаны в
+ * цвете проекта, как их покажет сайдбар.
+ */
+.icon-picker {
+  overflow: hidden;
+}
+
+.icon-picker__search {
+  display: flex;
+  align-items: center;
+  gap: var(--menu-item-gap);
+  flex-shrink: 0;
+  height: var(--menu-item-height);
+  padding: 0 var(--menu-item-padding);
+}
+
+.icon-picker__search-icon {
+  width: var(--menu-icon-size);
+  height: var(--menu-icon-size);
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  stroke-width: 1.75;
+}
+
+.icon-picker__search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  outline: none;
+  appearance: none;
+}
+
+.icon-picker__search input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.icon-picker__search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.icon-picker__groups {
+  flex: 1;
+  min-height: 0;
+  max-height: var(--icon-picker-list-height);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.icon-picker__heading {
+  padding: var(--menu-separator-gap) var(--menu-item-padding);
+  font-size: var(--icon-picker-heading-size);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.icon-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(var(--icon-picker-columns), var(--icon-picker-cell-size));
+  gap: var(--icon-picker-gap);
+  padding-bottom: var(--menu-separator-gap);
+}
+
+.icon-picker__option {
+  display: grid;
+  place-items: center;
+  width: var(--icon-picker-cell-size);
+  height: var(--icon-picker-cell-size);
+  border-radius: var(--menu-item-radius);
+  color: var(--color-text);
+}
+
+.icon-picker[data-colored='true'] .icon-picker__option {
+  color: var(--project-color);
+}
+
+.icon-picker__option[data-highlighted='true'] {
+  background: var(--color-menu-highlight);
+}
+
+/* Текущий значок обведён в его же цвете. */
+.icon-picker__option[aria-selected='true'] {
+  box-shadow: inset 0 0 0 var(--icon-picker-ring) currentColor;
+}
+
+.icon-picker__empty {
+  margin: 0;
+  padding: var(--menu-item-padding);
+  text-align: center;
+  color: var(--color-text-muted);
 }
 
 /* Подсказки команд: всплывают над полем ввода на всю его ширину. */
