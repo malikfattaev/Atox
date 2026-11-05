@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Every coding agent in one window</strong><br>
-  <sub>A lightweight Mac and Linux app for Claude Code, Codex and other coding agents.</sub>
+  <strong>One calm place to run Claude, Codex and any other agent together</strong><br>
+  <sub>Orchestrate agents across models, watch them work, ship via PRs. Nothing extra.</sub>
 </p>
 
 <p align="center">

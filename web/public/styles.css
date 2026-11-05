@@ -151,6 +151,7 @@ kbd {
   line-height: 1.05;
   letter-spacing: -0.04em;
   font-weight: 800;
+  text-wrap: balance;
 }
 
 .hero__lead {
