@@ -18,11 +18,8 @@ import {
   type MenuItem,
   type OpenMenu
 } from '../lib/menu'
+import { placeAt, VIEWPORT_MARGIN, type Placement } from '../lib/popover'
 
-/** Отступ меню от краёв окна. */
-const VIEWPORT_MARGIN = 8
-/** Зазор между кнопкой и меню, которое открывается под ней. */
-const ANCHOR_GAP = 4
 /** Зазор между меню и его подменю. */
 const SUBMENU_GAP = 4
 /** Задержка, с которой подменю открывается под мышью: курсор, проходящий мимо, его не дёргает. */
@@ -561,45 +558,6 @@ function isAimingAt(from: Point, to: Point, target: DOMRect): boolean {
 interface Point {
   x: number
   y: number
-}
-
-interface Placement {
-  left: number
-  top: number
-  maxHeight: number
-}
-
-/** Корневое меню: под кнопкой (или над ней, если внизу тесно) либо у курсора. */
-function placeAt(panel: HTMLElement, anchor: MenuAnchor): Placement {
-  const { innerWidth, innerHeight } = window
-  const maxHeight = innerHeight - VIEWPORT_MARGIN * 2
-  const width = panel.offsetWidth
-  const height = Math.min(panel.scrollHeight, maxHeight)
-  const clampLeft = (left: number) =>
-    Math.max(VIEWPORT_MARGIN, Math.min(left, innerWidth - VIEWPORT_MARGIN - width))
-
-  if (anchor instanceof Element) {
-    const rect = anchor.getBoundingClientRect()
-    const below = innerHeight - VIEWPORT_MARGIN - rect.bottom - ANCHOR_GAP
-    const above = rect.top - VIEWPORT_MARGIN - ANCHOR_GAP
-    const left = clampLeft(rect.left)
-    if (height <= below || below >= above) {
-      return { left, top: rect.bottom + ANCHOR_GAP, maxHeight: below }
-    }
-    const fitted = Math.min(height, above)
-    return { left, top: rect.top - ANCHOR_GAP - fitted, maxHeight: above }
-  }
-
-  // У курсора меню открывается вправо-вниз, а у края окна — в обратную сторону.
-  const { clientX: x, clientY: y } = anchor
-  const flipX = x + width > innerWidth - VIEWPORT_MARGIN
-  const flipY = y + height > innerHeight - VIEWPORT_MARGIN
-  const left = clampLeft(flipX ? x - width : x)
-  const top = Math.max(
-    VIEWPORT_MARGIN,
-    Math.min(flipY ? y - height : y, innerHeight - VIEWPORT_MARGIN - height)
-  )
-  return { left, top, maxHeight }
 }
 
 /** Подменю: справа от своего пункта, первый пункт вровень с ним; у края окна — слева. */
