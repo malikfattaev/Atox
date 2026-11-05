@@ -11,21 +11,27 @@ const HANDOFF_LIMIT_CHARS = 60_000
 const ENTRY_LIMIT_CHARS = 4_000
 
 /**
- * Сообщение агенту, который подхватывает чат после другого: у него нет памяти о прежнем
- * разговоре, поэтому он получает переписку целиком, а за ней — новое сообщение пользователя.
+ * Сообщение агенту, у которого нет памяти о разговоре в чате: чат переключили на него
+ * с другого агента или его собственный прежний разговор не удалось продолжить (`agent`
+ * совпадает с `previousAgent`). Он получает переписку целиком, а за ней — новое сообщение
+ * пользователя.
  */
 export function handoffMessage(
   previousAgent: AgentId,
+  agent: AgentId,
   history: readonly TimelineItem[],
   message: string
 ): string {
   const previousName = findAgent(previousAgent)?.name ?? previousAgent
   const transcript = limitFromStart(history.flatMap(describe).join('\n\n'))
+  const intro =
+    previousAgent === agent
+      ? 'Your previous session for this chat could not be restored'
+      : `The user switched this chat from ${previousName} to you`
   return [
-    `[Atox] The user switched this chat from ${previousName} to you. You have no memory of ` +
-      'the conversation so far, so here it is (oldest first; earlier parts may be cut). ' +
-      'Continue from where it left off; files in the project may already contain changes made ' +
-      `by ${previousName}.`,
+    `[Atox] ${intro}. You have no memory of the conversation so far, so here it is ` +
+      '(oldest first; earlier parts may be cut). Continue from where it left off; files in ' +
+      `the project may already contain changes made by ${previousName}.`,
     `<conversation>\n${transcript}\n</conversation>`,
     `The user's new message:\n${message}`
   ].join('\n\n')
