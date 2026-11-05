@@ -8,6 +8,7 @@ import {
   Layers,
   Pencil,
   Plus,
+  Shapes,
   SquarePen
 } from 'lucide-react'
 import { topLevelChats, workerChats } from '../../../shared/chats'
@@ -19,6 +20,7 @@ import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
 import { showMenu } from '../lib/menu'
 import { projectIconComponent } from '../lib/projectIcons'
 import { ChatItem } from './ChatItem'
+import { IconPicker } from './IconPicker'
 import { InlineRename } from './InlineRename'
 import { SortableList, useSortableItem } from './SortableList'
 
@@ -42,6 +44,7 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
     createChat,
     renameProject,
     setProjectColor,
+    setProjectIcon,
     spaces,
     moveProjectToSpace,
     revealProject,
@@ -51,6 +54,8 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
   // При запуске все проекты свёрнуты: список остаётся коротким, а состояние не запоминается.
   const [expanded, setExpanded] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  // Строка проекта, под которой открыт выбор значка; `null` — выбор закрыт.
+  const [iconPickerAnchor, setIconPickerAnchor] = useState<Element | null>(null)
   // Проект тянут за его строку, а переносится он вместе со своими чатами.
   const { itemProps, handleProps } = useSortableItem(project.id, renaming)
   // Свой значок проекта заменяет папку; без него папка открыта, когда видны чаты.
@@ -83,6 +88,7 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
+    const row = event.currentTarget
     const action = await showMenu(
       [
         { action: 'create-chat', label: 'New chat', icon: <SquarePen /> },
@@ -98,6 +104,7 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
         { type: 'separator' },
         { action: 'rename', label: 'Rename', icon: <Pencil /> },
         colorSubmenu(project.color),
+        { action: 'icon', label: 'Icon…', icon: <Shapes /> },
         ...(otherSpaces.length > 0
           ? [
               {
@@ -137,6 +144,9 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
       case 'rename':
         setRenaming(true)
         break
+      case 'icon':
+        setIconPickerAnchor(row)
+        break
       case 'reveal':
         void revealProject(project.id)
         break
@@ -151,8 +161,9 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
 
   const color = findProjectColor(project.color)
   // Цвет задаётся сразу для обеих тем, а нужный выбирает CSS по текущей теме.
-  const colorStyle = color
-    ? ({ '--project-color': `light-dark(${color.light}, ${color.dark})` } as CSSProperties)
+  const projectColor = color && `light-dark(${color.light}, ${color.dark})`
+  const colorStyle = projectColor
+    ? ({ '--project-color': projectColor } as CSSProperties)
     : undefined
 
   return (
@@ -199,6 +210,15 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
           <Plus className="icon" />
         </button>
       </div>
+      {iconPickerAnchor && (
+        <IconPicker
+          anchor={iconPickerAnchor}
+          selected={project.icon}
+          color={projectColor}
+          onPick={(icon) => void setProjectIcon(project.id, icon)}
+          onClose={() => setIconPickerAnchor(null)}
+        />
+      )}
 
       {/* Свёрнутые чаты остаются в DOM, чтобы список плавно раскрывался и сворачивался. */}
       <div id={chatsId} className="project-chats" data-expanded={expanded} inert={!expanded}>
