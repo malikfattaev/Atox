@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { DEFAULT_AGENT_ID, isAgentId, type AgentId } from '../shared/agents'
 import type { ChatConfiguration, ModelSelection } from '../shared/conversation'
-import { insertWorkerChat, moveChatGroup, removeChatFromList } from '../shared/chats'
+import {
+  archivedChats,
+  chatGroup,
+  insertWorkerChat,
+  moveChatGroup,
+  removeChatFromList,
+  workerChats
+} from '../shared/chats'
 import { moveItemWithinGroup } from '../shared/list'
 import type { Chat, Project, Space, SpacesState } from '../shared/models'
 import type { ProjectColor } from '../shared/projectColors'
@@ -45,7 +52,8 @@ export class ProjectStore {
   static async load(filePath: string): Promise<ProjectStore> {
     const data = await readVersionedJson<StoreFile>(filePath, STORE_VERSION)
     const projects = Array.isArray(data?.projects) ? data.projects : []
-    for (const chat of projects.flatMap((project) => project.chats)) {
+    const allChats = projects.flatMap((project) => [...project.chats, ...archivedChats(project)])
+    for (const chat of allChats) {
       // Чаты прежних версий были терминалами: в них теперь разговор с агентом по умолчанию.
       if (!isAgentId(chat.agent)) {
         chat.agent = DEFAULT_AGENT_ID
@@ -306,6 +314,60 @@ export class ProjectStore {
   }
 
   /**
+   * Убирает чат в архив вместе с его помощниками (помощник уходит один) и возвращает
+   * убранные чаты. `findChat` их больше не находит — агентам в них не запуститься.
+   */
+  archiveChat(chatId: string): Chat[] {
+    const project = this.findChat(chatId)?.project
+    if (!project) {
+      return []
+    }
+    const archivedAt = Date.now()
+    const group = chatGroup(project.chats, chatId).map((chat) => ({ ...chat, archivedAt }))
+    const ids = new Set(group.map(({ id }) => id))
+    project.chats = project.chats.filter(({ id }) => !ids.has(id))
+    project.archivedChats = [...group, ...archivedChats(project)]
+    if (project.split?.chatIds.some((id) => ids.has(id))) {
+      delete project.split
+    }
+    this.persist()
+    return group
+  }
+
+  /**
+   * Возвращает чат из архива вместе с помощниками, убранными с ним: наверх списка, как новый.
+   * Помощник, чей агент не в архиве, встаёт в его группу, а без агента становится обычным чатом.
+   */
+  restoreChat(chatId: string): void {
+    const location = this.findArchivedChat(chatId)
+    if (!location) {
+      return
+    }
+    const { project, chat } = location
+    const archived = archivedChats(project)
+    const workers = workerChats(archived, chatId)
+    const restoredIds = new Set([chatId, ...workers.map(({ id }) => id)])
+    const remaining = archived.filter(({ id }) => !restoredIds.has(id))
+    setArchivedChats(project, remaining)
+    const { parentChatId, ...restored } = unarchived(chat)
+    if (parentChatId && project.chats.some(({ id }) => id === parentChatId)) {
+      project.chats = insertWorkerChat(project.chats, { ...restored, parentChatId })
+    } else {
+      project.chats = [restored, ...workers.map(unarchived), ...project.chats]
+    }
+    this.persist()
+  }
+
+  /** Удаляет чат из архива насовсем; его помощники, как и при обычном удалении, остаются. */
+  removeArchivedChat(chatId: string): void {
+    const project = this.findArchivedChat(chatId)?.project
+    if (project) {
+      setArchivedChats(project, removeChatFromList(archivedChats(project), chatId))
+      this.persist()
+    }
+  }
+
+  /**
    * Переносит чат на позицию `toIndex` среди чатов верхнего уровня его проекта (агент чата
    * работает в папке проекта); помощники переезжают вместе с ним.
    */
@@ -405,6 +467,16 @@ export class ProjectStore {
     return undefined
   }
 
+  findArchivedChat(chatId: string): ChatLocation | undefined {
+    for (const project of this.projects) {
+      const chat = archivedChats(project).find(({ id }) => id === chatId)
+      if (chat) {
+        return { project, chat }
+      }
+    }
+    return undefined
+  }
+
   /** Дожидается окончания всех начатых записей — вызывается перед выходом из приложения. */
   flush(): Promise<void> {
     return this.file.flush()
@@ -432,6 +504,19 @@ function newChat(project: Project, agent: AgentId): Chat {
     agent,
     createdAt: Date.now()
   }
+}
+
+/** Пустой архив не хранится в файле. */
+function setArchivedChats(project: Project, chats: Chat[]): void {
+  if (chats.length > 0) {
+    project.archivedChats = chats
+  } else {
+    delete project.archivedChats
+  }
+}
+
+function unarchived({ archivedAt: _archivedAt, ...chat }: Chat): Chat {
+  return chat
 }
 
 function setOptional(chat: Chat, key: 'model' | 'effort', value: string | null): void {
