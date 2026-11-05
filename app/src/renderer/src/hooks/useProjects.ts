@@ -78,6 +78,12 @@ export interface ProjectsState {
   /** Без агента чат создаётся с агентом по умолчанию. Возвращает id нового чата. */
   createChat(projectId: string, agent?: AgentId): Promise<string>
   removeChat(chatId: string): Promise<void>
+  /** Убирает чат с помощниками в архив: из сайдбара он пропадает, история остаётся. */
+  archiveChat(chatId: string): Promise<void>
+  /** Возвращает чат из архива и открывает его. */
+  restoreChat(chatId: string): Promise<void>
+  /** Удаляет чат из архива насовсем. */
+  removeArchivedChat(chatId: string): Promise<void>
   renameChat(chatId: string, title: string): Promise<void>
   moveChat(chatId: string, toIndex: number): Promise<void>
   /** Меняет агента, модель или эффорт чата. */
@@ -338,6 +344,25 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  // Чат в архиве пропадает с экрана так же, как удалённый.
+  const archiveChat = useCallback(
+    async (chatId: string) => applyProjects(await atox.chats.archive(chatId)),
+    [applyProjects]
+  )
+
+  const restoreChat = useCallback(
+    async (chatId: string) => {
+      applyProjects(await atox.chats.restore(chatId))
+      selectChat(chatId)
+    },
+    [applyProjects, selectChat]
+  )
+
+  const removeArchivedChat = useCallback(
+    async (chatId: string) => applyProjects(await atox.chats.removeArchived(chatId)),
+    [applyProjects]
+  )
+
   const renameChat = useCallback(
     async (chatId: string, title: string) => applyProjects(await atox.chats.rename(chatId, title)),
     [applyProjects]
@@ -390,6 +415,9 @@ export function useProjects(): ProjectsState {
     revealProject,
     createChat,
     removeChat,
+    archiveChat,
+    restoreChat,
+    removeArchivedChat,
     renameChat,
     moveChat,
     configureChat
