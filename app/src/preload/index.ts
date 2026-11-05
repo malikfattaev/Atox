@@ -116,7 +116,9 @@ const api: AtoxApi = {
   },
   agents: {
     available: () => ipcRenderer.invoke(IpcChannel.AgentsAvailable),
-    catalog: (agent) => ipcRenderer.invoke(IpcChannel.AgentsCatalog, agent)
+    catalog: (agent) => ipcRenderer.invoke(IpcChannel.AgentsCatalog, agent),
+    integrations: (agent, kind, projectId) =>
+      ipcRenderer.invoke(IpcChannel.AgentsIntegrations, agent, kind, projectId)
   },
   chats: {
     create: (projectId, agent) => ipcRenderer.invoke(IpcChannel.ChatsCreate, projectId, agent),

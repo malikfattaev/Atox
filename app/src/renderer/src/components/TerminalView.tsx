@@ -12,6 +12,7 @@ import {
 } from '../../../shared/shortcuts'
 import { useSettings } from '../hooks/SettingsContext'
 import { colorSchemeQuery } from '../lib/colorScheme'
+import { ipcErrorMessage } from '../lib/ipcError'
 import { formatPathsForShell } from '../lib/shellPaths'
 import { registerTerminalIdentity } from '../lib/terminalIdentity'
 import { readTerminalAppearance } from '../lib/terminalTheme'
@@ -107,7 +108,7 @@ export function TerminalView({ projectId, visible, focusRequest, onExit }: Termi
       })
       .catch((error: unknown) => {
         // Например, папку проекта переместили: причина остаётся видна в самом терминале.
-        terminal.write(`\x1b[31m${describeAttachError(error)}\x1b[0m`)
+        terminal.write(`\x1b[31m${ipcErrorMessage(error)}\x1b[0m`)
       })
 
     terminal.attachCustomKeyEventHandler((event) => {
@@ -210,12 +211,6 @@ export function TerminalView({ projectId, visible, focusRequest, onExit }: Termi
       <div ref={containerRef} className="terminal-view__host" />
     </div>
   )
-}
-
-/** Текст ошибки без служебной обёртки Electron вокруг ошибок из main-процесса. */
-function describeAttachError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.replace(/^Error invoking remote method '[^']*': (?:Error: )?/, '')
 }
 
 function isShiftEnter(event: KeyboardEvent): boolean {

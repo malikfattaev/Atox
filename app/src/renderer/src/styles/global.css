@@ -50,6 +50,11 @@
   --chat-rename-inset: 2px;
   --chat-pane-header-height: 32px;
   --shortcut-reset-size: 22px;
+  /* Списки плагинов, скиллов и серверов MCP в настройках. */
+  --integration-row-padding: 10px;
+  --integration-icon-size: 14px;
+  --integration-dot-size: 7px;
+  --integration-tag-height: 18px;
   --space-chevron-size: 12px;
   --space-picker-gap: 4px;
   --space-picker-height: 24px;
@@ -161,6 +166,7 @@
   --color-status-idle: rgba(0, 0, 0, 0.2);
   /* Агент ждёт ответа пользователя — системный оранжевый macOS. */
   --color-attention: #ff9500;
+  --color-success: #28a745;
   --color-group: rgba(0, 0, 0, 0.03);
   --color-bubble: rgba(0, 0, 0, 0.05);
   --color-code: rgba(0, 0, 0, 0.04);
@@ -211,6 +217,7 @@
     --color-search-active: #a8620a;
     --color-status-idle: rgba(255, 255, 255, 0.22);
     --color-attention: #ff9f0a;
+    --color-success: #30d158;
     --color-group: rgba(255, 255, 255, 0.035);
     --color-bubble: rgba(255, 255, 255, 0.08);
     --color-code: rgba(255, 255, 255, 0.06);
@@ -1322,6 +1329,15 @@ ul {
   margin-top: 28px;
 }
 
+/* Вкладки разделов стоят вплотную к своему содержимому. */
+.settings__tabs + .settings__group {
+  margin-top: 20px;
+}
+
+.settings__tabs .segmented {
+  width: fit-content;
+}
+
 /* Строки группы собраны в одну карточку и разделены тонкой линией, как в Системных настройках. */
 .settings__card {
   border: 1px solid var(--color-border);
@@ -1387,6 +1403,163 @@ ul {
 .settings__button--primary {
   color: var(--color-on-accent);
   background: var(--color-accent);
+}
+
+/* Плагины, скиллы и серверы MCP агентов */
+
+.integrations__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.integrations__scope {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.integrations__agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.integrations__agent-icon {
+  width: var(--integration-icon-size);
+  height: var(--integration-icon-size);
+  flex-shrink: 0;
+}
+
+.integrations__count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.integrations__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.integrations__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--integration-row-padding) 16px;
+  user-select: text;
+}
+
+.integrations__row + .integrations__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.integrations__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.integrations__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  line-height: var(--integration-tag-height);
+}
+
+.integrations__name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integrations__version {
+  flex-shrink: 0;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.integrations__tag {
+  flex-shrink: 0;
+  max-width: 180px;
+  height: var(--integration-tag-height);
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: calc(var(--integration-tag-height) / 2);
+  font-size: 11px;
+  line-height: var(--integration-tag-height);
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--color-hover);
+}
+
+/* Длинные описания скиллов сжаты до двух строк; целиком они в подсказке. */
+.integrations__description {
+  display: -webkit-box;
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.integrations__description[data-tone='danger'] {
+  color: var(--color-danger);
+}
+
+/* Кружок состояния сервера — по высоте строки с именем. */
+.integrations__state-dot {
+  flex-shrink: 0;
+  width: var(--integration-dot-size);
+  height: var(--integration-dot-size);
+  margin-top: calc((var(--integration-tag-height) - var(--integration-dot-size)) / 2);
+  border-radius: 50%;
+  background: var(--color-status-idle);
+}
+
+.integrations__state {
+  flex-shrink: 0;
+  font-size: var(--font-size-small);
+  line-height: var(--integration-tag-height);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.integrations__state-dot[data-state='connected'] {
+  background: var(--color-success);
+}
+
+.integrations__state-dot[data-state='needs-auth'] {
+  background: var(--color-attention);
+}
+
+.integrations__state[data-state='needs-auth'] {
+  color: var(--color-attention);
+}
+
+.integrations__state-dot[data-state='failed'] {
+  background: var(--color-danger);
+}
+
+.integrations__state[data-state='failed'] {
+  color: var(--color-danger);
+}
+
+.integrations__message .settings__label {
+  color: var(--color-text-muted);
 }
 
 /* Переключатель в духе macOS поверх обычного чекбокса: работает с клавиатуры и читалками. */

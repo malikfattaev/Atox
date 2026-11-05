@@ -13,6 +13,7 @@ import type {
   RequestAnswer,
   UserRequestKind
 } from './conversation'
+import type { IntegrationKind, IntegrationList } from './integrations'
 import type { Project, SpacesState, UserProfile } from './models'
 import type {
   Commit,
@@ -80,6 +81,15 @@ export interface AtoxApi {
     available(): Promise<AgentId[]>
     /** Модели агента; `null` — агент не установлен или не ответил. */
     catalog(agent: AgentId): Promise<AgentCatalog | null>
+    /**
+     * Плагины, скиллы или серверы MCP агента — вместе с проектными у `projectId`. Ответ бывает
+     * долгим: агент запускается, а серверы MCP успевают подключиться.
+     */
+    integrations<Kind extends IntegrationKind>(
+      agent: AgentId,
+      kind: Kind,
+      projectId: string | null
+    ): Promise<IntegrationList<Kind>>
   }
   chats: {
     /**
@@ -231,6 +241,7 @@ export const IpcChannel = {
   ProjectsReveal: 'projects:reveal',
   AgentsAvailable: 'agents:available',
   AgentsCatalog: 'agents:catalog',
+  AgentsIntegrations: 'agents:integrations',
   ChatsCreate: 'chats:create',
   ChatsRemove: 'chats:remove',
   ChatsRename: 'chats:rename',

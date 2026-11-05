@@ -15,7 +15,14 @@ import { imageTypeOfData } from '../images'
 import { savePastedImage } from '../pastedImages'
 import { displayPath, errorMessage } from './display'
 import { elicitationContent, elicitationFields } from './elicitation'
-import { JsonRpcProcess } from './jsonRpc'
+import {
+  MCP_STARTUP_NOTIFICATION,
+  readCodexMcpServers,
+  readCodexPlugins,
+  readCodexSkills,
+  type McpStartupUpdate
+} from './codexIntegrations'
+import { JsonRpcProcess, type JsonRpcHandlers } from './jsonRpc'
 import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 import { UserRequests, type NewRequest } from './userRequests'
 
@@ -143,23 +150,40 @@ export function createCodexDriver(client: ClientInfo): AgentDriver {
   return {
     agent: 'codex',
 
-    async catalog(launch) {
-      const rpc = startAppServer(launch, {
-        notification: () => undefined,
-        request: () => Promise.reject(new Error('Not supported')),
-        exit: () => undefined
-      })
-      try {
-        await initialize(rpc, client)
+    catalog(launch) {
+      return withAppServer(launch, client, async (rpc) => {
         const { data } = await rpc.request<{ data: CodexModel[] }>('model/list', {})
         return toCatalog(data)
-      } finally {
-        rpc.kill()
-      }
+      })
     },
 
     // Codex выполняет команды «/…» только в своём терминальном интерфейсе, а не в app-server.
     commands: () => Promise.resolve([]),
+
+    plugins(launch) {
+      return withAppServer(launch, client, (rpc) => readCodexPlugins(rpc, launch.cwd))
+    },
+
+    skills(launch) {
+      return withAppServer(launch, client, (rpc) => readCodexSkills(rpc, launch.cwd))
+    },
+
+    mcpServers(launch) {
+      const startupErrors = new Map<string, string>()
+      return withAppServer(
+        launch,
+        client,
+        (rpc) => readCodexMcpServers(rpc, launch.cwd, startupErrors),
+        (method, params) => {
+          if (method === MCP_STARTUP_NOTIFICATION) {
+            const { name, error } = params as McpStartupUpdate
+            if (error) {
+              startupErrors.set(name, error)
+            }
+          }
+        }
+      )
+    },
 
     start(options, events) {
       return new CodexSession(options, events, client)
@@ -177,6 +201,29 @@ function startAppServer(
   handlers: ConstructorParameters<typeof JsonRpcProcess>[3]
 ): JsonRpcProcess {
   return new JsonRpcProcess(executable, ['app-server'], { cwd, env }, handlers)
+}
+
+/**
+ * Спрашивает что-то у отдельного `codex app-server` и сразу его останавливает.
+ * `notification` — уведомления, которые Codex присылает, пока отвечает.
+ */
+async function withAppServer<T>(
+  launch: AgentLaunch,
+  client: ClientInfo,
+  read: (rpc: JsonRpcProcess) => Promise<T>,
+  notification: JsonRpcHandlers['notification'] = () => undefined
+): Promise<T> {
+  const rpc = startAppServer(launch, {
+    notification,
+    request: () => Promise.reject(new Error('Not supported')),
+    exit: () => undefined
+  })
+  try {
+    await initialize(rpc, client)
+    return await read(rpc)
+  } finally {
+    rpc.kill()
+  }
 }
 
 async function initialize(rpc: JsonRpcProcess, clientInfo: ClientInfo): Promise<void> {
