@@ -1,4 +1,4 @@
-import type { Chat } from './models'
+import type { Chat, Project } from './models'
 import { moveItem } from './list'
 
 /**
@@ -57,4 +57,23 @@ export function removeChatFromList(chats: readonly Chat[], chatId: string): Chat
     }
     return [chat]
   })
+}
+
+/** Чаты в архиве проекта; у проектов прежних версий архива нет. */
+export function archivedChats(project: Project): Chat[] {
+  return project.archivedChats ?? []
+}
+
+/** Чат и его помощники — то, что убирается в архив и возвращается из него вместе. */
+export function chatGroup(chats: readonly Chat[], chatId: string): Chat[] {
+  return chats.filter((chat) => chat.id === chatId || chat.parentChatId === chatId)
+}
+
+/**
+ * Чаты архива, которые показываются отдельно: помощник, убранный вместе со своим агентом,
+ * входит в его запись и возвращается вместе с ним.
+ */
+export function archiveEntries(archived: readonly Chat[]): Chat[] {
+  const archivedIds = new Set(archived.map(({ id }) => id))
+  return archived.filter((chat) => !chat.parentChatId || !archivedIds.has(chat.parentChatId))
 }
