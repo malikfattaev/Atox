@@ -1,11 +1,13 @@
 import { execFile, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 // Файловые функции без поддержки asar: обычные fs в Electron считают app.asar папкой
 // и не могут удалить бандл приложения целиком — от него остаётся оболочка с одним app.asar.
-import { constants, promises as fs, renameSync, rmSync } from 'original-fs'
+import { constants, createReadStream, promises as fs, renameSync, rmSync } from 'original-fs'
 import { dirname, join, resolve } from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import { promisify } from 'node:util'
 import { app } from 'electron'
-import { UPDATE_PLATFORMS, type UpdatePlatform } from '../shared/update'
+import { UPDATE_PLATFORMS, type UpdateFile, type UpdatePlatform } from '../shared/update'
 
 const execFileAsync = promisify(execFile)
 
@@ -21,6 +23,11 @@ export interface UpdateInstaller {
   downloadsRoot(): string
   /** Скачанный и проверенный файл релиза → путь к тому, что встанет на место приложения. */
   prepare(filePath: string): Promise<string>
+  /**
+   * Проверяет, что подготовленная в прошлый запуск версия цела: временные файлы могла
+   * частично удалить система. Бросает ошибку, если ставить её нельзя.
+   */
+  verify(updatePath: string, file: UpdateFile): Promise<void>
   /** Вызывается при выходе: ставит подготовленную версию и при `relaunch` запускает её. */
   install(updatePath: string, relaunch: boolean): void
 }
@@ -70,12 +77,15 @@ const macInstaller: UpdateInstaller = {
       throw new Error('Update archive does not contain an app bundle')
     }
     const bundlePath = join(extractDir, bundleName)
-    await execFileAsync('codesign', ['--verify', '--deep', '--strict', bundlePath])
+    await verifyBundleSignature(bundlePath)
     // Архив проверен по подписи релиза; снимаем карантин, чтобы новая версия открылась без вопросов.
     await execFileAsync('xattr', ['-dr', 'com.apple.quarantine', bundlePath]).catch(() => undefined)
     await fs.rm(archivePath)
     return bundlePath
   },
+
+  // Архива уже нет, поэтому целость распакованного бандла проверяется по его подписи.
+  verify: (bundlePath) => verifyBundleSignature(bundlePath),
 
   install(bundlePath, relaunch) {
     const args = [String(process.pid), currentBundlePath(), bundlePath, relaunch ? '1' : '0']
@@ -84,6 +94,10 @@ const macInstaller: UpdateInstaller = {
       stdio: 'ignore'
     }).unref()
   }
+}
+
+async function verifyBundleSignature(bundlePath: string): Promise<void> {
+  await execFileAsync('codesign', ['--verify', '--deep', '--strict', bundlePath])
 }
 
 /** Бандл запущенного приложения: `…/Atox.app/Contents/MacOS/Atox`. */
@@ -119,6 +133,13 @@ function createAppImageInstaller(appImagePath: string): UpdateInstaller {
       return filePath
     },
 
+    async verify(filePath, file) {
+      const { size } = await fs.stat(filePath)
+      if (size !== file.size || (await sha512(filePath)) !== file.sha512) {
+        throw new Error('Downloaded update was modified')
+      }
+    },
+
     install(updatePath, relaunch) {
       renameSync(updatePath, appImagePath)
       rmSync(downloadsRoot, { recursive: true, force: true })
@@ -127,6 +148,13 @@ function createAppImageInstaller(appImagePath: string): UpdateInstaller {
       }
     }
   }
+}
+
+/** SHA-512 файла в base64 — в том же виде, что и в описании релиза. */
+async function sha512(path: string): Promise<string> {
+  const hash = createHash('sha512')
+  await pipeline(createReadStream(path), hash)
+  return hash.digest('base64')
 }
 
 async function isWritable(path: string): Promise<boolean> {

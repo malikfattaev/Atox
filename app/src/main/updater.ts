@@ -1,8 +1,9 @@
 import { createHash, createPublicKey, verify } from 'node:crypto'
 import { createWriteStream, promises as fs } from 'original-fs'
-import { join } from 'node:path'
+import { basename, join, relative, resolve, sep } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 import { app, net } from 'electron'
 import {
   compareVersions,
@@ -31,10 +32,27 @@ const PROGRESS_STEP = 0.01
 const REQUEST_TIMEOUT_MS = 30_000
 /** Скачивание обрывается, если данные перестали приходить на это время. */
 const DOWNLOAD_STALL_TIMEOUT_MS = 60_000
+/**
+ * Паузы перед повторами запроса, который сорвался из-за сети или сбоя сервера: GitHub время
+ * от времени отвечает 5xx на файлы релизов, и без повтора обновление ждало бы следующей проверки.
+ */
+const RETRY_DELAYS_MS = [2_000, 10_000, 30_000]
+/**
+ * Описание скачанной и подготовленной версии в её каталоге: по нему готовое обновление
+ * подхватывается при следующем запуске, а не скачивается заново.
+ */
+const PREPARED_UPDATE_FILE_NAME = 'prepared.json'
 
 interface ReadyUpdate {
   version: string
   /** То, что встанет на место приложения: бандл на macOS, файл AppImage на Linux. */
+  path: string
+}
+
+interface PreparedUpdateRecord {
+  /** Подписанное описание релиза, из которого скачана версия. */
+  manifest: UpdateManifest
+  /** Путь к подготовленной версии относительно её каталога. */
   path: string
 }
 
@@ -55,6 +73,8 @@ export class AppUpdater {
   private currentState: UpdateState = null
   /** Идущая проверка: повторные просьбы дожидаются её, а не запускают вторую. */
   private checking: Promise<UpdateCheckResult> | null = null
+  /** Поиск обновления, готового с прошлого запуска; проверки начинаются после него. */
+  private restoring: Promise<void> | null = null
   private relaunchAfterInstall = false
   private installerStarted = false
   private lastCheckAt = 0
@@ -66,6 +86,9 @@ export class AppUpdater {
   }
 
   start(): void {
+    this.restoring = this.restorePreparedUpdate().catch((error) =>
+      console.error('Failed to restore the prepared update', error)
+    )
     setTimeout(() => this.runCheck(), FIRST_CHECK_DELAY_MS)
     setInterval(() => this.runCheck(), CHECK_INTERVAL_MS)
   }
@@ -126,6 +149,7 @@ export class AppUpdater {
 
   private async runCheckOnce(): Promise<UpdateCheckResult> {
     const { installer } = this.options
+    await this.restoring
     if (!(await installer.canInstall())) {
       return 'unsupported'
     }
@@ -154,21 +178,67 @@ export class AppUpdater {
     return 'available'
   }
 
+  /**
+   * Подхватывает версию, скачанную и подготовленную в прошлый запуск, — кнопка обновления
+   * появляется сразу, без нового скачивания. Всё, что поставить нельзя, удаляется.
+   */
+  private async restorePreparedUpdate(): Promise<void> {
+    const { installer } = this.options
+    if (!(await installer.canInstall())) {
+      return
+    }
+    const root = installer.downloadsRoot()
+    const versions = await fs.readdir(root).catch(() => [])
+    for (const version of versions.sort((a, b) => compareVersions(b, a))) {
+      const prepared = await this.loadPreparedUpdate(join(root, version)).catch(() => null)
+      if (prepared) {
+        this.readyUpdate = prepared
+        this.setState({ phase: 'ready', version: prepared.version })
+        await removeOtherDownloads(root, version)
+        return
+      }
+    }
+    await fs.rm(root, { recursive: true, force: true })
+  }
+
+  /** Подготовленная версия из каталога, если она новее запущенной и не повреждена. */
+  private async loadPreparedUpdate(directory: string): Promise<ReadyUpdate | null> {
+    const record = JSON.parse(
+      await fs.readFile(join(directory, PREPARED_UPDATE_FILE_NAME), 'utf8')
+    ) as Partial<PreparedUpdateRecord> | null
+    const manifest = parseManifest(record?.manifest)
+    verifyManifestSignature(manifest)
+    const file = manifest.files[process.arch]
+    const path = resolve(directory, String(record?.path))
+    if (
+      !file ||
+      basename(directory) !== manifest.version ||
+      compareVersions(manifest.version, app.getVersion()) <= 0 ||
+      !path.startsWith(directory + sep)
+    ) {
+      return null
+    }
+    await this.options.installer.verify(path, file)
+    return { version: manifest.version, path }
+  }
+
   private async fetchManifest(): Promise<UpdateManifest> {
     const manifestName = UPDATE_PLATFORMS[this.options.installer.platform].manifest
-    const response = await net.fetch(`${this.options.feedUrl}/${manifestName}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const data = await withRetries(async () => {
+      const response = await net.fetch(`${this.options.feedUrl}/${manifestName}`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      })
+      if (!response.ok) {
+        throw new UpdateRequestError(
+          `Update manifest request failed: ${response.status}`,
+          isRetryableStatus(response.status)
+        )
+      }
+      return (await response.json()) as unknown
     })
-    if (!response.ok) {
-      throw new Error(`Update manifest request failed: ${response.status}`)
-    }
-    const manifest = parseManifest(await response.json())
-    const signature = Buffer.from(manifest.signature, 'base64')
-    const payload = Buffer.from(updateSignaturePayload(manifest))
-    if (!verify(null, payload, createPublicKey(UPDATE_PUBLIC_KEY), signature)) {
-      throw new Error('Update manifest signature is invalid')
-    }
+    const manifest = parseManifest(data)
+    verifyManifestSignature(manifest)
     return manifest
   }
 
@@ -182,6 +252,19 @@ export class AppUpdater {
       throw new Error(`Unexpected update file name: ${file.name}`)
     }
     const directory = join(installer.downloadsRoot(), manifest.version)
+    const filePath = await withRetries(() => this.downloadFile(directory, manifest, file))
+    const path = await installer.prepare(filePath)
+    const record: PreparedUpdateRecord = { manifest, path: relative(directory, path) }
+    await fs.writeFile(join(directory, PREPARED_UPDATE_FILE_NAME), JSON.stringify(record))
+    return path
+  }
+
+  /** Скачивает файл релиза в чистый каталог версии и сверяет его с подписанным описанием. */
+  private async downloadFile(
+    directory: string,
+    manifest: UpdateManifest,
+    file: UpdateFile
+  ): Promise<string> {
     await fs.rm(directory, { recursive: true, force: true })
     await fs.mkdir(directory, { recursive: true })
 
@@ -194,7 +277,10 @@ export class AppUpdater {
       })
     if (!response.ok || !response.body) {
       stall.stop()
-      throw new Error(`Update download failed: ${response.status}`)
+      throw new UpdateRequestError(
+        `Update download failed: ${response.status}`,
+        isRetryableStatus(response.status)
+      )
     }
     const filePath = join(directory, file.name)
     const hash = createHash('sha512')
@@ -220,15 +306,56 @@ export class AppUpdater {
       stall.stop()
     }
     if (size !== file.size || hash.digest('base64') !== file.sha512) {
-      throw new Error('Downloaded update does not match the signed manifest')
+      throw new UpdateRequestError('Downloaded update does not match the signed manifest', false)
     }
-
-    return installer.prepare(filePath)
+    return filePath
   }
 
   private setState(state: UpdateState): void {
     this.currentState = state
     this.options.onStateChange(state)
+  }
+}
+
+/** Сбой запроса с пометкой, поможет ли повтор. */
+class UpdateRequestError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean
+  ) {
+    super(message)
+  }
+}
+
+/** Повторять стоит, когда сервер не справился или не дождался, а не когда файла нет. */
+function isRetryableStatus(status: number): boolean {
+  return status >= 500 || status === 408 || status === 429
+}
+
+/**
+ * Выполняет запрос и повторяет его после паузы при временном сбое. Временным считается всё,
+ * кроме явного отказа сервера: обрыв сети, тайм-аут, недочитанный ответ.
+ */
+async function withRetries<T>(request: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request()
+    } catch (error) {
+      const pause = RETRY_DELAYS_MS[attempt]
+      if (pause === undefined || (error instanceof UpdateRequestError && !error.retryable)) {
+        throw error
+      }
+      console.warn(`Update request failed, retrying in ${pause / 1000} s`, error)
+      await delay(pause)
+    }
+  }
+}
+
+function verifyManifestSignature(manifest: UpdateManifest): void {
+  const signature = Buffer.from(manifest.signature, 'base64')
+  const payload = Buffer.from(updateSignaturePayload(manifest))
+  if (!verify(null, payload, createPublicKey(UPDATE_PUBLIC_KEY), signature)) {
+    throw new Error('Update manifest signature is invalid')
   }
 }
 
