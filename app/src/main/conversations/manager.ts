@@ -457,7 +457,10 @@ export class ConversationManager {
       })
   }
 
-  /** Текст сообщения для агента; первое после смены агента несёт с собой переписку. */
+  /**
+   * Текст сообщения для агента; первое после смены агента или потери прежнего разговора
+   * несёт с собой переписку.
+   */
   private messageForAgent(conversation: Conversation, message: QueuedMessage): string {
     const previousAgent = conversation.handoffFrom
     if (!previousAgent) {
@@ -466,7 +469,8 @@ export class ConversationManager {
     conversation.handoffFrom = null
     const { items } = conversation.snapshot
     const index = items.findIndex(({ id }) => id === message.itemId)
-    return handoffMessage(previousAgent, index < 0 ? items : items.slice(0, index), message.text)
+    const history = index < 0 ? items : items.slice(0, index)
+    return handoffMessage(previousAgent, message.agent, history, message.text)
   }
 
   private finishTurn(chatId: string, conversation: Conversation): void {
