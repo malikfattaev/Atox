@@ -1,4 +1,3 @@
-import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, delimiter, join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
@@ -7,6 +6,7 @@ import { WorkingTreeReader } from './changes'
 import { claudeDriver } from './conversations/claude'
 import { createCodexDriver } from './conversations/codex'
 import { ConversationManager } from './conversations/manager'
+import { TranscriptStore } from './conversations/transcripts'
 import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
 import {
@@ -36,11 +36,8 @@ import { createMainWindow } from './window'
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
 const USAGE_STATS_FILE_NAME = 'usage-stats.json'
-/**
- * Каталог, где прежние версии хранили ленты чатов. Теперь разговоры живут до выхода
- * из Atox, а оставшиеся файлы удаляются.
- */
-const LEGACY_TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
+/** Каталог с лентами чатов: у каждого чата свой файл. */
+const TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
 
 /** Собранная команда `atox` для агентов — рядом с main-процессом. */
 const CLI_SCRIPT = join('out', 'main', 'atox.js')
@@ -67,6 +64,7 @@ async function bootstrap(): Promise<void> {
   const userData = app.getPath('userData')
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
   const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
+  const transcripts = await TranscriptStore.open(join(userData, TRANSCRIPTS_DIRECTORY_NAME))
   const binDirectory = join(userData, 'bin')
   const cliPath = await installCli(
     binDirectory,
@@ -95,6 +93,7 @@ async function bootstrap(): Promise<void> {
         version: app.getVersion()
       })
     },
+    transcripts,
     environment: agentEnvironment,
     onEvent: broadcastConversationEvent,
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
@@ -128,10 +127,6 @@ async function bootstrap(): Promise<void> {
     .start()
     .catch((error) => console.error('Failed to start orchestration', error))
   app.on('will-quit', () => orchestration.stop())
-  void rm(join(userData, LEGACY_TRANSCRIPTS_DIRECTORY_NAME), {
-    recursive: true,
-    force: true
-  }).catch((error) => console.error('Failed to remove old chat transcripts', error))
   void installSkills().catch((error) => console.error('Failed to install agent skills', error))
   void installCodexRules().catch((error) => console.error('Failed to install Codex rules', error))
   if (app.isPackaged && appImage) {
@@ -175,7 +170,9 @@ async function bootstrap(): Promise<void> {
   const quitHandling = setupQuitHandling({
     conversations,
     terminals,
-    stores: usageStats ? [store, settings, usageStats] : [store, settings]
+    stores: usageStats
+      ? [store, settings, conversations, usageStats]
+      : [store, settings, conversations]
   })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())

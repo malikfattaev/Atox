@@ -28,7 +28,14 @@ import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
 import { handoffMessage } from './handoff'
+import type { TranscriptStore } from './transcripts'
 import type { AgentDriver, AgentLaunch, AgentSession } from './types'
+
+/**
+ * Как часто сохранять ленту, пока агент пишет ответ: если Atox закроют посреди долгого хода,
+ * пропадут лишь последние секунды.
+ */
+const PERSIST_DELAY_MS = 2000
 
 /**
  * Как часто отправлять окну накопленный текст ответа. Агент присылает его по слову, и
@@ -72,8 +79,8 @@ interface Conversation {
   snapshot: ConversationSnapshot
   session: AgentSession | null
   /**
-   * Разговор на стороне агента (сессия Claude): по нему сессия, перезапущенная
-   * ради новой модели, продолжает тот же разговор. Живёт до выхода из Atox.
+   * Разговор на стороне агента (сессия Claude, тред Codex): по нему сессия, перезапущенная
+   * ради новой модели или после перезапуска Atox, продолжает тот же разговор.
    */
   sessionId: string | null
   /** Агент, с которым идёт разговор на его стороне; `null` — разговор ещё не начинался. */
@@ -100,12 +107,14 @@ interface Conversation {
   /** Последний счётчик токенов хода, который ещё не отправлен окну. */
   pendingTokens: number | null
   streamTimer: ReturnType<typeof setTimeout> | null
+  persistTimer: ReturnType<typeof setTimeout> | null
 }
 
 export interface ConversationServices {
   store: ProjectStore
   agents: AgentDetector
   drivers: Record<AgentId, AgentDriver>
+  transcripts: TranscriptStore
   /** Окружение процесса агента; с `chatId` — с переменными для команды `atox` этого чата. */
   environment(chatId?: string): Promise<Record<string, string>>
   onEvent(event: ConversationEvent): void
@@ -116,11 +125,12 @@ export interface ConversationServices {
 /**
  * Разговоры в чатах: лента каждого чата, сессия с его агентом и очередь сообщений.
  * Агент получает сообщения по одному — следующее, когда закончит отвечать на предыдущее.
- * Разговоры живут, пока открыт Atox: после перезапуска каждый чат начинается заново,
- * как терминал.
+ * Лента и разговор на стороне агента сохраняются: после перезапуска Atox чат продолжается.
  */
 export class ConversationManager {
-  private readonly conversations = new Map<string, Conversation>()
+  private readonly conversations = new Map<string, Promise<Conversation>>()
+  /** Разговоры, которые уже загружены: по ним считается, кто сейчас работает. */
+  private readonly loaded = new Map<string, Conversation>()
   private readonly catalogs = new Map<AgentId, Promise<AgentCatalog>>()
   /** Команды по агенту и папке проекта: у проектов бывают свои команды и навыки. */
   private readonly commandLists = new Map<string, Promise<AgentCommand[]>>()
@@ -130,7 +140,7 @@ export class ConversationManager {
   constructor(private readonly services: ConversationServices) {}
 
   async snapshot(chatId: string): Promise<ConversationSnapshot> {
-    return this.conversation(chatId).snapshot
+    return (await this.conversation(chatId)).snapshot
   }
 
   async send(
@@ -142,7 +152,7 @@ export class ConversationManager {
     if (!message && images.length === 0 && files.length === 0) {
       return
     }
-    const conversation = this.conversation(chatId)
+    const conversation = await this.conversation(chatId)
     const { agent } = this.findChat(chatId).chat
     const isFirst = !conversation.snapshot.items.some(({ kind }) => kind === 'user')
     if (conversation.lastAgent && conversation.lastAgent !== agent) {
@@ -180,7 +190,7 @@ export class ConversationManager {
 
   /** Останавливает текущий ответ агента; сообщения, ждавшие очереди, тоже отменяются. */
   async interrupt(chatId: string): Promise<void> {
-    const conversation = this.conversation(chatId)
+    const conversation = await this.conversation(chatId)
     conversation.queue = []
     if (conversation.turn) {
       // Пока агент запускается, сессии ещё нет: сообщение просто не уйдёт ему.
@@ -195,7 +205,7 @@ export class ConversationManager {
    * `/clear` начинает разговор заново.
    */
   async runCommand(chatId: string, command: ChatCommand): Promise<void> {
-    const conversation = this.conversation(chatId)
+    const conversation = await this.conversation(chatId)
     if (command === 'clear') {
       this.clear(chatId, conversation)
       return
@@ -238,7 +248,8 @@ export class ConversationManager {
 
   /** Ответ пользователя на разрешение, вопросы или форму от агента чата. */
   async answerRequest(chatId: string, itemId: string, answer: RequestAnswer): Promise<void> {
-    this.conversation(chatId).session?.answer(itemId, answer)
+    const conversation = await this.conversation(chatId)
+    conversation.session?.answer(itemId, answer)
   }
 
   /**
@@ -247,7 +258,7 @@ export class ConversationManager {
    * новый получит переписку и продолжит её.
    */
   async configure(chatId: string, configuration: ChatConfiguration): Promise<void> {
-    const conversation = this.conversation(chatId)
+    const conversation = await this.conversation(chatId)
     if (this.services.store.configureChat(chatId, configuration) && conversation.session) {
       conversation.stale = true
       this.restartIfIdle(conversation)
@@ -256,7 +267,7 @@ export class ConversationManager {
 
   /** Сводки всех разговоров, в которых пользователь уже что-то писал. */
   summaries(): ConversationSummary[] {
-    return [...this.conversations.entries()].flatMap(([chatId, { snapshot }]) => {
+    return [...this.loaded.entries()].flatMap(([chatId, { snapshot }]) => {
       const summary = summarizeConversation(chatId, snapshot)
       return summary ? [summary] : []
     })
@@ -268,25 +279,58 @@ export class ConversationManager {
 
   /** Чаты, в которых агент работает или ждёт очереди: о них спрашивают перед выходом. */
   runningChatIds(): string[] {
-    return [...this.conversations.entries()]
+    return [...this.loaded.entries()]
       .filter(([, conversation]) => conversation.turn !== null || conversation.queue.length > 0)
       .map(([chatId]) => chatId)
   }
 
+  /**
+   * Чат убран с глаз (в архив): агент останавливается, лента дописывается на диск и уходит
+   * из памяти. Когда чат откроют снова, разговор загрузится из файла.
+   */
+  async close(chatId: string): Promise<void> {
+    const conversation = await this.conversations.get(chatId)?.catch(() => null)
+    if (conversation && this.loaded.get(chatId) === conversation) {
+      this.flushStream(chatId, conversation)
+      this.dispose(conversation)
+      this.persist(chatId, conversation, { immediately: true })
+    }
+    this.conversations.delete(chatId)
+    this.loaded.delete(chatId)
+    await this.services.transcripts.close(chatId)
+  }
+
   /** Чат удалён: агент останавливается, лента стирается. */
   async remove(chatId: string): Promise<void> {
-    const conversation = this.conversations.get(chatId)
+    const conversation = await this.conversations.get(chatId)?.catch(() => null)
     this.conversations.delete(chatId)
+    this.loaded.delete(chatId)
     if (conversation) {
       this.dispose(conversation)
+      if (conversation.persistTimer) {
+        clearTimeout(conversation.persistTimer)
+      }
     }
+    await this.services.transcripts.remove(chatId)
   }
 
   closeAll(): void {
     this.closing = true
-    for (const conversation of this.conversations.values()) {
+    for (const [chatId, conversation] of this.loaded) {
+      this.flushStream(chatId, conversation)
       this.dispose(conversation)
     }
+  }
+
+  /** Записывает отложенные изменения лент и дожидается записи — перед выходом из приложения. */
+  flush(): Promise<void> {
+    for (const [chatId, conversation] of this.loaded) {
+      this.flushStream(chatId, conversation)
+      if (conversation.persistTimer) {
+        this.persist(chatId, conversation, { immediately: true })
+      }
+    }
+    return this.services.transcripts.flush()
   }
 
   /** Команды агента чата для подсказок после «/»; пустой список — агент их не сообщил. */
@@ -385,6 +429,7 @@ export class ConversationManager {
     conversation.pendingTokens = null
     this.emit(chatId, conversation, { type: 'reset' })
     this.updateRunning(chatId, conversation)
+    this.persist(chatId, conversation, { immediately: true })
   }
 
   private findChat(chatId: string) {
@@ -395,29 +440,37 @@ export class ConversationManager {
     return location
   }
 
-  private conversation(chatId: string): Conversation {
+  private conversation(chatId: string): Promise<Conversation> {
     let conversation = this.conversations.get(chatId)
     if (!conversation) {
       if (!this.services.store.findChat(chatId)) {
-        throw new Error(`Chat ${chatId} not found`)
+        return Promise.reject(new Error(`Chat ${chatId} not found`))
       }
-      conversation = {
-        snapshot: { items: [], running: false },
-        session: null,
-        sessionId: null,
-        sessionAgent: null,
-        lastAgent: null,
-        handoffFrom: null,
-        disposed: false,
-        stale: false,
-        queue: [],
-        turn: null,
-        interruptedTurn: null,
-        pendingDeltas: new Map(),
-        pendingTokens: null,
-        streamTimer: null
-      }
+      conversation = this.services.transcripts
+        .load(chatId)
+        .then(({ items, sessionId, sessionAgent, lastAgent }) => {
+          const loaded: Conversation = {
+            snapshot: { items, running: false },
+            session: null,
+            sessionId,
+            sessionAgent,
+            lastAgent,
+            handoffFrom: null,
+            disposed: false,
+            stale: false,
+            queue: [],
+            turn: null,
+            interruptedTurn: null,
+            pendingDeltas: new Map(),
+            pendingTokens: null,
+            streamTimer: null,
+            persistTimer: null
+          }
+          this.loaded.set(chatId, loaded)
+          return loaded
+        })
       this.conversations.set(chatId, conversation)
+      conversation.catch(() => this.conversations.delete(chatId))
     }
     return conversation
   }
@@ -487,6 +540,7 @@ export class ConversationManager {
         item: { ...item, finishedAt: Date.now() }
       })
     }
+    this.persist(chatId, conversation, { immediately: true })
     this.restartIfIdle(conversation)
     this.pump(chatId, conversation)
   }
@@ -559,6 +613,7 @@ export class ConversationManager {
           // Сессия, которую уже сменил другой агент, свой разговор не навязывает.
           if (conversation.session === session) {
             conversation.sessionId = sessionId
+            this.persist(chatId, conversation, { immediately: true })
           }
         },
         closed: () => {
@@ -664,6 +719,10 @@ export class ConversationManager {
     if (event.type === 'item' || event.type === 'reset') {
       this.updateWaiting(chatId, conversation)
     }
+    // Сохраняется лента, а состояние работы и заполненность контекста агент сообщит заново.
+    if (event.type === 'item' || event.type === 'delta' || event.type === 'reset') {
+      this.persist(chatId, conversation)
+    }
   }
 
   /** Сообщает, когда агент начинает или перестаёт ждать ответа пользователя. */
@@ -678,6 +737,37 @@ export class ConversationManager {
     const running = conversation.turn !== null || conversation.queue.length > 0
     if (conversation.snapshot.running !== running) {
       this.emit(chatId, conversation, { type: 'running', running })
+    }
+  }
+
+  /** Сохраняет ленту и разговор на стороне агента — сразу или через `PERSIST_DELAY_MS`. */
+  private persist(
+    chatId: string,
+    conversation: Conversation,
+    { immediately = false }: { immediately?: boolean } = {}
+  ): void {
+    if (conversation.persistTimer) {
+      if (!immediately) {
+        return
+      }
+      clearTimeout(conversation.persistTimer)
+    }
+    const save = () => {
+      conversation.persistTimer = null
+      // Чат могли удалить или закрыть, пока ждали записи.
+      if (this.loaded.get(chatId) === conversation) {
+        this.services.transcripts.save(chatId, {
+          items: conversation.snapshot.items,
+          sessionId: conversation.sessionId,
+          sessionAgent: conversation.sessionAgent,
+          lastAgent: conversation.lastAgent
+        })
+      }
+    }
+    if (immediately) {
+      save()
+    } else {
+      conversation.persistTimer = setTimeout(save, PERSIST_DELAY_MS)
     }
   }
 }
