@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises'
 import type {
   CheckStatus,
   Commit,
@@ -41,13 +42,6 @@ const LIST_STATES: Record<GitHubKind, Record<ListState, string>> = {
   pullRequests: { open: 'OPEN', closed: '[MERGED, CLOSED]' },
   issues: { open: 'OPEN', closed: 'CLOSED' }
 }
-
-const LISTS: ReadonlyArray<readonly [GitHubKind, ListState]> = [
-  ['pullRequests', 'open'],
-  ['pullRequests', 'closed'],
-  ['issues', 'open'],
-  ['issues', 'closed']
-]
 
 /**
  * Поля элементов каждого списка. Статус CI, решение ревью и число комментариев приходят
@@ -98,13 +92,6 @@ fragment Issues on IssueConnection {
   }
 }
 
-type ListAlias = `${ListState}${Capitalize<GitHubKind>}`
-
-/** Имя списка в запросе и его переменной размера, например `openPullRequests`. */
-function listAlias(kind: GitHubKind, state: ListState): ListAlias {
-  return `${state}${kind.charAt(0).toUpperCase()}${kind.slice(1)}` as ListAlias
-}
-
 /** Список одного вида и состояния, свежие изменения сверху. */
 function connectionField(kind: GitHubKind, state: ListState, first: string, after?: string) {
   const arguments_ = [
@@ -117,38 +104,39 @@ function connectionField(kind: GitHubKind, state: ListState, first: string, afte
 }
 
 /**
- * Один запрос GraphQL вместо нескольких вызовов `gh pr list` и `gh issue list`: первые
- * страницы всех четырёх списков сразу. `{owner}` и `{repo}` gh подставляет сам — из
- * удалённого репозитория папки проекта.
+ * Одна страница одного списка — первая или следующая после курсора `$after`. Списки
+ * запрашиваются отдельно и одновременно: в одном запросе GitHub выполняет их по очереди и на
+ * большом репозитории не укладывается в своё ограничение по времени — отвечает 504.
+ * `{owner}` и `{repo}` gh подставляет сам — из удалённого репозитория папки проекта.
  */
-const OVERVIEW_QUERY = `
-query($owner: String!, $name: String!, $labelLimit: Int!, ${LISTS.map(
-  ([kind, state]) => `$${listAlias(kind, state)}: Int!`
-).join(', ')}) {
+function listQuery(kind: GitHubKind, state: ListState, paged: boolean): string {
+  const variables = [
+    '$owner: String!',
+    '$name: String!',
+    '$first: Int!',
+    ...(paged ? ['$after: String!'] : []),
+    // Объявленная, но не использованная переменная — ошибка GraphQL, а метки есть только у issue.
+    ...(kind === 'issues' ? ['$labelLimit: Int!'] : [])
+  ]
+  return `
+query(${variables.join(', ')}) {
   repository(owner: $owner, name: $name) {
     url
     nameWithOwner
-${LISTS.map(
-  ([kind, state]) =>
-    `    ${listAlias(kind, state)}: ${connectionField(kind, state, `$${listAlias(kind, state)}`)}`
-).join('\n')}
-  }
-}
-${FRAGMENTS.pullRequests.text}
-${FRAGMENTS.issues.text}`
-
-/** Следующая страница одного списка — после курсора предыдущей. */
-function pageQuery(kind: GitHubKind, state: ListState): string {
-  // Объявленная, но не использованная переменная — ошибка GraphQL, а метки есть только у issue.
-  const labelVariable = kind === 'issues' ? ', $labelLimit: Int!' : ''
-  return `
-query($owner: String!, $name: String!, $first: Int!, $after: String!${labelVariable}) {
-  repository(owner: $owner, name: $name) {
-    list: ${connectionField(kind, state, '$first', '$after')}
+    list: ${connectionField(kind, state, '$first', paged ? '$after' : undefined)}
   }
 }
 ${FRAGMENTS[kind].text}`
 }
+
+/**
+ * Ответ GitHub, после которого запрос стоит повторить: шлюз не дождался сервера или тот
+ * перегружен. Так бывает на больших репозиториях, и обычно следующий запрос проходит.
+ */
+const GATEWAY_ERROR = /\bHTTP 50[234]\b/
+
+/** Паузы перед повторами запроса к GitHub после ответа шлюза. */
+const GITHUB_RETRY_DELAYS_MS = [1_000, 3_000]
 
 /** Хост GitHub, токен которого gh берёт из `GH_TOKEN`. */
 const GITHUB_HOST = 'github.com'
@@ -202,10 +190,12 @@ interface GitHubNodes {
   issues: IssueNode
 }
 
-type OverviewRepository = { url: string; nameWithOwner: string } & Record<
-  ListAlias,
-  Connection<GitHubNodes[GitHubKind]>
->
+/** Страница списка и сам репозиторий: его адрес приходит с каждым списком. */
+interface ListResponse<Kind extends GitHubKind> {
+  url: string
+  nameWithOwner: string
+  list: Connection<GitHubNodes[Kind]>
+}
 
 /**
  * Коммиты, pull request'ы и issue репозитория в папке проекта. Коммиты читаются локально
@@ -355,31 +345,19 @@ export class RepositoryReader {
     loaded: GitHubCounts | undefined,
     token?: string
   ): Promise<GitHubOverview> {
-    const wanted = (kind: GitHubKind, state: ListState) =>
-      Math.max(loaded?.[kind][state] ?? 0, GITHUB_PAGE_SIZE)
-    const repository = await this.graphql<OverviewRepository>(
-      path,
-      OVERVIEW_QUERY,
-      {
-        labelLimit: LABEL_LIMIT,
-        ...Object.fromEntries(LISTS.map(([kind, state]) => [listAlias(kind, state), GITHUB_PAGE_SIZE]))
-      },
-      token
-    )
-
-    // Если раньше загрузили больше первой страницы, догружаем остальное.
-    const listing = async <Kind extends GitHubKind>(
-      kind: Kind,
-      state: ListState
-    ): Promise<Listing<GitHubItems[Kind]>> => {
-      const connection = repository[listAlias(kind, state)] as Connection<GitHubNodes[Kind]>
-      const first = toListing(connection, converter(kind))
-      const missing = wanted(kind, state) - first.items.length
+    // Первая страница списка; если раньше загрузили больше, догружаем остальное.
+    const listing = async <Kind extends GitHubKind>(kind: Kind, state: ListState) => {
+      const response = await this.listPage(path, kind, state, null, GITHUB_PAGE_SIZE, token)
+      const first = toListing(response.list, converter(kind))
+      const missing = Math.max(loaded?.[kind][state] ?? 0, GITHUB_PAGE_SIZE) - first.items.length
       if (missing <= 0 || !first.next) {
-        return first
+        return { response, listing: first }
       }
       const rest = await this.githubPage(path, kind, state, first.next, missing, token)
-      return { ...first, items: [...first.items, ...rest.items], next: rest.next }
+      return {
+        response,
+        listing: { ...first, items: [...first.items, ...rest.items], next: rest.next }
+      }
     }
 
     const [openPullRequests, closedPullRequests, openIssues, closedIssues] = await Promise.all([
@@ -389,10 +367,10 @@ export class RepositoryReader {
       listing('issues', 'closed')
     ])
     return {
-      url: repository.url,
-      name: repository.nameWithOwner,
-      pullRequests: { open: openPullRequests, closed: closedPullRequests },
-      issues: { open: openIssues, closed: closedIssues }
+      url: openPullRequests.response.url,
+      name: openPullRequests.response.nameWithOwner,
+      pullRequests: { open: openPullRequests.listing, closed: closedPullRequests.listing },
+      issues: { open: openIssues.listing, closed: closedIssues.listing }
     }
   }
 
@@ -408,14 +386,12 @@ export class RepositoryReader {
     const items: GitHubItems[Kind][] = []
     let next: string | null = cursor
     while (next && items.length < count) {
-      const response: { list: Connection<GitHubNodes[Kind]> } = await this.graphql(
+      const response: ListResponse<Kind> = await this.listPage(
         path,
-        pageQuery(kind, state),
-        {
-          first: Math.min(count - items.length, GITHUB_PAGE_SIZE),
-          after: next,
-          ...(kind === 'issues' ? { labelLimit: LABEL_LIMIT } : {})
-        },
+        kind,
+        state,
+        next,
+        Math.min(count - items.length, GITHUB_PAGE_SIZE),
         token
       )
       const page: Page<GitHubItems[Kind]> = toListing(response.list, converter(kind))
@@ -423,6 +399,27 @@ export class RepositoryReader {
       next = page.next
     }
     return { items, next }
+  }
+
+  /** `first` элементов списка — с начала (`after` — `null`) или после курсора. */
+  private listPage<Kind extends GitHubKind>(
+    path: string,
+    kind: Kind,
+    state: ListState,
+    after: string | null,
+    first: number,
+    token?: string
+  ): Promise<ListResponse<Kind>> {
+    return this.graphql(
+      path,
+      listQuery(kind, state, after !== null),
+      {
+        first,
+        ...(after !== null && { after }),
+        ...(kind === 'issues' && { labelLimit: LABEL_LIMIT })
+      },
+      token
+    )
   }
 
   /** Запрос GraphQL к репозиторию папки проекта; возвращает его поле `repository`. */
@@ -438,13 +435,31 @@ export class RepositoryReader {
       args.push(typeof value === 'number' ? '-F' : '-f', `${name}=${value}`)
     }
     args.push('-f', `query=${query}`)
-    const output = await this.run('gh', args, path, token ? { GH_TOKEN: token } : {})
+    const output = await this.withGatewayRetries(() =>
+      this.run('gh', args, path, token ? { GH_TOKEN: token } : {})
+    )
     const repository = (JSON.parse(output) as { data?: { repository: Repository | null } }).data
       ?.repository
     if (!repository) {
       throw new Error('GitHub returned no repository')
     }
     return repository
+  }
+
+  /** Повторяет запрос, пока GitHub отвечает ошибкой шлюза, но не больше заданного числа раз. */
+  private async withGatewayRetries<T>(request: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await request()
+      } catch (error) {
+        const pause = GITHUB_RETRY_DELAYS_MS[attempt]
+        if (pause === undefined || !isGatewayError(error)) {
+          throw error
+        }
+        console.warn(`GitHub request failed, retrying in ${pause / 1000} s`, error)
+        await delay(pause)
+      }
+    }
   }
 
   /** `limit` коммитов от `head`, пропустив первые `skipped`. */
@@ -663,7 +678,14 @@ function isInaccessibleRepository(error: unknown): boolean {
   return error instanceof CommandError && error.stderr.includes('Could not resolve to a Repository')
 }
 
+function isGatewayError(error: unknown): boolean {
+  return error instanceof CommandError && GATEWAY_ERROR.test(error.stderr)
+}
+
 function classifyGitHubError(error: unknown): RepositoryError {
+  if (isGatewayError(error)) {
+    return { kind: 'failed', message: 'GitHub didn’t respond in time. Try again in a moment.' }
+  }
   if (error instanceof CommandError) {
     if (error.code === 'ENOENT') {
       return { kind: 'gh-missing' }
