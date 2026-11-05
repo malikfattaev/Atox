@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { UpdateCheckResult, UpdateState } from '../../../shared/update'
 import { useUpdateState } from '../hooks/useUpdateState'
+import { ipcErrorMessage } from '../lib/ipcError'
 
 const { atox } = window
 
@@ -26,7 +27,7 @@ export function UpdateSettings() {
     try {
       setStatus({ kind: 'done', result: await atox.updates.check() })
     } catch (error) {
-      setStatus({ kind: 'failed', message: errorMessage(error) })
+      setStatus({ kind: 'failed', message: ipcErrorMessage(error) })
     }
   }
 
@@ -85,10 +86,4 @@ function describe(update: UpdateState, status: CheckStatus): string {
     case 'idle':
       return 'New versions download automatically.'
   }
-}
-
-/** Ошибка из main-процесса приходит с префиксом Electron о вызове IPC — он пользователю не нужен. */
-function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 }
