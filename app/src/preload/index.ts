@@ -99,6 +99,8 @@ const api: AtoxApi = {
     rename: (projectId, name) => ipcRenderer.invoke(IpcChannel.ProjectsRename, projectId, name),
     setColor: (projectId, color) =>
       ipcRenderer.invoke(IpcChannel.ProjectsSetColor, projectId, color),
+    setIcon: (projectId, icon) =>
+      ipcRenderer.invoke(IpcChannel.ProjectsSetIcon, projectId, icon),
     setSplit: (projectId, chatIds) =>
       ipcRenderer.invoke(IpcChannel.ProjectsSetSplit, projectId, chatIds),
     setSplitPosition: (projectId, position) =>

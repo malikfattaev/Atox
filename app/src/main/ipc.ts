@@ -18,6 +18,7 @@ import { archivedChats, chatGroup } from '../shared/chats'
 import { isIntegrationKind } from '../shared/integrations'
 import type { Project } from '../shared/models'
 import { isProjectColor } from '../shared/projectColors'
+import { isProjectIcon } from '../shared/projectIcons'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
 import type { UpdateState } from '../shared/update'
@@ -166,6 +167,11 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.ProjectsSetColor, (_event, projectId: string, color: unknown) => {
     store.setProjectColor(projectId, isProjectColor(color) ? color : null)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ProjectsSetIcon, (_event, projectId: string, icon: unknown) => {
+    store.setProjectIcon(projectId, isProjectIcon(icon) ? icon : null)
     return store.list()
   })
 
