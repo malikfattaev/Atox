@@ -5,6 +5,7 @@ import { moveChatGroup, topLevelChats } from '../../../shared/chats'
 import { moveItemWithinGroup } from '../../../shared/list'
 import type { Project, Space } from '../../../shared/models'
 import type { ProjectColor } from '../../../shared/projectColors'
+import type { ProjectIcon } from '../../../shared/projectIcons'
 import {
   EMPTY_LAYOUT,
   hideChat,
@@ -71,6 +72,7 @@ export interface ProjectsState {
   removeProject(projectId: string): Promise<void>
   renameProject(projectId: string, name: string): Promise<void>
   setProjectColor(projectId: string, color: ProjectColor | null): Promise<void>
+  setProjectIcon(projectId: string, icon: ProjectIcon | null): Promise<void>
   /** Положение разделителя между чатами проекта, открытыми рядом. */
   setSplitPosition(projectId: string, position: number): Promise<void>
   moveProject(projectId: string, toIndex: number): Promise<void>
@@ -295,6 +297,12 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  const setProjectIcon = useCallback(
+    async (projectId: string, icon: ProjectIcon | null) =>
+      applyProjects(await atox.projects.setIcon(projectId, icon)),
+    [applyProjects]
+  )
+
   const setSplitPosition = useCallback(
     async (projectId: string, position: number) =>
       applyProjects(await atox.projects.setSplitPosition(projectId, position)),
@@ -410,6 +418,7 @@ export function useProjects(): ProjectsState {
     removeProject,
     renameProject,
     setProjectColor,
+    setProjectIcon,
     setSplitPosition,
     moveProject,
     revealProject,
