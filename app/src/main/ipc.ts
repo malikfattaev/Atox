@@ -14,6 +14,7 @@ import {
   type InputValue,
   type RequestAnswer
 } from '../shared/conversation'
+import { archivedChats, chatGroup } from '../shared/chats'
 import { isIntegrationKind } from '../shared/integrations'
 import type { Project } from '../shared/models'
 import { isProjectColor } from '../shared/projectColors'
@@ -101,7 +102,9 @@ export function registerIpcHandlers({
     if (confirmed) {
       store.removeProject(projectId)
       terminals.kill(projectId)
-      await Promise.all(project.chats.map((chat) => conversations.remove(chat.id)))
+      // История чатов из архива удаляется вместе с проектом.
+      const chats = [...project.chats, ...archivedChats(project)]
+      await Promise.all(chats.map((chat) => conversations.remove(chat.id)))
       trackProjectBranches()
     }
     return store.list()
@@ -243,6 +246,54 @@ export function registerIpcHandlers({
       }))
     if (confirmed) {
       store.removeChat(chatId)
+      await conversations.remove(chatId)
+    }
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ChatsArchive, async (event, chatId: string) => {
+    const location = store.findChat(chatId)
+    const working = location
+      ? chatGroup(location.project.chats, chatId).filter((chat) => conversations.isRunning(chat.id))
+      : []
+    const confirmed =
+      !location ||
+      working.length === 0 ||
+      (await confirm(BrowserWindow.fromWebContents(event.sender), {
+        message: `Archive “${location.chat.title}”?`,
+        detail: describeWorkingAgents(
+          working.length,
+          'in this chat',
+          'Archiving the chat',
+          findAgent(working[0]!.agent)?.name
+        ),
+        confirmLabel: 'Archive'
+      }))
+    if (confirmed) {
+      // Агенты останавливаются, а история остаётся на диске — чат можно будет вернуть.
+      const archived = store.archiveChat(chatId)
+      await Promise.all(archived.map((chat) => conversations.close(chat.id)))
+    }
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ChatsRestore, (_event, chatId: string) => {
+    store.restoreChat(chatId)
+    return store.list()
+  })
+
+  ipcMain.handle(IpcChannel.ChatsRemoveArchived, async (event, chatId: string) => {
+    const location = store.findArchivedChat(chatId)
+    // Удаление из архива необратимо: спрашиваем всегда, а не только когда агент работает.
+    const confirmed =
+      location &&
+      (await confirm(BrowserWindow.fromWebContents(event.sender), {
+        message: `Delete “${location.chat.title}”?`,
+        detail: 'The chat and its history will be deleted. This can’t be undone.',
+        confirmLabel: 'Delete'
+      }))
+    if (confirmed) {
+      store.removeArchivedChat(chatId)
       await conversations.remove(chatId)
     }
     return store.list()
