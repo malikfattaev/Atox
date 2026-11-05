@@ -27,6 +27,7 @@ import type {
   RepositoryResult
 } from './repository'
 import type { ProjectColor } from './projectColors'
+import type { ProjectIcon } from './projectIcons'
 import type { Settings } from './settings'
 import type { UpdateCheckResult, UpdateState } from './update'
 
@@ -54,6 +55,8 @@ export interface AtoxApi {
     rename(projectId: string, name: string): Promise<Project[]>
     /** Цвет папки проекта; `null` — без цвета. */
     setColor(projectId: string, color: ProjectColor | null): Promise<Project[]>
+    /** Значок проекта вместо папки; `null` — обычная папка. */
+    setIcon(projectId: string, icon: ProjectIcon | null): Promise<Project[]>
     /** Запоминает чаты проекта, открытые рядом (слева направо); `null` — один чат. */
     setSplit(projectId: string, chatIds: [string, string] | null): Promise<Project[]>
     /** Положение разделителя между чатами — доля ширины левого. */
@@ -237,6 +240,7 @@ export const IpcChannel = {
   ProjectsRemove: 'projects:remove',
   ProjectsRename: 'projects:rename',
   ProjectsSetColor: 'projects:set-color',
+  ProjectsSetIcon: 'projects:set-icon',
   ProjectsMoveToSpace: 'projects:move-to-space',
   SpacesList: 'spaces:list',
   SpacesCreate: 'spaces:create',
