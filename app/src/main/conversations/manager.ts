@@ -584,26 +584,49 @@ export class ConversationManager {
     const { chat } = this.findChat(chatId)
     const sameAgent = chat.agent === agent
     const driver = this.services.drivers[agent]
+    // Разговор, который сессия должна продолжить. Если агент его потерял, Codex сообщает
+    // другой, только что начатый, а Claude заканчивает работу, так и не начав разговор.
+    const resumedId = conversation.sessionId
+    let started = false
+    /** Сессия не смогла продолжить разговор, и её сменила новая: её события больше не нужны. */
+    let abandoned = false
+    const resumeFailed = () => {
+      // Остановленное сообщение ничего не говорит о разговоре: его проверит следующее.
+      const turn = conversation.turn
+      if (resumedId === null || started || !turn || conversation.interruptedTurn === turn) {
+        return false
+      }
+      abandoned = true
+      this.restartWithHistory(chatId, conversation)
+      return true
+    }
     const session: AgentSession = driver.start(
       {
         ...launch,
-        ...(conversation.sessionId && { sessionId: conversation.sessionId }),
+        ...(resumedId && { sessionId: resumedId }),
         selection: {
           ...(sameAgent && chat.model && { model: chat.model }),
           ...(sameAgent && chat.effort && { effort: chat.effort })
         }
       },
       {
-        item: (item) => this.emit(chatId, conversation, { type: 'item', item }),
-        delta: (itemId, field, delta) =>
-          this.emit(chatId, conversation, {
-            type: 'delta',
-            itemId,
-            field,
-            delta
-          }),
+        item: (item) => {
+          if (!abandoned) {
+            this.emit(chatId, conversation, { type: 'item', item })
+          }
+        },
+        delta: (itemId, field, delta) => {
+          if (!abandoned) {
+            this.emit(chatId, conversation, {
+              type: 'delta',
+              itemId,
+              field,
+              delta
+            })
+          }
+        },
         turnFinished: () => {
-          if (conversation.session === session) {
+          if (conversation.session === session && !resumeFailed()) {
             this.finishTurn(chatId, conversation)
           }
         },
@@ -611,13 +634,20 @@ export class ConversationManager {
         tokens: (turnTokens) => this.emit(chatId, conversation, { type: 'tokens', turnTokens }),
         sessionStarted: (sessionId) => {
           // Сессия, которую уже сменил другой агент, свой разговор не навязывает.
-          if (conversation.session === session) {
+          if (conversation.session !== session) {
+            return
+          }
+          if (resumedId !== null && sessionId !== resumedId && resumeFailed()) {
+            return
+          }
+          started = true
+          if (conversation.sessionId !== sessionId) {
             conversation.sessionId = sessionId
             this.persist(chatId, conversation, { immediately: true })
           }
         },
         closed: () => {
-          if (conversation.session === session) {
+          if (conversation.session === session && !resumeFailed()) {
             conversation.session = null
             this.finishTurn(chatId, conversation)
           }
@@ -626,6 +656,24 @@ export class ConversationManager {
     )
     conversation.session = session
     return session
+  }
+
+  /**
+   * Агент не смог продолжить сохранённый разговор — например, его файлы удалили. Чат от этого
+   * не ломается: сообщение уходит новой сессии вместе с прежней перепиской.
+   */
+  private restartWithHistory(chatId: string, conversation: Conversation): void {
+    conversation.session?.close()
+    conversation.session = null
+    conversation.stale = false
+    conversation.sessionId = null
+    conversation.handoffFrom = conversation.sessionAgent
+    if (conversation.turn) {
+      conversation.queue.unshift(conversation.turn)
+      conversation.turn = null
+    }
+    this.persist(chatId, conversation, { immediately: true })
+    this.pump(chatId, conversation)
   }
 
   private async launch(agent: AgentId, cwd: string, chatId?: string): Promise<AgentLaunch> {
