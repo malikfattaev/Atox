@@ -1,23 +1,33 @@
 import { useEffect, useState } from 'react'
-import { Plug, Puzzle, SlidersHorizontal, Sparkles, X, type LucideIcon } from 'lucide-react'
-import type { IntegrationKind } from '../../../shared/integrations'
+import {
+  Archive,
+  Plug,
+  Puzzle,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+  type LucideIcon
+} from 'lucide-react'
+import { isIntegrationKind, type IntegrationKind } from '../../../shared/integrations'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { useIntegrationLists } from '../hooks/useIntegrationLists'
 import { AgentIntegrations } from './AgentIntegrations'
+import { ArchivedChats } from './ArchivedChats'
 import { ShortcutList } from './ShortcutList'
 import { UpdateSettings } from './UpdateSettings'
 
 const { atox } = window
 
-type SettingsSection = 'general' | IntegrationKind
+type SettingsSection = 'general' | IntegrationKind | 'archived'
 
-/** Разделы настроек: общие и то, чем пользуются агенты, — по одному списку на вид. */
+/** Разделы настроек: общие, то, чем пользуются агенты, — по одному списку на вид, и архив чатов. */
 const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: LucideIcon }> = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
   { id: 'skills', label: 'Skills', icon: Sparkles },
-  { id: 'mcp', label: 'MCP', icon: Plug }
+  { id: 'mcp', label: 'MCP', icon: Plug },
+  { id: 'archived', label: 'Archived', icon: Archive }
 ]
 
 interface SettingsViewProps {
@@ -63,7 +73,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
               aria-selected={section === id}
               onClick={() => setSection(id)}
               // Агенты отвечают по нескольку секунд: спрашиваем, как только курсор над разделом.
-              onPointerEnter={() => id !== 'general' && integrations.load(id)}
+              onPointerEnter={() => isIntegrationKind(id) && integrations.load(id)}
             >
               <Icon className="segmented__icon" />
               {label}
@@ -104,6 +114,8 @@ export function SettingsView({ onClose }: SettingsViewProps) {
             <ShortcutList />
           </div>
         </>
+      ) : section === 'archived' ? (
+        <ArchivedChats />
       ) : (
         <AgentIntegrations
           // Фильтр у каждого раздела свой.
