@@ -1,4 +1,5 @@
 import { open, readFile, rename } from 'node:fs/promises'
+import { inform } from './dialogs'
 
 /**
  * Читает JSON-файл данных указанной версии; `undefined` — файла ещё нет.
@@ -33,10 +34,43 @@ export async function readVersionedJson<T extends { version: number }>(
   }
 }
 
-/** Пишет JSON на диск сразу при каждом изменении, сохраняя порядок записей. */
+/** Файлы, запись которых сейчас не удаётся: о сбое сообщаем один раз, а не на каждое изменение. */
+const failingFiles = new Set<string>()
+/** Сообщение о сбое на экране: при общей беде (диск полон) файлы не выводят по окну каждый. */
+let failureShown = false
+
+/**
+ * Сбой записи нельзя оставлять только в логе: пользователь продолжил бы работать, думая,
+ * что всё сохраняется. Сообщаем об этом окном, пока файл не запишется снова.
+ */
+function reportWriteFailure(filePath: string, error: unknown): void {
+  console.error(`Failed to write ${filePath}`, error)
+  if (failingFiles.has(filePath)) {
+    return
+  }
+  failingFiles.add(filePath)
+  if (failureShown) {
+    return
+  }
+  failureShown = true
+  void inform(null, {
+    type: 'error',
+    message: 'Atox can’t save your changes',
+    detail: `Writing ${filePath} failed: ${error instanceof Error ? error.message : String(error)}`
+  }).finally(() => {
+    failureShown = false
+  })
+}
+
+/**
+ * Пишет JSON на диск сразу при изменении. Одновременно идёт одна запись; изменения, пришедшие
+ * за время записи, схлопываются в последний снимок — промежуточные состояния на диск не нужны.
+ */
 export class JsonFileWriter {
-  /** Цепочка записей: каждая начинается после предыдущей, поэтому порядок не нарушается. */
-  private pendingWrites: Promise<void> = Promise.resolve()
+  /** Текущая запись вместе со всеми, что встанут за ней; `null` — файл записан. */
+  private draining: Promise<void> | null = null
+  /** Последний снимок, который ещё не начали писать. */
+  private pendingContents: string | null = null
   /** Временный файл свой у процесса: другой экземпляр не перепишет его посреди записи. */
   private readonly tempPath: string
 
@@ -51,17 +85,31 @@ export class JsonFileWriter {
     this.tempPath = `${filePath}.${process.pid}.tmp`
   }
 
-  /** Снимок данных берётся в момент вызова, запись — после уже начатых. */
+  /** Снимок данных берётся в момент вызова и заменяет ещё не начатую запись. */
   write(data: unknown): void {
-    const contents = this.options.compact ? JSON.stringify(data) : JSON.stringify(data, null, 2)
-    this.pendingWrites = this.pendingWrites
-      .then(() => this.writeAtomically(contents))
-      .catch((error) => console.error(`Failed to write ${this.filePath}`, error))
+    this.pendingContents = this.options.compact
+      ? JSON.stringify(data)
+      : JSON.stringify(data, null, 2)
+    this.draining ??= this.drain()
   }
 
-  /** Дожидается окончания всех начатых записей. */
+  /** Дожидается записи последнего снимка — в том числе пришедшего уже после вызова. */
   flush(): Promise<void> {
-    return this.pendingWrites
+    return this.draining ?? Promise.resolve()
+  }
+
+  private async drain(): Promise<void> {
+    while (this.pendingContents !== null) {
+      const contents = this.pendingContents
+      this.pendingContents = null
+      try {
+        await this.writeAtomically(contents)
+        failingFiles.delete(this.filePath)
+      } catch (error) {
+        reportWriteFailure(this.filePath, error)
+      }
+    }
+    this.draining = null
   }
 
   /**
