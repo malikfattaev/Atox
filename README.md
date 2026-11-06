@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>One calm place to run Claude, Codex and any other agent together</strong><br>
-  <sub>Orchestrate agents across models, watch them work, ship via PRs. Nothing extra.</sub>
+  <sub>Orchestrate agents across models, watch them work</sub>
 </p>
 
 <p align="center">
