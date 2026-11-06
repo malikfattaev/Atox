@@ -22,12 +22,19 @@ export interface RepositoryData {
   github?: RepositoryResult<GitHubOverview>
 }
 
+/**
+ * Ошибки последнего обновления источников, у которых остались показанные прежде данные:
+ * неудачное обновление не стирает их, а показывается рядом.
+ */
+export type RefreshErrors = { [Key in keyof RepositoryData]?: RepositoryError }
+
 /** Список, который подгружается страницами. */
 export type RepositoryList = 'commits' | { kind: GitHubKind; state: ListState }
 
 export interface RepositoryState extends RepositoryData {
   /** Идёт загрузка — первая или обновление поверх уже показанных данных. */
   loading: boolean
+  refreshErrors: RefreshErrors
   refresh(): void
   /** Догружает следующую страницу списка; отклоняется, если загрузить не получилось. */
   loadMore(list: RepositoryList): Promise<void>
@@ -46,6 +53,7 @@ const cache = new Map<string, RepositoryData>()
 export function useRepository(projectId: string, branch: string | null): RepositoryState {
   const [data, setData] = useState<RepositoryData>(() => cache.get(projectId) ?? {})
   const [pending, setPending] = useState(0)
+  const [refreshErrors, setRefreshErrors] = useState<RefreshErrors>({})
   // Номер последнего запроса каждого источника: ответ устаревшего запроса не затирает свежий.
   const requests = useRef({ commits: 0, github: 0 })
   const lastRefreshAt = useRef(0)
@@ -64,6 +72,12 @@ export function useRepository(projectId: string, branch: string | null): Reposit
           if (requests.current[key] !== id) {
             return
           }
+          const shown = cache.get(projectId)?.[key]
+          if (!result.ok && shown?.ok) {
+            setRefreshErrors((errors) => ({ ...errors, [key]: result.error }))
+            return
+          }
+          setRefreshErrors(({ [key]: _resolved, ...errors }) => errors)
           const next = { ...cache.get(projectId), [key]: result }
           cache.set(projectId, next)
           setData(next)
@@ -160,7 +174,7 @@ export function useRepository(projectId: string, branch: string | null): Reposit
     return () => window.removeEventListener('focus', refreshOnFocus)
   }, [refresh])
 
-  return { ...data, loading: pending > 0, refresh, loadMore }
+  return { ...data, loading: pending > 0, refreshErrors, refresh, loadMore }
 }
 
 function loadedCommits(data: RepositoryData | undefined): number {

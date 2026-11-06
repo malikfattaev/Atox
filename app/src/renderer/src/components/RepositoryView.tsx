@@ -73,11 +73,16 @@ export function RepositoryView({
   onClose
 }: RepositoryViewProps) {
   const { createChat } = useProjectsContext()
-  const { commits, github, loading, refresh, loadMore } = useRepository(project.id, branch)
+  const { commits, github, loading, refreshErrors, refresh, loadMore } = useRepository(
+    project.id,
+    branch
+  )
   const [stateFilter, setStateFilter] = useState<ListState>('open')
   const bodyRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const overview = github?.ok ? github.data : null
+  // Коммиты — из git, PR и issue — с GitHub: у раздела своя ошибка обновления.
+  const refreshError = section === 'commits' ? refreshErrors.commits : refreshErrors.github
 
   useEffect(() => {
     // Esc, который уже обработало поле (переименование, поиск), страницу не закрывает.
@@ -207,6 +212,7 @@ export function RepositoryView({
       </div>
 
       <div className="repository__body" ref={bodyRef}>
+        {refreshError && <RefreshErrorNote error={refreshError} />}
         {section === 'commits' && (
           <SectionContent
             key="commits"
@@ -460,6 +466,15 @@ function filterItems(items: SectionItem[], query: string): SectionItem[] {
     const haystack = [searchable.title, ...searchable.terms].join(' ').toLowerCase()
     return words.every((word) => haystack.includes(word))
   })
+}
+
+/** Обновить не получилось, но прежние данные остаются на экране. */
+function RefreshErrorNote({ error }: { error: RepositoryError }) {
+  return (
+    <p className="repository__more" role="status">
+      Couldn’t refresh. {error.kind === 'failed' ? error.message : describeError(error).title}
+    </p>
+  )
 }
 
 function ErrorMessage({ error }: { error: RepositoryError }) {
