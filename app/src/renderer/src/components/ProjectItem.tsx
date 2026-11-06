@@ -1,4 +1,12 @@
-import { useEffect, useId, useState, type CSSProperties, type MouseEvent } from 'react'
+import {
+  memo,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type MouseEvent
+} from 'react'
 import {
   Copy,
   Folder,
@@ -12,10 +20,11 @@ import {
   SquarePen
 } from 'lucide-react'
 import { topLevelChats, workerChats } from '../../../shared/chats'
-import type { Project } from '../../../shared/models'
+import type { Chat, Project, Space } from '../../../shared/models'
 import { IS_MAC } from '../../../shared/platform'
 import { findProjectColor } from '../../../shared/projectColors'
-import { useProjectsContext } from '../hooks/ProjectsContext'
+import { useProjectActions } from '../hooks/ProjectsContext'
+import { NO_CHAT_IDS } from '../lib/chatLayout'
 import { colorSubmenu, parseColorAction } from '../lib/colorMenu'
 import { showMenu } from '../lib/menu'
 import { projectIconComponent } from '../lib/projectIcons'
@@ -30,27 +39,45 @@ const REVEAL_LABEL = IS_MAC ? 'Open in Finder' : 'Open in File Manager'
 /** Пункт «Move to Space»: `space:<id>`. */
 const SPACE_ACTION_PREFIX = 'space:'
 
+/** Один и тот же пустой список помощников: карточке чата без них не из-за чего перерисовываться. */
+const NO_WORKERS: Chat[] = []
+
 interface ProjectItemProps {
   project: Project
   /** Текущая ветка git в папке проекта; `null` — папка не репозиторий. */
   branch: string | null
   /** Открывает коммиты, PR и issue проекта. */
   onOpenRepository(projectId: string): void
+  /** Пространства — для пункта «Move to Space». */
+  spaces: readonly Space[]
+  /** Чат в фокусе, если он из этого проекта; иначе `null`. */
+  activeChatId: string | null
+  /** Чаты на экране, если они из этого проекта; иначе пусто. */
+  visibleChatIds: readonly string[]
 }
 
-export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemProps) {
+/**
+ * Проект в сайдбаре. Всё, что зависит от выбора чата, приходит уже отфильтрованным по проекту:
+ * выбор чата в другом проекте эту карточку не перерисовывает.
+ */
+export const ProjectItem = memo(function ProjectItem({
+  project,
+  branch,
+  onOpenRepository,
+  spaces,
+  activeChatId,
+  visibleChatIds
+}: ProjectItemProps) {
   const {
-    activeChatId,
     createChat,
     renameProject,
     setProjectColor,
     setProjectIcon,
-    spaces,
     moveProjectToSpace,
     revealProject,
     removeProject,
     moveChat
-  } = useProjectsContext()
+  } = useProjectActions()
   // При запуске проекты свёрнуты, кроме проекта открытого чата (его раскрывает эффект ниже):
   // список остаётся коротким, а раскрытие не запоминается.
   const [expanded, setExpanded] = useState(false)
@@ -67,12 +94,25 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
 
 
   // Чат, открытый с клавиатуры или из уведомления, должен быть виден в сайдбаре.
-  const containsActiveChat = project.chats.some(({ id }) => id === activeChatId)
   useEffect(() => {
-    if (containsActiveChat) {
+    if (activeChatId) {
       setExpanded(true)
     }
-  }, [containsActiveChat, activeChatId])
+  }, [activeChatId])
+
+  const chatGroups = useMemo(
+    () =>
+      topLevelChats(project.chats).map((chat) => ({
+        chat,
+        workers: workerChats(project.chats, chat.id)
+      })),
+    [project.chats]
+  )
+  const topLevel = useMemo(() => chatGroups.map(({ chat }) => chat), [chatGroups])
+  const workersByChatId = useMemo(
+    () => new Map(chatGroups.map(({ chat, workers }) => [chat.id, workers])),
+    [chatGroups]
+  )
 
   // Из контекстного меню чат создаётся сразу с агентом по умолчанию: второе меню подряд неудобно.
   const createProjectChat = () => {
@@ -225,23 +265,29 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
       <div id={chatsId} className="project-chats" data-expanded={expanded} inert={!expanded}>
         <div className="project-chats__content">
           {project.chats.length > 0 && (
-            <SortableList
-              items={topLevelChats(project.chats)}
-              onMove={(id, toIndex) => void moveChat(id, toIndex)}
-            >
-              {(chat) => (
-                <ChatItem
-                  key={chat.id}
-                  chat={chat}
-                  workers={workerChats(project.chats, chat.id)}
-                  projectId={project.id}
-                  branch={branch}
-                />
-              )}
+            <SortableList items={topLevel} onMove={(id, toIndex) => void moveChat(id, toIndex)}>
+              {(chat) => {
+                const workers = workersByChatId.get(chat.id) ?? NO_WORKERS
+                const inGroup = (id: string) =>
+                  id === chat.id || workers.some((worker) => worker.id === id)
+                return (
+                  <ChatItem
+                    key={chat.id}
+                    chat={chat}
+                    workers={workers}
+                    branch={branch}
+                    activeChatId={activeChatId && inGroup(activeChatId) ? activeChatId : null}
+                    visibleChatIds={visibleChatIds.some(inGroup) ? visibleChatIds : NO_CHAT_IDS}
+                    // Рядом открываются чаты того проекта, где чат в фокусе: раскладка у каждого
+                    // проекта своя.
+                    canOpenBesideActive={activeChatId !== null}
+                  />
+                )
+              }}
             </SortableList>
           )}
         </div>
       </div>
     </li>
   )
-}
+})

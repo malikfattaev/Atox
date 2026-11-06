@@ -13,6 +13,9 @@ export interface ChatLayout {
 
 export const EMPTY_LAYOUT: ChatLayout = { visibleChatIds: [], activeChatId: null }
 
+/** Один и тот же пустой список чатов: компонентам в memo не из-за чего перерисовываться. */
+export const NO_CHAT_IDS: readonly string[] = []
+
 /** Раскладка проекта при первом открытии: сохранённые рядом чаты, фокус на левом. */
 export function layoutFromSplit(split: ProjectSplit | undefined): ChatLayout {
   return split
