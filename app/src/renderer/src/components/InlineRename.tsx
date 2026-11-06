@@ -42,12 +42,14 @@ export function InlineRename({ value, label, onSubmit, onCancel }: InlineRenameP
 
   finishRef.current = finish
 
+  // Enter и Esc принадлежат полю: дальше они не идут, иначе Esc закрыл бы открытую страницу.
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      finish(true)
-    } else if (event.key === 'Escape') {
-      finish(false)
+    if (event.key !== 'Enter' && event.key !== 'Escape') {
+      return
     }
+    event.preventDefault()
+    event.stopPropagation()
+    finish(event.key === 'Enter')
   }
 
   return (

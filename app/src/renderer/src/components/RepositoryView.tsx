@@ -80,8 +80,9 @@ export function RepositoryView({
   const overview = github?.ok ? github.data : null
 
   useEffect(() => {
+    // Esc, который уже обработало поле (переименование, поиск), страницу не закрывает.
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose()
       }
     }

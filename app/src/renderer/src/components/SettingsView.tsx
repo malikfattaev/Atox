@@ -43,8 +43,9 @@ export function SettingsView({ onClose }: SettingsViewProps) {
   const [section, setSection] = useState<SettingsSection>('general')
 
   useEffect(() => {
+    // Esc, который уже обработало поле (переименование, поиск), страницу не закрывает.
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose()
       }
     }
