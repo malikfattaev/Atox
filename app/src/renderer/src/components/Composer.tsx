@@ -16,6 +16,12 @@ import {
   type AttachFailure,
   type Attachment
 } from '../lib/attachments'
+import {
+  newPendingId,
+  updateDraft,
+  useComposerDraft,
+  type ComposerDraft
+} from '../lib/composerDrafts'
 import { ipcErrorMessage } from '../lib/ipcError'
 import { currentModel, matchEffort, matchModel, modelConfiguration } from '../lib/modelSelection'
 import { CommandMenu, filterCommands } from './CommandMenu'
@@ -31,14 +37,6 @@ const COMMAND_NAME = /^\/(\S*)$/
 
 /** Команда с аргументом целиком: «/effort high». */
 const COMMAND_LINE = /^\/(\S+)(?:\s+([\s\S]*))?$/
-
-/** Файл, который ещё готовится (картинка из буфера сохраняется на диск): без него не отправить. */
-interface PendingAttachment {
-  id: number
-  name: string
-}
-
-let nextPendingId = 0
 
 function attachFailureMessage(failures: readonly AttachFailure[]): string {
   return failures
@@ -62,12 +60,14 @@ interface ComposerProps {
 export function Composer({ chat, running, started, focused, usage, onSend }: ComposerProps) {
   const { configureChat, removeChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
-  const [text, setText] = useState('')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  // Черновик хранится вне компонента: выгруженный чат не теряет набранное.
+  const { text, attachments, pending, error } = useComposerDraft(chat.id)
+  const chatId = chat.id
+  const update = (change: (draft: ComposerDraft) => Partial<ComposerDraft>) =>
+    updateDraft(chatId, change)
+  const setText = (value: string) => update(() => ({ text: value }))
+  const setError = (value: string | null) => update(() => ({ error: value }))
   const [viewedImage, setViewedImage] = useState<ShownImage | null>(null)
-  /** Что не получилось в последний раз (отправка, вложение): видно над полем, пока его не закроют. */
-  const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState<PendingAttachment[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const hasContent = text.trim().length > 0 || attachments.length > 0
   // Пока вложение готовится, сообщение ушло бы без него.
@@ -176,16 +176,21 @@ export function Composer({ chat, running, started, focused, usage, onSend }: Com
         .catch((sendError: unknown) => {
           // Сообщение не ушло: возвращаем его в поле, чтобы не набирать заново. Если пользователь
           // уже начал писать следующее, неотправленное встаёт перед ним.
-          setText((current) => (current ? `${value}\n${current}` : value))
-          setAttachments((current) => [
-            ...sent,
-            ...current.filter(({ path }) => !sent.some((attachment) => attachment.path === path))
-          ])
-          setError(`Could not send the message: ${ipcErrorMessage(sendError)}`)
+          update((draft) => ({
+            text: draft.text ? `${value}\n${draft.text}` : value,
+            attachments: [
+              ...sent,
+              ...draft.attachments.filter(
+                ({ path }) => !sent.some((attachment) => attachment.path === path)
+              )
+            ],
+            error: `Could not send the message: ${ipcErrorMessage(sendError)}`
+          }))
         })
-      setAttachments([])
+      update(() => ({ text: '', attachments: [] }))
+    } else {
+      setText('')
     }
-    setText('')
     // Кнопка, которой отправили, сменяется кнопкой остановки или гаснет — фокус не должен
     // уйти вместе с ней.
     inputRef.current?.focus()
@@ -249,27 +254,26 @@ export function Composer({ chat, running, started, focused, usage, onSend }: Com
 
   /** Добавляет вложения в конец; файл, который уже приложен, второй раз не добавляется. */
   const addAttachments = (added: readonly Attachment[]) =>
-    setAttachments((current) => [
-      ...current,
-      ...added.filter(({ path }) => !current.some((attachment) => attachment.path === path))
-    ])
+    update(({ attachments: current }) => ({
+      attachments: [
+        ...current,
+        ...added.filter(({ path }) => !current.some((attachment) => attachment.path === path))
+      ]
+    }))
 
   /** Прикладывает вставленные или перетащенные файлы. `true` — среди них было что приложить. */
   const addFiles = (files: readonly File[]): boolean => {
     if (files.length === 0) {
       return false
     }
-    const added = files.map((file) => ({
-      id: ++nextPendingId,
-      name: file.name
-    }))
-    setPending((current) => [...current, ...added])
+    const added = files.map((file) => ({ id: newPendingId(), name: file.name }))
+    update((draft) => ({ pending: [...draft.pending, ...added] }))
     void attachFiles(files).then(({ attachments: attached, failures }) => {
-      setPending((current) => current.filter((entry) => !added.includes(entry)))
+      update((draft) => ({
+        pending: draft.pending.filter((entry) => !added.includes(entry)),
+        ...(failures.length > 0 && { error: attachFailureMessage(failures) })
+      }))
       addAttachments(attached)
-      if (failures.length > 0) {
-        setError(attachFailureMessage(failures))
-      }
     })
     inputRef.current?.focus()
     return true
@@ -349,7 +353,9 @@ export function Composer({ chat, running, started, focused, usage, onSend }: Com
   }, [focused])
 
   const removeAttachment = (path: string) =>
-    setAttachments((current) => current.filter((attachment) => attachment.path !== path))
+    update((draft) => ({
+      attachments: draft.attachments.filter((attachment) => attachment.path !== path)
+    }))
 
   return (
     <form

@@ -15,6 +15,18 @@ const AT_BOTTOM_PX = 2
 /** Пустая очередь — одним массивом: новый на каждую отрисовку сбивал бы `memo` у ленты. */
 const NO_QUEUED_MESSAGES: readonly UserMessage[] = []
 
+/** Где пользователь оставил ленту чата: следит за агентом или читает историю с этого места. */
+interface ScrollPosition {
+  top: number
+  stickToBottom: boolean
+}
+
+/**
+ * Положение лент живёт вне компонентов: давно не открытый чат выгружается, а вернувшись в него,
+ * пользователь продолжает читать с того же места.
+ */
+const scrollPositions = new Map<string, ScrollPosition>()
+
 interface ChatViewProps {
   chatId: string
   visible: boolean
@@ -28,8 +40,11 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnRef = useRef<HTMLDivElement>(null)
   // Пользователь внизу ленты: новые сообщения прокручивают её; отлистал вверх — не мешаем читать.
-  const stickToBottom = useRef(true)
+  const stickToBottom = useRef(scrollPositions.get(chatId)?.stickToBottom ?? true)
   const lastScrollTop = useRef(0)
+  // Сохранённое положение ещё не вернули: пока лента грузится, её положение ничего не значит
+  // и не должно затереть сохранённое.
+  const restoringPosition = useRef(scrollPositions.has(chatId))
 
   const project = projects.find(({ chats }) => chats.some(({ id }) => id === chatId))
   const chat = project?.chats.find(({ id }) => id === chatId)
@@ -56,6 +71,9 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
     } else if (movedUp) {
       stickToBottom.current = false
     }
+    if (!restoringPosition.current) {
+      scrollPositions.set(chatId, { top: scrollTop, stickToBottom: stickToBottom.current })
+    }
   }
 
   const scrollToBottom = () => {
@@ -77,6 +95,22 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
   const followAgent = useCallback(() => {
     stickToBottom.current = true
   }, [])
+
+  // Чат открыли снова после выгрузки: лента возвращается туда, где её оставили. Раньше, чем
+  // прокрутка вниз ниже: та уважает уже восстановленное положение.
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current
+    const saved = scrollPositions.get(chatId)
+    if (!restoringPosition.current || !visible || conversation.loading || !scroller || !saved) {
+      return
+    }
+    restoringPosition.current = false
+    stickToBottom.current = saved.stickToBottom
+    if (!saved.stickToBottom) {
+      scroller.scrollTop = saved.top
+      lastScrollTop.current = scroller.scrollTop
+    }
+  }, [chatId, visible, conversation.loading, rendered])
 
   useLayoutEffect(() => {
     if (visible) {
