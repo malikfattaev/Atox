@@ -22,10 +22,20 @@ export function useSpaces(): SpacesApi {
   const [state, setState] = useState<SpacesState | null>(null)
   // Переключение срабатывает часто (каждый выбор чата) — текущее значение нужно без перерисовки.
   const stateRef = useRef(state)
+  // Выбор, который ещё сохраняется. Ответы, пришедшие до его сохранения (прежнее переключение,
+  // переименование), несут старое открытое пространство и не должны откатывать выбор.
+  const pendingRef = useRef<{ spaceId: string; request: number } | null>(null)
+  const requestRef = useRef(0)
 
   const apply = useCallback((next: SpacesState) => {
-    stateRef.current = next
-    setState(next)
+    const pending = pendingRef.current
+    const keepsSelection =
+      pending !== null &&
+      pending.spaceId !== next.activeSpaceId &&
+      next.spaces.some(({ id }) => id === pending.spaceId)
+    const applied = keepsSelection ? { ...next, activeSpaceId: pending.spaceId } : next
+    stateRef.current = applied
+    setState(applied)
   }, [])
 
   useEffect(() => {
@@ -38,9 +48,19 @@ export function useSpaces(): SpacesApi {
       if (!current || current.activeSpaceId === spaceId) {
         return
       }
+      const request = ++requestRef.current
+      pendingRef.current = { spaceId, request }
       // Переключаем сразу, не дожидаясь сохранения.
       apply({ ...current, activeSpaceId: spaceId })
-      void atox.spaces.setActive(spaceId).then(apply)
+      void atox.spaces
+        .setActive(spaceId)
+        .finally(() => {
+          // Ответ на последний выбор (и его ошибка) снимает защиту, ответы на прежние её соблюдают.
+          if (pendingRef.current?.request === request) {
+            pendingRef.current = null
+          }
+        })
+        .then(apply)
     },
     [apply]
   )
