@@ -87,8 +87,19 @@ export function Composer({ chat, running, started, focused, usage, onSend }: Com
   useEffect(() => setActiveIndex(0), [commandQuery])
 
   useEffect(() => {
-    if (focused) {
-      inputRef.current?.focus()
+    const input = inputRef.current
+    if (!focused || !input) {
+      return
+    }
+    // Чат выбрали кликом внутри него — например, в поле ответа на вопрос агента в соседней
+    // панели: фокус остаётся там, куда кликнули.
+    const focusedElement = document.activeElement
+    const focusInsideChat =
+      focusedElement !== null &&
+      focusedElement !== document.body &&
+      Boolean(input.closest('.chat-view')?.contains(focusedElement))
+    if (!focusInsideChat) {
+      input.focus()
     }
   }, [focused])
 
