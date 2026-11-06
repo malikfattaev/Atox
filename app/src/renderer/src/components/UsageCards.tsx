@@ -23,30 +23,26 @@ const resetDateFormat = new Intl.DateTimeFormat('en-US', {
 
 /** Лимиты подписки по команде `/usage`: по полосе на каждое окно. */
 export function LimitsCard({ limits }: { limits: readonly PlanLimit[] }) {
+  // В карточках, сохранённых прежними версиями, бывает окно без процента: его не показываем.
+  const reported = limits.filter(({ percent }) => typeof percent === 'number')
   return (
     <section className="usage-card" aria-label="Usage limits">
       <h2 className="usage-card__title">Usage limits</h2>
-      {limits.length === 0 ? (
+      {reported.length === 0 ? (
         <p className="usage-card__note">
           The agent is signed in with an API key, so there are no plan limits to show.
         </p>
       ) : (
         <ul className="usage-card__rows">
-          {limits.map((limit) => (
+          {reported.map((limit) => (
             <li key={limit.label} className="usage-card__row">
               <div className="usage-card__line">
                 <span>{limit.label}</span>
-                <span className="usage-card__value">
-                  {limit.percent === undefined ? '—' : `${Math.round(limit.percent)}%`}
-                </span>
+                <span className="usage-card__value">{Math.round(limit.percent)}%</span>
               </div>
-              <Meter percent={limit.percent ?? 0} />
-              {limit.percent === undefined ? (
-                <span className="usage-card__note">Not reported by Anthropic right now</span>
-              ) : (
-                limit.resetsAt !== undefined && (
-                  <span className="usage-card__note">{formatReset(limit.resetsAt)}</span>
-                )
+              <Meter percent={limit.percent} />
+              {limit.resetsAt !== undefined && (
+                <span className="usage-card__note">{formatReset(limit.resetsAt)}</span>
               )}
             </li>
           ))}
