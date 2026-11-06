@@ -36,8 +36,19 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
       selectChat(orderedChatIds[next]!)
     }
 
+    // ⌘W ничего не удаляет насовсем: в сплите закрывает панель, иначе убирает чат в архив —
+    // историю можно вернуть из настроек. Удаление — только осознанно, из меню чата.
+    const closeChat = (chatId: string, inSplit: boolean) => {
+      const { closeChatPane, archiveChat } = handlersRef.current.projects
+      if (inSplit) {
+        closeChatPane(chatId)
+      } else {
+        void archiveChat(chatId)
+      }
+    }
+
     const execute = (command: AppCommand) => {
-      const { currentProjectId, activeChatId, createChat, addProject, removeChat } =
+      const { currentProjectId, activeChatId, visibleChatIds, createChat, addProject } =
         handlersRef.current.projects
       switch (command.type) {
         case 'new-chat':
@@ -50,7 +61,7 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
           break
         case 'close-chat':
           if (activeChatId) {
-            void removeChat(activeChatId)
+            closeChat(activeChatId, visibleChatIds.length > 1)
           }
           break
         case 'toggle-sidebar':
