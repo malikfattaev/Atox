@@ -321,6 +321,9 @@ function toCatalog(models: CodexModel[]): AgentCatalog {
   }
 }
 
+/** Части сводки рассуждений разделяются в ленте пустой строкой — как в готовом элементе. */
+const SUMMARY_PART_SEPARATOR = '\n\n'
+
 /** Сколько раз пробовать остановить ход, который Codex ещё не успел запустить. */
 const INTERRUPT_ATTEMPTS = 20
 const INTERRUPT_RETRY_MS = 100
@@ -343,6 +346,8 @@ class CodexSession implements AgentSession {
    * Codex сообщает лишь итог треда и последний запрос, а запросов за ход бывает много.
    */
   private turnTokenBase: { turnId: string; outputTokens: number } | null = null
+  /** Номер части сводки, которую сейчас пишет каждое рассуждение. */
+  private readonly summaryParts = new Map<string, number>()
 
   constructor(
     private readonly options: SessionOptions,
@@ -646,15 +651,30 @@ class CodexSession implements AgentSession {
         if (item) {
           this.events.item(item)
         }
+        if (method === 'item/completed') {
+          this.summaryParts.delete(source.id)
+        }
         if (item?.kind === 'image' && item.status === 'done' && !item.path) {
           void this.saveGeneratedImage(item, source as GeneratedImage)
         }
         break
       }
-      case 'item/agentMessage/delta':
-      case 'item/reasoning/summaryTextDelta': {
+      case 'item/agentMessage/delta': {
         const { itemId, delta } = params as { itemId: string; delta: string }
         this.events.delta(itemId, 'text', delta)
+        break
+      }
+      case 'item/reasoning/summaryTextDelta': {
+        const { itemId, delta, summaryIndex } = params as {
+          itemId: string
+          delta: string
+          summaryIndex: number
+        }
+        // Новая часть сводки начинается с новой строки, а не продолжает прежнюю слитно.
+        const previous = this.summaryParts.get(itemId)
+        this.summaryParts.set(itemId, summaryIndex)
+        const separator = previous !== undefined && previous !== summaryIndex
+        this.events.delta(itemId, 'text', separator ? SUMMARY_PART_SEPARATOR + delta : delta)
         break
       }
       case 'thread/tokenUsage/updated': {
@@ -715,7 +735,7 @@ function toTimelineItem(source: AnyCodexItem, cwd: string): TimelineItem | null 
       return {
         kind: 'reasoning',
         id: item.id,
-        text: item.summary.join('\n\n')
+        text: item.summary.join(SUMMARY_PART_SEPARATOR)
       }
     case 'commandExecution':
       return {
