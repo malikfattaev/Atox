@@ -7,6 +7,7 @@ export const PROJECT_ICON_GROUPS = [
   { id: 'design', name: 'Design & Media' },
   { id: 'business', name: 'Business & Docs' },
   { id: 'communication', name: 'Chat & Social' },
+  { id: 'education', name: 'Learning' },
   { id: 'science', name: 'Science & Nature' },
   { id: 'fun', name: 'Fun' }
 ] as const
@@ -283,6 +284,24 @@ export const PROJECT_ICONS = [
   { id: 'laugh', name: 'Fun', group: 'communication', keywords: 'laugh joke' },
   { id: 'user-plus', name: 'Invite', group: 'communication', keywords: 'signup onboarding' },
   { id: 'vote', name: 'Vote', group: 'communication', keywords: 'poll election' },
+
+  { id: 'graduation-cap', name: 'Education', group: 'education', keywords: 'graduation study course' },
+  { id: 'school', name: 'School', group: 'education', keywords: 'class' },
+  { id: 'university', name: 'University', group: 'education', keywords: 'college campus' },
+  { id: 'book', name: 'Book', group: 'education', keywords: 'reading' },
+  { id: 'book-marked', name: 'Reading', group: 'education', keywords: 'book bookmark' },
+  { id: 'book-a', name: 'Dictionary', group: 'education', keywords: 'vocabulary language' },
+  { id: 'library-big', name: 'Books', group: 'education', keywords: 'library shelf' },
+  { id: 'notebook', name: 'Notebook', group: 'education', keywords: 'homework' },
+  { id: 'backpack', name: 'Backpack', group: 'education', keywords: 'student' },
+  { id: 'pencil-ruler', name: 'Homework', group: 'education', keywords: 'draw measure' },
+  { id: 'ruler', name: 'Ruler', group: 'education', keywords: 'measure' },
+  { id: 'clipboard-check', name: 'Exam', group: 'education', keywords: 'test quiz' },
+  { id: 'spell-check', name: 'Spelling', group: 'education', keywords: 'grammar' },
+  { id: 'sigma', name: 'Sigma', group: 'education', keywords: 'sum math' },
+  { id: 'pi', name: 'Pi', group: 'education', keywords: 'math' },
+  { id: 'radical', name: 'Algebra', group: 'education', keywords: 'root math' },
+  { id: 'infinity', name: 'Infinity', group: 'education', keywords: 'loop endless' },
 
   { id: 'flask', name: 'Lab', group: 'science', keywords: 'experiment chemistry flask' },
   { id: 'atom', name: 'Physics', group: 'science', keywords: 'atom react' },
