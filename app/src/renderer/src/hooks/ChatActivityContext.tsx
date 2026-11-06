@@ -27,9 +27,9 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
   const [chatsCovered, setChatsCovered] = useState(false)
   const chatsCoveredRef = useRef(chatsCovered)
   chatsCoveredRef.current = chatsCovered
-  const { notificationSounds } = useSettings()
-  const notificationSoundsRef = useRef(notificationSounds)
-  notificationSoundsRef.current = notificationSounds
+  const { playSounds } = useSettings()
+  const playSoundsRef = useRef(playSounds)
+  playSoundsRef.current = playSounds
 
   const [tracker] = useState(
     () =>
@@ -40,7 +40,7 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
           document.hasFocus(),
         notify: (chatId, message, tone) => {
           showChatNotification(projectsRef.current, chatId, message)
-          if (notificationSoundsRef.current) {
+          if (playSoundsRef.current) {
             playChime(tone)
           }
         }

@@ -36,7 +36,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onClose }: SettingsViewProps) {
-  const { shareUsageStats, notificationSounds } = useSettings()
+  const { shareUsageStats, playSounds } = useSettings()
   const { projects, currentProjectId } = useProjectsContext()
   const project = projects.find(({ id }) => id === currentProjectId) ?? null
   const integrations = useIntegrationLists(project?.id ?? null)
@@ -102,14 +102,14 @@ export function SettingsView({ onClose }: SettingsViewProps) {
                     type="checkbox"
                     role="switch"
                     className="switch"
-                    checked={notificationSounds}
+                    checked={playSounds}
                     onChange={(event) => {
                       const enabled = event.target.checked
                       // Включённый звук сразу проигрывается: так слышно, каким он будет.
                       if (enabled) {
                         playChime('done')
                       }
-                      void atox.settings.update({ notificationSounds: enabled })
+                      void atox.settings.update({ playSounds: enabled })
                     }}
                   />
                 </label>
