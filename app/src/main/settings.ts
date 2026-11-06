@@ -71,7 +71,7 @@ function normalize(settings: Settings): Settings {
     terminalWidth: clampWidth(settings.terminalWidth, TERMINAL_WIDTH),
     shortcuts: normalizeShortcuts(settings.shortcuts),
     shareUsageStats: settings.shareUsageStats !== false,
-    notificationSounds: settings.notificationSounds !== false
+    playSounds: settings.playSounds === true
   }
 }
 
