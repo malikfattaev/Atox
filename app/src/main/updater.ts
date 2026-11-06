@@ -43,6 +43,13 @@ const DOWNLOAD_STALL_TIMEOUT_MS = 60_000
  */
 const RETRY_DELAYS_MS = [2_000, 10_000, 30_000]
 /**
+ * Пауза перед новой попыткой скачать версию, которую скачать не удалось, удваивается
+ * с каждым сбоем, но не больше предела. Без неё сломанный файл релиза (или нехватка места)
+ * скачивался бы заново — по сотне мегабайт — каждые несколько минут и при каждом фокусе окна.
+ */
+const DOWNLOAD_BACKOFF_INITIAL_MS = 15 * 60 * 1000
+const DOWNLOAD_BACKOFF_MAX_MS = 6 * 60 * 60 * 1000
+/**
  * Описание скачанной и подготовленной версии в её каталоге: по нему готовое обновление
  * подхватывается при следующем запуске, а не скачивается заново.
  */
@@ -56,6 +63,13 @@ interface CheckRun {
   interactive: boolean
   /** Обрывает фоновое ожидание, когда проверка стала ручной. */
   readonly wake: AbortController
+}
+
+/** Версия, которую не удалось скачать: сколько раз подряд и когда пробовать снова. */
+interface FailedDownload {
+  version: string
+  failures: number
+  retryAt: number
 }
 
 interface ReadyUpdate {
@@ -90,6 +104,7 @@ export class AppUpdater {
   private checking: { run: CheckRun; result: Promise<UpdateCheckResult> } | null = null
   /** Поиск обновления, готового с прошлого запуска; проверки начинаются после него. */
   private restoring: Promise<void> | null = null
+  private failedDownload: FailedDownload | null = null
   private relaunchAfterInstall = false
   private installerStarted = false
   private lastCheckAt = 0
@@ -187,14 +202,20 @@ export class AppUpdater {
     if (manifest.version === this.readyUpdate?.version) {
       return 'available'
     }
+    // Ручная проверка пробует скачать сразу: её попросил пользователь.
+    if (!run.interactive && this.isDownloadPostponed(manifest.version)) {
+      return this.readyUpdate ? 'available' : 'current'
+    }
     let path: string
     try {
       path = await this.download(manifest, file)
     } catch (error) {
+      this.postponeDownload(manifest.version)
       // Скачивание сорвалось — показываем готовое ранее обновление, если оно есть.
       this.setState(this.readyUpdate && { phase: 'ready', version: this.readyUpdate.version })
       throw error
     }
+    this.failedDownload = null
     this.readyUpdate = { version: manifest.version, path }
     this.setState({ phase: 'ready', version: manifest.version })
     // Прежние скачивания удаляются, только когда готовым стало новое: до этого на одно
@@ -339,6 +360,22 @@ export class AppUpdater {
       throw new UpdateRequestError('Downloaded update does not match the signed manifest', false)
     }
     return filePath
+  }
+
+  /** Эту версию недавно не удалось скачать, и пауза перед новой попыткой ещё не прошла. */
+  private isDownloadPostponed(version: string): boolean {
+    const failed = this.failedDownload
+    return failed?.version === version && Date.now() < failed.retryAt
+  }
+
+  private postponeDownload(version: string): void {
+    const failures = this.failedDownload?.version === version ? this.failedDownload.failures + 1 : 1
+    const pause = Math.min(
+      DOWNLOAD_BACKOFF_INITIAL_MS * 2 ** (failures - 1),
+      DOWNLOAD_BACKOFF_MAX_MS
+    )
+    this.failedDownload = { version, failures, retryAt: Date.now() + pause }
+    console.warn(`Update ${version} download postponed for ${pause / 60_000} min`)
   }
 
   private setState(state: UpdateState): void {
