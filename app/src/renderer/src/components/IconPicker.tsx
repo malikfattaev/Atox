@@ -241,6 +241,14 @@ export function IconPicker({ anchor, selected, color, onPick, onClose }: IconPic
     switch (event.key) {
       case 'ArrowLeft':
       case 'ArrowRight':
+        // Пока в поиске есть текст, стрелки вбок двигают курсор в нём, а не по сетке.
+        if (query && event.target === inputRef.current) {
+          return
+        }
+        handled()
+        setKeyboardMoved(true)
+        setHighlighted((index) => moveInGrid(rows, index, event.key))
+        return
       case 'ArrowUp':
       case 'ArrowDown':
         handled()
