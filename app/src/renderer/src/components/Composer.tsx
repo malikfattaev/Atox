@@ -55,9 +55,11 @@ interface ComposerProps {
   /** Чат выбран: поле ввода получает фокус. */
   focused: boolean
   usage: ConversationUsage | undefined
+  /** Пользователь отправил сообщение или команду из этого поля. */
+  onSend(): void
 }
 
-export function Composer({ chat, running, started, focused, usage }: ComposerProps) {
+export function Composer({ chat, running, started, focused, usage, onSend }: ComposerProps) {
   const { configureChat, removeChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
   const [text, setText] = useState('')
@@ -161,6 +163,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       return
     }
     setError(null)
+    onSend()
     if (attachments.length > 0 || !runLocalCommand(message)) {
       const sent = attachments
       const pathsOf = (kind: Attachment['kind']) =>
