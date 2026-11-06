@@ -42,7 +42,7 @@ export class TranscriptStore {
     const data = await readVersionedJson<TranscriptFile>(this.path(chatId), TRANSCRIPT_VERSION)
     const items = Array.isArray(data?.items) ? data.items : []
     return {
-      items: items.map(settle),
+      items: items.map(settleItem),
       sessionId: typeof data?.sessionId === 'string' ? data.sessionId : null,
       sessionAgent: isAgentId(data?.sessionAgent) ? data.sessionAgent : null,
       lastAgent: isAgentId(data?.lastAgent) ? data.lastAgent : null
@@ -84,8 +84,11 @@ export class TranscriptStore {
   }
 }
 
-/** Элемент ленты в том виде, в каком он остался, когда агент перестал работать. */
-function settle(item: TimelineItem): TimelineItem {
+/**
+ * Элемент ленты в том виде, в каком он остался, когда агент перестал работать: после выхода
+ * из Atox или в конце хода, если агент так и не сообщил, чем закончился вызов.
+ */
+export function settleItem(item: TimelineItem): TimelineItem {
   switch (item.kind) {
     case 'user':
       // Когда закончился прерванный ответ, неизвестно: берётся время самого сообщения.
