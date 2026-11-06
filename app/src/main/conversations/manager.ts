@@ -67,7 +67,7 @@ const INTEGRATION_READERS: {
 
 type EventPayload = ConversationEvent extends infer Event
   ? Event extends ConversationEvent
-    ? Omit<Event, 'chatId'>
+    ? Omit<Event, 'chatId' | 'seq'>
     : never
   : never
 
@@ -152,6 +152,11 @@ export class ConversationManager {
   private readonly commandLists = new PromiseCache<string, AgentCommand[]>(AGENT_LISTS_TTL_MS)
   /** Приложение закрывается: агенты больше не запускаются. */
   private closing = false
+  /**
+   * Номер последнего события. Счётчик общий для всех чатов, а не свой у каждого: разговор,
+   * закрытый и загруженный заново, не начнёт нумерацию сначала.
+   */
+  private lastSeq = 0
 
   constructor(private readonly services: ConversationServices) {}
 
@@ -895,7 +900,7 @@ export class ConversationManager {
 
   /** Применяет событие к ленте чата и отправляет его окну. */
   private dispatch(chatId: string, conversation: Conversation, payload: EventPayload): void {
-    const event = { chatId, ...payload } as ConversationEvent
+    const event = { chatId, seq: ++this.lastSeq, ...payload } as ConversationEvent
     conversation.snapshot = applyConversationEvent(conversation.snapshot, event)
     this.services.onEvent(event)
     if (event.type === 'item' || event.type === 'reset') {
