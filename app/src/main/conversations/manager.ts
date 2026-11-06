@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { findAgent, type AgentId } from '../../shared/agents'
 import type { MessageAttachments } from '../../shared/attachments'
 import {
+  AGENT_LISTS_TTL_MS,
   applyConversationEvent,
   pendingRequest,
   summarizeConversation,
@@ -30,6 +31,7 @@ import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
 import { handoffMessage } from './handoff'
+import { PromiseCache } from './promiseCache'
 import { settleItem, type TranscriptStore } from './transcripts'
 import type { AgentDriver, AgentLaunch, AgentSession } from './types'
 
@@ -145,9 +147,9 @@ export class ConversationManager {
   private readonly conversations = new Map<string, Promise<Conversation>>()
   /** Разговоры, которые уже загружены: по ним считается, кто сейчас работает. */
   private readonly loaded = new Map<string, Conversation>()
-  private readonly catalogs = new Map<AgentId, Promise<AgentCatalog>>()
+  private readonly catalogs = new PromiseCache<AgentId, AgentCatalog>(AGENT_LISTS_TTL_MS)
   /** Команды по агенту и папке проекта: у проектов бывают свои команды и навыки. */
-  private readonly commandLists = new Map<string, Promise<AgentCommand[]>>()
+  private readonly commandLists = new PromiseCache<string, AgentCommand[]>(AGENT_LISTS_TTL_MS)
   /** Приложение закрывается: агенты больше не запускаются. */
   private closing = false
 
@@ -391,14 +393,11 @@ export class ConversationManager {
     }
     const { chat, project } = location
     const key = `${chat.agent}\0${project.path}`
-    let commands = this.commandLists.get(key)
-    if (!commands) {
-      commands = this.launch(chat.agent, project.path).then((launch) =>
+    const commands = this.commandLists.get(key, () =>
+      this.launch(chat.agent, project.path).then((launch) =>
         this.services.drivers[chat.agent].commands(launch)
       )
-      this.commandLists.set(key, commands)
-      commands.catch(() => this.commandLists.delete(key))
-    }
+    )
     return commands.catch((error) => {
       console.error(`Failed to list ${chat.agent} commands`, error)
       return []
@@ -407,13 +406,8 @@ export class ConversationManager {
 
   /** Модели агента; `null` — агент не установлен или не ответил. */
   async catalog(agent: AgentId): Promise<AgentCatalog | null> {
-    let catalog = this.catalogs.get(agent)
-    if (!catalog) {
-      catalog = this.loadCatalog(agent)
-      this.catalogs.set(agent, catalog)
-      // Неудачный запрос не запоминается: агента могли установить или войти в него позже.
-      catalog.catch(() => this.catalogs.delete(agent))
-    }
+    // Неудачный запрос не запоминается: агента могли установить или войти в него позже.
+    const catalog = this.catalogs.get(agent, () => this.loadCatalog(agent))
     return catalog.catch((error) => {
       console.error(`Failed to list ${agent} models`, error)
       return null

@@ -21,6 +21,13 @@ export interface AgentCommand {
   argumentHint?: string
 }
 
+/**
+ * Сколько помнить модели и команды агента. Спрашивать агента при каждом открытии меню долго —
+ * это новый процесс, а помнить вечно нельзя: новые скиллы, команды и модели должны появляться
+ * без перезапуска Atox.
+ */
+export const AGENT_LISTS_TTL_MS = 5 * 60_000
+
 /** Модели установленного агента. */
 export interface AgentCatalog {
   agent: AgentId
