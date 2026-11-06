@@ -189,7 +189,10 @@ export function createCodexDriver(client: ClientInfo): AgentDriver {
       return new CodexSession(options, events, client)
     },
 
-    limits: () => Promise.reject(new Error(UNSUPPORTED_COMMAND)),
+    limits(launch) {
+      return withAppServer(launch, client, readCodexLimits)
+    },
+
     context: () => Promise.reject(new Error(UNSUPPORTED_COMMAND))
   }
 }
@@ -224,6 +227,64 @@ async function withAppServer<T>(
   } finally {
     rpc.kill()
   }
+}
+
+/** Окно лимита Codex: `usedPercent` — 0–100, `resetsAt` — в секундах. */
+interface CodexRateLimitWindow {
+  usedPercent: number
+  windowDurationMins: number | null
+  resetsAt: number | null
+}
+
+interface CodexRateLimits {
+  primary: CodexRateLimitWindow | null
+  secondary: CodexRateLimitWindow | null
+}
+
+const MINUTES_PER_HOUR = 60
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+
+/** Названия окон Codex по длительности — как в его `/status`. */
+const CODEX_WINDOW_LABELS: ReadonlyMap<number, string> = new Map([
+  [5 * MINUTES_PER_HOUR, '5-hour limit'],
+  [7 * MINUTES_PER_DAY, 'Weekly limit'],
+  [30 * MINUTES_PER_DAY, 'Monthly limit']
+])
+
+/**
+ * Лимиты подписки Codex: основное окно и, если есть, дополнительное. Пустой список —
+ * Codex работает по ключу API, и лимитов подписки у него нет.
+ */
+async function readCodexLimits(rpc: JsonRpcProcess): Promise<PlanLimit[]> {
+  const { rateLimits } = await rpc.request<{ rateLimits: CodexRateLimits | null }>(
+    'account/rateLimits/read',
+    {}
+  )
+  return [rateLimits?.primary, rateLimits?.secondary].flatMap((window): PlanLimit[] =>
+    window
+      ? [
+          {
+            label: codexWindowLabel(window.windowDurationMins),
+            percent: window.usedPercent,
+            ...(window.resetsAt !== null && { resetsAt: window.resetsAt * 1000 })
+          }
+        ]
+      : []
+  )
+}
+
+/** «5-hour limit», «Weekly limit»; окно непривычной длины — «12-hour limit», «3-day limit». */
+function codexWindowLabel(minutes: number | null): string {
+  if (minutes === null) {
+    return 'Usage limit'
+  }
+  const known = CODEX_WINDOW_LABELS.get(minutes)
+  if (known) {
+    return known
+  }
+  return minutes % MINUTES_PER_DAY === 0
+    ? `${minutes / MINUTES_PER_DAY}-day limit`
+    : `${Math.round(minutes / MINUTES_PER_HOUR)}-hour limit`
 }
 
 async function initialize(rpc: JsonRpcProcess, clientInfo: ClientInfo): Promise<void> {
@@ -326,7 +387,7 @@ class CodexSession implements AgentSession {
   }
 
   limits(): Promise<PlanLimit[]> {
-    return Promise.reject(new Error(UNSUPPORTED_COMMAND))
+    return readCodexLimits(this.rpc)
   }
 
   context(): Promise<ContextReport> {
