@@ -1,5 +1,5 @@
 import type { Stats } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { extname, isAbsolute, resolve } from 'node:path'
 import { shell } from 'electron'
 
@@ -27,6 +27,7 @@ const LAUNCHABLE_EXTENSIONS = new Set([
   '.fileloc',
   '.inetloc',
   '.jar',
+  '.mobileconfig',
   '.mpkg',
   '.pkg',
   '.scpt',
@@ -64,12 +65,17 @@ export async function openFileLink(target: string, baseDirectory?: string): Prom
   }
 }
 
+/**
+ * Существующий путь из ссылки — уже без символических ссылок: проверяется и открывается то,
+ * на что ссылка указывает на самом деле, а не безобидное имя вроде `notes.txt`.
+ */
 async function existingPath(path: string): Promise<{ path: string; stats: Stats } | null> {
   const candidates = LINE_SUFFIX.test(path) ? [path, path.replace(LINE_SUFFIX, '')] : [path]
   for (const candidate of candidates) {
-    const stats = await stat(candidate).catch(() => null)
-    if (stats) {
-      return { path: candidate, stats }
+    const real = await realpath(candidate).catch(() => null)
+    const stats = real ? await stat(real).catch(() => null) : null
+    if (real && stats) {
+      return { path: real, stats }
     }
   }
   return null
@@ -79,5 +85,9 @@ function isLaunchable(path: string, stats: Stats): boolean {
   if (LAUNCHABLE_EXTENSIONS.has(extname(path).toLowerCase())) {
     return true
   }
-  return stats.isFile() && (stats.mode & EXECUTABLE_MODE_BITS) !== 0
+  // Папка с расширением — пакет macOS (`.app`, `.prefPane`, `.scptd`): Finder её запускает.
+  if (stats.isDirectory()) {
+    return extname(path) !== ''
+  }
+  return (stats.mode & EXECUTABLE_MODE_BITS) !== 0
 }
