@@ -157,6 +157,8 @@ type RateLimitWindow = { utilization: number | null; resets_at: string | null }
 interface LimitName {
   label: string
   shortLabel: string
+  /** Окно считается отдельно для этой модели. */
+  model?: string
 }
 
 /** Окно лимита подписки на 5 часов — «Current session» в `/usage` Claude Code. */
@@ -166,8 +168,13 @@ const SESSION_LIMIT: LimitName = { label: 'Current session', shortLabel: '5h' }
 const LIMIT_WINDOWS: readonly (LimitName & { key: keyof RateLimits })[] = [
   { key: 'five_hour', ...SESSION_LIMIT },
   { key: 'seven_day', label: 'Current week (all models)', shortLabel: 'Week' },
-  { key: 'seven_day_opus', label: 'Current week (Opus)', shortLabel: 'Opus week' },
-  { key: 'seven_day_sonnet', label: 'Current week (Sonnet)', shortLabel: 'Sonnet week' }
+  { key: 'seven_day_opus', label: 'Current week (Opus)', shortLabel: 'Opus week', model: 'Opus' },
+  {
+    key: 'seven_day_sonnet',
+    label: 'Current week (Sonnet)',
+    shortLabel: 'Sonnet week',
+    model: 'Sonnet'
+  }
 ]
 
 /**
@@ -205,7 +212,8 @@ async function readLimits(
     ...(limits.model_scoped ?? []).map((window): [LimitName, RateLimitWindow] => [
       {
         label: `Current week (${window.display_name})`,
-        shortLabel: `${window.display_name} week`
+        shortLabel: `${window.display_name} week`,
+        model: window.display_name
       },
       window
     ])
