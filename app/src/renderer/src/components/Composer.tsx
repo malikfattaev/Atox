@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowUp, CircleAlert, FileText, LoaderCircle, Plus, Square, X } from 'lucide-react'
 import {
   isChatCommand,
@@ -57,7 +57,18 @@ interface ComposerProps {
   onSend(): void
 }
 
-export function Composer({ chat, running, started, focused, usage, onSend }: ComposerProps) {
+/**
+ * Пока агент пишет, лента перерисовывается каждый кадр, а поле ввода с выбором модели — нет:
+ * его свойства в это время не меняются, а `onSend` у ленты постоянный.
+ */
+export const Composer = memo(function Composer({
+  chat,
+  running,
+  started,
+  focused,
+  usage,
+  onSend
+}: ComposerProps) {
   const { configureChat, removeChat } = useProjectsContext()
   const catalog = useAgentCatalog(chat.agent)
   // Черновик хранится вне компонента: выгруженный чат не теряет набранное.
@@ -510,4 +521,4 @@ export function Composer({ chat, running, started, focused, usage, onSend }: Com
       {viewedImage && <ImageViewer image={viewedImage} onClose={() => setViewedImage(null)} />}
     </form>
   )
-}
+})
