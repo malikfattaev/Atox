@@ -142,6 +142,12 @@ export function registerIpcHandlers({
     return store.listSpaces()
   })
 
+  ipcMain.on(IpcChannel.SpacesRememberChat, (_event, chatId: unknown) => {
+    if (typeof chatId === 'string') {
+      store.rememberChat(chatId)
+    }
+  })
+
   ipcMain.handle(IpcChannel.SpacesRemove, async (event, spaceId: string) => {
     const space = store.findSpace(spaceId)
     const heir = store.findSpaceHeir(spaceId)

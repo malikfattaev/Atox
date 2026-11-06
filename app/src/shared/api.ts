@@ -74,6 +74,8 @@ export interface AtoxApi {
     rename(spaceId: string, name: string): Promise<SpacesState>
     setColor(spaceId: string, color: ProjectColor | null): Promise<SpacesState>
     setActive(spaceId: string): Promise<SpacesState>
+    /** Запоминает чат в фокусе как последний открытый в его пространстве. */
+    rememberChat(chatId: string): void
     /**
      * Удаляет пространство, переносив его проекты в соседнее (после подтверждения, если они есть).
      * `null` — пользователь передумал.
@@ -257,6 +259,7 @@ export const IpcChannel = {
   SpacesRename: 'spaces:rename',
   SpacesSetColor: 'spaces:set-color',
   SpacesSetActive: 'spaces:set-active',
+  SpacesRememberChat: 'spaces:remember-chat',
   SpacesRemove: 'spaces:remove',
   ProjectsSetSplit: 'projects:set-split',
   ProjectsSetSplitPosition: 'projects:set-split-position',

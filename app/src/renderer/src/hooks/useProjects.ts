@@ -255,6 +255,32 @@ export function useProjects(): ProjectsState {
     [changeLayout]
   )
 
+  // Чат в фокусе запоминается у его пространства — после перезапуска откроется он же.
+  useEffect(() => {
+    if (activeChatId) {
+      atox.spaces.rememberChat(activeChatId)
+    }
+  }, [activeChatId])
+
+  // Пространство, впервые открытое за сессию (в том числе при запуске), показывает чат, который
+  // был в нём последним. Дальше на экране остаётся то, что открыл пользователь.
+  const restoredSpaceIdsRef = useRef(new Set<string>())
+  useEffect(() => {
+    if (!projectsLoaded || !activeSpaceId || restoredSpaceIdsRef.current.has(activeSpaceId)) {
+      return
+    }
+    restoredSpaceIdsRef.current.add(activeSpaceId)
+    if (viewRef.current.shownProjectIds[activeSpaceId]) {
+      return
+    }
+    const lastChatId = spaces.find(({ id }) => id === activeSpaceId)?.lastChatId
+    const projectId = lastChatId && findChatProjectId(projectsRef.current, lastChatId)
+    const project = projectsRef.current.find(({ id }) => id === projectId)
+    if (lastChatId && project?.spaceId === activeSpaceId) {
+      selectChat(lastChatId)
+    }
+  }, [projectsLoaded, activeSpaceId, spaces, selectChat])
+
   const createChat = useCallback(
     async (projectId: string, agent?: AgentId) => {
       const { projects: next, chatId } = await atox.chats.create(projectId, agent)

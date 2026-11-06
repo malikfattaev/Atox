@@ -115,6 +115,7 @@ const api: AtoxApi = {
     rename: (spaceId, name) => ipcRenderer.invoke(IpcChannel.SpacesRename, spaceId, name),
     setColor: (spaceId, color) => ipcRenderer.invoke(IpcChannel.SpacesSetColor, spaceId, color),
     setActive: (spaceId) => ipcRenderer.invoke(IpcChannel.SpacesSetActive, spaceId),
+    rememberChat: (chatId) => ipcRenderer.send(IpcChannel.SpacesRememberChat, chatId),
     remove: (spaceId) => ipcRenderer.invoke(IpcChannel.SpacesRemove, spaceId)
   },
   agents: {
