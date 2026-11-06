@@ -23,6 +23,7 @@ import {
   type McpStartupUpdate
 } from './codexIntegrations'
 import { JsonRpcProcess, type JsonRpcHandlers } from './jsonRpc'
+import { withTimeout } from './timeout'
 import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 import { UserRequests, type NewRequest } from './userRequests'
 
@@ -207,8 +208,9 @@ function startAppServer(
 }
 
 /**
- * Спрашивает что-то у отдельного `codex app-server` и сразу его останавливает.
- * `notification` — уведомления, которые Codex присылает, пока отвечает.
+ * Спрашивает что-то у отдельного `codex app-server` и сразу его останавливает — и тогда,
+ * когда он завис и не ответил вовремя. `notification` — уведомления, которые Codex присылает,
+ * пока отвечает.
  */
 async function withAppServer<T>(
   launch: AgentLaunch,
@@ -221,9 +223,12 @@ async function withAppServer<T>(
     request: () => Promise.reject(new Error('Not supported')),
     exit: () => undefined
   })
-  try {
+  const ask = async () => {
     await initialize(rpc, client)
-    return await read(rpc)
+    return read(rpc)
+  }
+  try {
+    return await withTimeout(ask())
   } finally {
     rpc.kill()
   }
@@ -389,7 +394,7 @@ class CodexSession implements AgentSession {
   }
 
   limits(): Promise<PlanLimit[]> {
-    return readCodexLimits(this.rpc)
+    return withTimeout(readCodexLimits(this.rpc))
   }
 
   context(): Promise<ContextReport> {
