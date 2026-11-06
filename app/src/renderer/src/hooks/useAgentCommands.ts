@@ -26,7 +26,8 @@ export const LOCAL_COMMAND_ALIASES: Readonly<Record<string, string>> = {
 
 /**
  * Команды для подсказок после «/»: свои команды Atox и команды агента. Агента спрашивают,
- * только когда подсказки впервые понадобились, и заново — если в чате сменили агента.
+ * только когда подсказки понадобились, — каждый раз заново: Atox помнит ответ недолго, и так
+ * подхватываются новые скиллы и команды. Пока ответ идёт, видны прежние команды.
  */
 export function useAgentCommands(
   chatId: string,
@@ -36,10 +37,9 @@ export function useAgentCommands(
   const key = `${chatId}\0${agent}`
   const [loaded, setLoaded] = useState<{ key: string; commands: AgentCommand[] } | null>(null)
   const agentCommands = loaded?.key === key ? loaded.commands : null
-  const requested = needed || loaded !== null
 
   useEffect(() => {
-    if (!requested) {
+    if (!needed) {
       return
     }
     let cancelled = false
@@ -51,7 +51,7 @@ export function useAgentCommands(
     return () => {
       cancelled = true
     }
-  }, [chatId, key, requested])
+  }, [chatId, key, needed])
 
   const local = new Set([
     ...LOCAL_COMMANDS.map(({ name }) => name),

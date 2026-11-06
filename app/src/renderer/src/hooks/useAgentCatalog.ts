@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { AgentId } from '../../../shared/agents'
-import type { AgentCatalog } from '../../../shared/conversation'
+import { AGENT_LISTS_TTL_MS, type AgentCatalog } from '../../../shared/conversation'
 
 const { atox } = window
 
-/** Списки моделей одни на всё окно: агента спрашивают один раз, а не в каждом чате. */
-const catalogs = new Map<AgentId, Promise<AgentCatalog | null>>()
+/**
+ * Списки моделей одни на всё окно: агента спрашивают не в каждом чате, а раз в
+ * `AGENT_LISTS_TTL_MS` — чтобы новые модели появлялись без перезапуска.
+ */
+const catalogs = new Map<AgentId, { catalog: Promise<AgentCatalog | null>; expiresAt: number }>()
 
 export function loadAgentCatalog(agent: AgentId): Promise<AgentCatalog | null> {
-  let catalog = catalogs.get(agent)
+  const cached = catalogs.get(agent)
+  let catalog = cached && cached.expiresAt > Date.now() ? cached.catalog : undefined
   if (!catalog) {
     catalog = atox.agents.catalog(agent).catch(() => null)
-    catalogs.set(agent, catalog)
+    catalogs.set(agent, { catalog, expiresAt: Date.now() + AGENT_LISTS_TTL_MS })
     // Неудачный ответ не запоминается: агента могли установить или войти в него позже.
     void catalog.then((result) => {
       if (!result) {
