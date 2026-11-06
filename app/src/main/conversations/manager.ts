@@ -191,10 +191,12 @@ export class ConversationManager {
     this.pump(chatId, conversation)
   }
 
-  /** Останавливает текущий ответ агента; сообщения, ждавшие очереди, тоже отменяются. */
+  /**
+   * Останавливает только текущий ответ агента. Очередь остаётся: в ней и сообщения
+   * пользователя, и отчёты помощников (`atox report`), — агент получит их следом.
+   */
   async interrupt(chatId: string): Promise<void> {
     const conversation = await this.conversation(chatId)
-    conversation.queue = []
     if (conversation.turn) {
       // Пока агент запускается, сессии ещё нет: сообщение просто не уйдёт ему.
       conversation.interruptedTurn = conversation.turn
