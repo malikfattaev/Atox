@@ -5,14 +5,14 @@ const DEFAULT_TIMEOUT_MS = 20_000
 /** Ответ GitHub со страницами PR и issue — до нескольких сотен килобайт, diff — до мегабайт. */
 const DEFAULT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
-/**
- * Окружение для фоновых запусков git. Без него `git status` и подобные команды попутно
- * обновляют индекс и берут `index.lock`, и `git commit`, который агент запустил в этот момент,
- * падает с «index.lock: File exists». Обязательные блокировки — у `git restore` и `git rm` —
- * эта переменная не отключает.
- */
+/** Окружение для фоновых запусков git. */
 export const BACKGROUND_GIT_ENVIRONMENT: Readonly<Record<string, string>> = {
-  GIT_OPTIONAL_LOCKS: '0'
+  // Без этого `git status` и подобные команды попутно обновляют индекс и берут `index.lock`,
+  // и `git commit`, который агент запустил в этот момент, падает с «index.lock: File exists».
+  // Обязательные блокировки — у `git restore` и `git rm` — переменная не отключает.
+  GIT_OPTIONAL_LOCKS: '0',
+  // Ошибки git распознаются по тексту, а git с переводами ответил бы на языке системы.
+  LANGUAGE: 'en'
 }
 
 /** Как называть программу в сообщениях: `gh` пользователь знает как GitHub. */
