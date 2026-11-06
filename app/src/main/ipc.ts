@@ -17,6 +17,7 @@ import {
 import { archivedChats, chatGroup } from '../shared/chats'
 import { isIntegrationKind } from '../shared/integrations'
 import type { Project } from '../shared/models'
+import type { PlanLimitsState } from '../shared/planLimits'
 import { isProjectColor } from '../shared/projectColors'
 import { isProjectIcon } from '../shared/projectIcons'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
@@ -31,6 +32,7 @@ import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
+import type { PlanLimitsMonitor } from './planLimits'
 import { readImage, saveImageAs } from './images'
 import { savePastedImage } from './pastedImages'
 import { pickFiles } from './pickedFiles'
@@ -51,6 +53,7 @@ interface AppServices {
   /** `null` — обновления недоступны, например при запуске из исходников. */
   updater: AppUpdater | null
   menu: AppMenu
+  planLimits: PlanLimitsMonitor
 }
 
 export function registerIpcHandlers({
@@ -63,7 +66,8 @@ export function registerIpcHandlers({
   workingTree,
   agents,
   updater,
-  menu
+  menu,
+  planLimits
 }: AppServices): void {
   const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
   trackProjectBranches()
@@ -462,6 +466,8 @@ export function registerIpcHandlers({
     }
   })
 
+  ipcMain.handle(IpcChannel.PlanLimitsGet, () => planLimits.get())
+
   ipcMain.handle(IpcChannel.SettingsGet, () => settings.get())
   ipcMain.handle(IpcChannel.SettingsUpdate, (_event, patch: Partial<Settings>) =>
     settings.update(patch)
@@ -546,6 +552,10 @@ export function broadcastTerminalData(projectId: string, data: string): void {
 
 export function broadcastTerminalExit(projectId: string): void {
   broadcast(IpcChannel.TerminalsExit, projectId)
+}
+
+export function broadcastPlanLimits(state: PlanLimitsState): void {
+  broadcast(IpcChannel.PlanLimitsChanged, state)
 }
 
 export function broadcastConversationEvent(event: ConversationEvent): void {

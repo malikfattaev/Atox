@@ -15,6 +15,7 @@ import type {
 } from './conversation'
 import type { IntegrationKind, IntegrationList } from './integrations'
 import type { Project, SpacesState, UserProfile } from './models'
+import type { PlanLimitsState } from './planLimits'
 import type {
   Commit,
   GitHubCounts,
@@ -224,6 +225,11 @@ export interface AtoxApi {
     /** Число на иконке приложения в доке: сколько чатов ждут пользователя; 0 — убрать. */
     setBadgeCount(count: number): void
   }
+  planLimits: {
+    /** Последние известные лимиты подписки агентов. */
+    get(): Promise<PlanLimitsState>
+    subscribe(listener: (state: PlanLimitsState) => void): () => void
+  }
   settings: {
     get(): Promise<Settings>
     update(patch: Partial<Settings>): Promise<Settings>
@@ -299,6 +305,8 @@ export const IpcChannel = {
   SystemFocusWindow: 'system:focus-window',
   SystemBadgeCount: 'system:badge-count',
   AppCommand: 'app:command',
+  PlanLimitsGet: 'plan-limits:get',
+  PlanLimitsChanged: 'plan-limits:changed',
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',
   SettingsChanged: 'settings:changed',

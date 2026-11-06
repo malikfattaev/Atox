@@ -12,6 +12,7 @@ import { GitBranchTracker } from './gitBranches'
 import {
   broadcastGitBranches,
   broadcastConversationEvent,
+  broadcastPlanLimits,
   broadcastProjectsChanged,
   broadcastTerminalData,
   broadcastTerminalExit,
@@ -21,6 +22,7 @@ import {
 import { AppMenu } from './menu'
 import { installCli, installCodexRules, installSkills } from './orchestration/install'
 import { OrchestrationServer } from './orchestration/server'
+import { PlanLimitsMonitor } from './planLimits'
 import { setupQuitHandling } from './quit'
 import { RepositoryReader } from './repository'
 import { SettingsStore } from './settings'
@@ -96,7 +98,13 @@ async function bootstrap(): Promise<void> {
     transcripts,
     environment: agentEnvironment,
     onEvent: broadcastConversationEvent,
+    onPlanLimits: (agent, limits) => planLimits.report(agent, limits),
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
+  })
+  const planLimits = new PlanLimitsMonitor({
+    installed: () => agents.list(),
+    read: (agent) => conversations.planLimits(agent),
+    onChange: broadcastPlanLimits
   })
   const terminals = new TerminalManager(app.getName(), {
     onData: broadcastTerminalData,
@@ -148,11 +156,16 @@ async function bootstrap(): Promise<void> {
     workingTree: new WorkingTreeReader(shell),
     updater,
     agents,
-    menu
+    menu,
+    planLimits
   })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshOnFocus())
   app.on('will-quit', () => branches.dispose())
+  // Лимиты тратятся и в других программах агентов: вернувшись в окно, пользователь видит свежие.
+  planLimits.start()
+  app.on('browser-window-focus', () => void planLimits.refreshStale())
+  app.on('will-quit', () => planLimits.stop())
   menu.install()
 
   // Статистика не должна мешать запуску: без неё приложение работает как обычно.

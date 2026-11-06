@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppCommand } from '../shared/commands'
+import type { PlanLimitsState } from '../shared/planLimits'
 import type { Settings } from '../shared/settings'
 import type { ConversationEvent, UserRequestKind } from '../shared/conversation'
 import type { UpdateState } from '../shared/update'
@@ -208,6 +209,15 @@ const api: AtoxApi = {
     getUserProfile: () => ipcRenderer.invoke(IpcChannel.SystemUserProfile),
     focusWindow: () => ipcRenderer.send(IpcChannel.SystemFocusWindow),
     setBadgeCount: (count) => ipcRenderer.send(IpcChannel.SystemBadgeCount, count)
+  },
+  planLimits: {
+    get: () => ipcRenderer.invoke(IpcChannel.PlanLimitsGet),
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: PlanLimitsState) =>
+        listener(state)
+      ipcRenderer.on(IpcChannel.PlanLimitsChanged, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.PlanLimitsChanged, handler)
+    }
   },
   settings: {
     get: () => ipcRenderer.invoke(IpcChannel.SettingsGet),
