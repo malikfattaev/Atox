@@ -30,6 +30,11 @@ const PROGRESS_STEP = 0.01
  * сети, мог висеть вечно, а вместе с ним — и все следующие проверки.
  */
 const REQUEST_TIMEOUT_MS = 30_000
+/**
+ * Тайм-аут запроса при ручной проверке: пользователь ждёт ответа, и без сети он должен
+ * узнать об этом за секунды, а не через минуты.
+ */
+const INTERACTIVE_REQUEST_TIMEOUT_MS = 10_000
 /** Скачивание обрывается, если данные перестали приходить на это время. */
 const DOWNLOAD_STALL_TIMEOUT_MS = 60_000
 /**
@@ -42,6 +47,16 @@ const RETRY_DELAYS_MS = [2_000, 10_000, 30_000]
  * подхватывается при следующем запуске, а не скачивается заново.
  */
 const PREPARED_UPDATE_FILE_NAME = 'prepared.json'
+
+/**
+ * Идущая проверка. Ручная проверка без повторов; если её попросили посреди фоновой,
+ * фоновая становится ручной: ждущий ответа запрос и пауза перед повтором обрываются.
+ */
+interface CheckRun {
+  interactive: boolean
+  /** Обрывает фоновое ожидание, когда проверка стала ручной. */
+  readonly wake: AbortController
+}
 
 interface ReadyUpdate {
   version: string
@@ -72,7 +87,7 @@ export class AppUpdater {
   private readyUpdate: ReadyUpdate | null = null
   private currentState: UpdateState = null
   /** Идущая проверка: повторные просьбы дожидаются её, а не запускают вторую. */
-  private checking: Promise<UpdateCheckResult> | null = null
+  private checking: { run: CheckRun; result: Promise<UpdateCheckResult> } | null = null
   /** Поиск обновления, готового с прошлого запуска; проверки начинаются после него. */
   private restoring: Promise<void> | null = null
   private relaunchAfterInstall = false
@@ -103,12 +118,12 @@ export class AppUpdater {
   /** Проверка по просьбе пользователя — из меню или настроек; ошибки достаются вызывающему. */
   checkNow(): Promise<UpdateCheckResult> {
     this.lastCheckAt = Date.now()
-    return this.check()
+    return this.check(true)
   }
 
   private runCheck(): void {
     this.lastCheckAt = Date.now()
-    void this.check().catch((error) => console.error('Update check failed', error))
+    void this.check(false).catch((error) => console.error('Update check failed', error))
   }
 
   /** Выходит из приложения, ставит обновление и запускает новую версию. */
@@ -140,20 +155,30 @@ export class AppUpdater {
     }
   }
 
-  private check(): Promise<UpdateCheckResult> {
-    this.checking ??= this.runCheckOnce().finally(() => {
+  private check(interactive: boolean): Promise<UpdateCheckResult> {
+    if (this.checking) {
+      const { run } = this.checking
+      if (interactive && !run.interactive) {
+        run.interactive = true
+        run.wake.abort()
+      }
+      return this.checking.result
+    }
+    const run: CheckRun = { interactive, wake: new AbortController() }
+    const result = this.runCheckOnce(run).finally(() => {
       this.checking = null
     })
-    return this.checking
+    this.checking = { run, result }
+    return result
   }
 
-  private async runCheckOnce(): Promise<UpdateCheckResult> {
+  private async runCheckOnce(run: CheckRun): Promise<UpdateCheckResult> {
     const { installer } = this.options
     await this.restoring
     if (!(await installer.canInstall())) {
       return 'unsupported'
     }
-    const manifest = await this.fetchManifest()
+    const manifest = await this.fetchManifest(run)
     const isNewer = compareVersions(manifest.version, app.getVersion()) > 0
     const file = manifest.files[process.arch]
     if (!isNewer || !file) {
@@ -222,12 +247,16 @@ export class AppUpdater {
     return { version: manifest.version, path }
   }
 
-  private async fetchManifest(): Promise<UpdateManifest> {
+  private async fetchManifest(run: CheckRun): Promise<UpdateManifest> {
     const manifestName = UPDATE_PLATFORMS[this.options.installer.platform].manifest
     const data = await withRetries(async () => {
+      // Фоновый запрос обрывается, если проверка стала ручной: дальше она ждёт меньше.
+      const signal = run.interactive
+        ? AbortSignal.timeout(INTERACTIVE_REQUEST_TIMEOUT_MS)
+        : AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), run.wake.signal])
       const response = await net.fetch(`${this.options.feedUrl}/${manifestName}`, {
         cache: 'no-store',
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        signal
       })
       if (!response.ok) {
         throw new UpdateRequestError(
@@ -236,7 +265,7 @@ export class AppUpdater {
         )
       }
       return (await response.json()) as unknown
-    })
+    }, run)
     const manifest = parseManifest(data)
     verifyManifestSignature(manifest)
     return manifest
@@ -252,6 +281,7 @@ export class AppUpdater {
       throw new Error(`Unexpected update file name: ${file.name}`)
     }
     const directory = join(installer.downloadsRoot(), manifest.version)
+    // Скачивание повторяется и в ручной проверке: его ход и так виден в окне.
     const filePath = await withRetries(() => this.downloadFile(directory, manifest, file))
     const path = await installer.prepare(filePath)
     const record: PreparedUpdateRecord = { manifest, path: relative(directory, path) }
@@ -334,19 +364,31 @@ function isRetryableStatus(status: number): boolean {
 
 /**
  * Выполняет запрос и повторяет его после паузы при временном сбое. Временным считается всё,
- * кроме явного отказа сервера: обрыв сети, тайм-аут, недочитанный ответ.
+ * кроме явного отказа сервера: обрыв сети, тайм-аут, недочитанный ответ. `run` — проверка,
+ * которая ждёт запрос: если она ручная, запрос не повторяется — пользователь ждёт ответа
+ * и сам решит, проверить ли снова.
  */
-async function withRetries<T>(request: () => Promise<T>): Promise<T> {
+async function withRetries<T>(request: () => Promise<T>, run?: CheckRun): Promise<T> {
   for (let attempt = 0; ; attempt++) {
+    const interactive = run?.interactive ?? false
     try {
       return await request()
     } catch (error) {
+      // Проверка стала ручной, пока шёл запрос: следующая попытка — сразу и уже последняя.
+      if (!interactive && run?.interactive) {
+        continue
+      }
       const pause = RETRY_DELAYS_MS[attempt]
-      if (pause === undefined || (error instanceof UpdateRequestError && !error.retryable)) {
+      if (
+        interactive ||
+        pause === undefined ||
+        (error instanceof UpdateRequestError && !error.retryable)
+      ) {
         throw error
       }
       console.warn(`Update request failed, retrying in ${pause / 1000} s`, error)
-      await delay(pause)
+      // Ручная просьба посреди паузы обрывает её — повтор начинается сразу.
+      await delay(pause, undefined, run && { signal: run.wake.signal }).catch(() => undefined)
     }
   }
 }
