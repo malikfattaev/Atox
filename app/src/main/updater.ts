@@ -63,6 +63,10 @@ interface CheckRun {
   interactive: boolean
   /** Обрывает фоновое ожидание, когда проверка стала ручной. */
   readonly wake: AbortController
+  /** Новая версия найдена и скачивается: ответ проверки уже известен. */
+  found: boolean
+  /** Кого позвать, когда новая версия найдена, — не дожидаясь конца скачивания. */
+  readonly onFound: (() => void)[]
 }
 
 /** Версия, которую не удалось скачать: сколько раз подряд и когда пробовать снова. */
@@ -130,10 +134,20 @@ export class AppUpdater {
     }
   }
 
-  /** Проверка по просьбе пользователя — из меню или настроек; ошибки достаются вызывающему. */
+  /**
+   * Проверка по просьбе пользователя — из меню или настроек; ошибки достаются вызывающему.
+   * Найденная новая версия — уже ответ: её скачивание идёт дальше и видно кольцом в сайдбаре,
+   * а не держит пользователя перед сообщением о проверке.
+   */
   checkNow(): Promise<UpdateCheckResult> {
     this.lastCheckAt = Date.now()
-    return this.check(true)
+    return new Promise((resolve, reject) => {
+      this.check(true, () => resolve('available')).then(resolve, (error: unknown) => {
+        // Если ответ уже дан, об ошибке скачивания расскажет лишь лог: кольцо просто исчезнет.
+        console.error('Update download failed', error)
+        reject(error)
+      })
+    })
   }
 
   private runCheck(): void {
@@ -170,16 +184,28 @@ export class AppUpdater {
     }
   }
 
-  private check(interactive: boolean): Promise<UpdateCheckResult> {
+  private check(interactive: boolean, onFound?: () => void): Promise<UpdateCheckResult> {
     if (this.checking) {
       const { run } = this.checking
       if (interactive && !run.interactive) {
         run.interactive = true
         run.wake.abort()
       }
+      if (onFound) {
+        if (run.found) {
+          onFound()
+        } else {
+          run.onFound.push(onFound)
+        }
+      }
       return this.checking.result
     }
-    const run: CheckRun = { interactive, wake: new AbortController() }
+    const run: CheckRun = {
+      interactive,
+      wake: new AbortController(),
+      found: false,
+      onFound: onFound ? [onFound] : []
+    }
     const result = this.runCheckOnce(run).finally(() => {
       this.checking = null
     })
@@ -206,6 +232,8 @@ export class AppUpdater {
     if (!run.interactive && this.isDownloadPostponed(manifest.version)) {
       return this.readyUpdate ? 'available' : 'current'
     }
+    run.found = true
+    run.onFound.forEach((notify) => notify())
     let path: string
     try {
       path = await this.download(manifest, file)
