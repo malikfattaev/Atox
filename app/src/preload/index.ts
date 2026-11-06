@@ -163,7 +163,8 @@ const api: AtoxApi = {
     getPath: (file) => webUtils.getPathForFile(file),
     pick: () => ipcRenderer.invoke(IpcChannel.FilesPick),
     savePastedImage: async (image) =>
-      ipcRenderer.invoke(IpcChannel.FilesSavePastedImage, await image.arrayBuffer(), image.type)
+      ipcRenderer.invoke(IpcChannel.FilesSavePastedImage, await image.arrayBuffer(), image.type),
+    open: (path, baseDirectory) => ipcRenderer.invoke(IpcChannel.FilesOpen, path, baseDirectory)
   },
   images: {
     read: (path) => ipcRenderer.invoke(IpcChannel.ImagesRead, path),

@@ -1,9 +1,19 @@
-import { memo, type ClipboardEvent } from 'react'
+import {
+  memo,
+  useContext,
+  type AnchorHTMLAttributes,
+  type ClipboardEvent,
+  type MouseEvent
+} from 'react'
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { imageTypeOfPath } from '../../../shared/attachments'
+import { ipcErrorMessage } from '../lib/ipcError'
+import { LinkBaseDirectoryContext, linkTarget } from '../lib/linkTargets'
 import { LocalImage } from './GeneratedImage'
+
+const { atox } = window
 
 const REMARK_PLUGINS = [remarkGfm]
 /** Вывод команд — обычный текст с переносами строк, а не абзацы Markdown. */
@@ -28,18 +38,36 @@ function localImagePath(url: string | undefined): string | undefined {
   return imageTypeOfPath(path) ? path : undefined
 }
 
-/** `file://` на картинку оставляем как есть, остальное чистит обычная проверка ссылок. */
+/** `file://` оставляем как есть — это ссылка на файл, остальное чистит обычная проверка ссылок. */
 function urlTransform(url: string): string {
-  return localImagePath(url) ? url : defaultUrlTransform(url)
+  return url.startsWith(FILE_URL_PREFIX) ? url : defaultUrlTransform(url)
 }
 
 /**
- * Ссылки открываются в браузере: окно Atox само по ссылкам не переходит. Картинка на диске —
- * и в виде `![](путь)`, и в виде ссылки на файл — показывается прямо в ответе.
+ * Ссылка из ответа: сайт и почта открываются внешним приложением, файл проекта — программой
+ * по умолчанию. Окно Atox само по ссылкам не переходит.
  */
+function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const baseDirectory = useContext(LinkBaseDirectoryContext)
+  const target = linkTarget(props.href)
+  if (target.kind === 'external') {
+    return <a {...props} target="_blank" rel="noreferrer" />
+  }
+  const open = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    if (target.kind === 'file') {
+      atox.files
+        .open(target.path, baseDirectory)
+        .catch((error) => console.error('Failed to open the link', ipcErrorMessage(error)))
+    }
+  }
+  return <a {...props} title={target.kind === 'file' ? target.path : props.title} onClick={open} />
+}
+
+/** Картинка на диске — и в виде `![](путь)`, и в виде ссылки на файл — видна прямо в ответе. */
 const COMPONENTS: Components = {
   a: ({ node: _node, ...props }) => {
-    const link = <a {...props} target="_blank" rel="noreferrer" />
+    const link = <MarkdownLink {...props} />
     const path = localImagePath(props.href)
     return path ? <LocalImage path={path} fallback={link} /> : link
   },
