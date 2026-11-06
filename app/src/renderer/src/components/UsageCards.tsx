@@ -1,25 +1,10 @@
 import type { CSSProperties } from 'react'
 import type { ContextReport, PlanLimit } from '../../../shared/conversation'
 import { formatTokens } from '../lib/conversationText'
-
-/** С какого расхода лимит или контекст подсвечивается как почти исчерпанный. */
-const WARNING_PERCENT = 80
+import { formatReset, LIMIT_WARNING_PERCENT } from '../lib/planLimits'
 
 /** Сколько частей контекста показывать отдельно; остальные собираются в «Other». */
 const CONTEXT_CATEGORY_LIMIT = 5
-
-/** Ближе этого до сброса показывается «через сколько», дальше — дата и время. */
-const RELATIVE_RESET_MS = 24 * 60 * 60 * 1000
-
-const MINUTE_MS = 60 * 1000
-
-const resetDateFormat = new Intl.DateTimeFormat('en-US', {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit'
-})
 
 /** Лимиты подписки по команде `/usage`: по полосе на каждое окно. */
 export function LimitsCard({ limits }: { limits: readonly PlanLimit[] }) {
@@ -84,12 +69,12 @@ export function ContextCard({ context }: { context: ContextReport }) {
   )
 }
 
-function Meter({ percent }: { percent: number }) {
+export function Meter({ percent }: { percent: number }) {
   const clamped = Math.min(100, Math.max(0, percent))
   return (
     <div
       className="usage-card__meter"
-      data-warning={clamped >= WARNING_PERCENT}
+      data-warning={clamped >= LIMIT_WARNING_PERCENT}
       style={{ '--meter-fill': `${clamped}%` } as CSSProperties}
       role="meter"
       aria-valuemin={0}
@@ -97,18 +82,4 @@ function Meter({ percent }: { percent: number }) {
       aria-valuenow={Math.round(clamped)}
     />
   )
-}
-
-/** «Resets in 2h 14m», а если до сброса больше суток — «Resets Thu, Nov 5, 9:00 AM». */
-function formatReset(resetsAt: number): string {
-  const remaining = resetsAt - Date.now()
-  if (remaining <= 0) {
-    return 'Resets now'
-  }
-  if (remaining >= RELATIVE_RESET_MS) {
-    return `Resets ${resetDateFormat.format(resetsAt)}`
-  }
-  const minutes = Math.max(1, Math.round(remaining / MINUTE_MS))
-  const hours = Math.floor(minutes / 60)
-  return hours > 0 ? `Resets in ${hours}h ${minutes % 60}m` : `Resets in ${minutes}m`
 }
