@@ -799,6 +799,52 @@ ul {
 
 /* Профиль внизу сайдбара: таблетка, которая парит над краем окна */
 
+/*
+ * Лимиты подписки агентов над профилем: строка на окно, знак агента — у его первого окна.
+ * Все строки — одна сетка, поэтому колонки разных агентов выровнены.
+ */
+.plan-limits {
+  display: grid;
+  grid-template-columns: 12px max-content 1fr 4ch 6ch;
+  align-items: center;
+  gap: 6px 8px;
+  flex-shrink: 0;
+  margin: 0 var(--sidebar-padding) 10px;
+  padding: 0 var(--profile-card-padding);
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+  list-style: none;
+}
+
+.plan-limits__window {
+  display: contents;
+}
+
+.plan-limits__agent {
+  display: flex;
+}
+
+.plan-limits__icon {
+  width: 12px;
+  height: 12px;
+}
+
+.plan-limits .usage-card__meter {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.plan-limits__value,
+.plan-limits__reset {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.plan-limits__value {
+  color: var(--color-text);
+}
+
 .profile-card {
   display: flex;
   align-items: center;
