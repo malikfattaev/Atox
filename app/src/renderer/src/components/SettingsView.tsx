@@ -12,6 +12,7 @@ import { isIntegrationKind, type IntegrationKind } from '../../../shared/integra
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { useIntegrationLists } from '../hooks/useIntegrationLists'
+import { playChime } from '../lib/chime'
 import { AgentIntegrations } from './AgentIntegrations'
 import { ArchivedChats } from './ArchivedChats'
 import { ShortcutList } from './ShortcutList'
@@ -35,7 +36,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onClose }: SettingsViewProps) {
-  const { shareUsageStats } = useSettings()
+  const { shareUsageStats, notificationSounds } = useSettings()
   const { projects, currentProjectId } = useProjectsContext()
   const project = projects.find(({ id }) => id === currentProjectId) ?? null
   const integrations = useIntegrationLists(project?.id ?? null)
@@ -86,6 +87,33 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         <>
           <div className="settings__group">
             <UpdateSettings />
+            <section className="settings__subgroup" aria-label="Notifications">
+              <h3 className="settings__subgroup-title">Notifications</h3>
+              <div className="settings__card">
+                <label className="settings__row">
+                  <span className="settings__label">
+                    <span>Play sounds</span>
+                    <span className="settings__description">
+                      A soft chime when an agent finishes or needs you.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    className="switch"
+                    checked={notificationSounds}
+                    onChange={(event) => {
+                      const enabled = event.target.checked
+                      // Включённый звук сразу проигрывается: так слышно, каким он будет.
+                      if (enabled) {
+                        playChime('done')
+                      }
+                      void atox.settings.update({ notificationSounds: enabled })
+                    }}
+                  />
+                </label>
+              </div>
+            </section>
             <section className="settings__subgroup" aria-label="Privacy">
               <h3 className="settings__subgroup-title">Privacy</h3>
               <div className="settings__card">
