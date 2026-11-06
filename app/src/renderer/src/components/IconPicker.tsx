@@ -17,7 +17,7 @@ import {
   PROJECT_ICONS,
   type ProjectIcon
 } from '../../../shared/projectIcons'
-import { placeAt } from '../lib/popover'
+import { placeAt, scrollMovesAnchor } from '../lib/popover'
 import { projectIconComponent } from '../lib/projectIcons'
 
 /** Значков в ряду сетки. */
@@ -185,7 +185,8 @@ export function IconPicker({ anchor, selected, color, onPick, onClose }: IconPic
     }
   }, [highlighted, keyboardMoved])
 
-  // Как и меню, выбор закрывают клик мимо, потеря фокуса окном, изменение размера и прокрутка.
+  // Как и меню, выбор закрывают клик мимо, потеря фокуса окном, изменение размера
+  // и прокрутка под якорем.
   useEffect(() => {
     if (leaving) {
       return
@@ -198,7 +199,7 @@ export function IconPicker({ anchor, selected, color, onPick, onClose }: IconPic
       }
     }
     const onScroll = (event: Event) => {
-      if (!isInside(event.target)) {
+      if (scrollMovesAnchor(event, anchor)) {
         close()
       }
     }
@@ -213,7 +214,7 @@ export function IconPicker({ anchor, selected, color, onPick, onClose }: IconPic
       window.removeEventListener('blur', onDismiss)
       window.removeEventListener('resize', onDismiss)
     }
-  }, [leaving, close])
+  }, [leaving, close, anchor])
 
   // Закрытый выбор убирается, когда доиграет анимация исчезновения (или сразу, если её нет).
   useEffect(() => {

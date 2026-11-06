@@ -18,7 +18,13 @@ import {
   type MenuItem,
   type OpenMenu
 } from '../lib/menu'
-import { placeAt, VIEWPORT_MARGIN, type Placement } from '../lib/popover'
+import {
+  anchorElement,
+  placeAt,
+  scrollMovesAnchor,
+  VIEWPORT_MARGIN,
+  type Placement
+} from '../lib/popover'
 
 /** Зазор между меню и его подменю. */
 const SUBMENU_GAP = 4
@@ -99,7 +105,7 @@ function MenuRoot({ menu, leaving, onExited }: MenuRootProps) {
     [menu]
   )
 
-  // Клик мимо меню, потеря фокуса окном, изменение размера и прокрутка закрывают меню.
+  // Клик мимо меню, потеря фокуса окном, изменение размера и прокрутка под якорем закрывают меню.
   useEffect(() => {
     if (leaving) {
       return
@@ -118,8 +124,9 @@ function MenuRoot({ menu, leaving, onExited }: MenuRootProps) {
       }
       finish(null)
     }
+    const anchor = anchorElement(menu.anchor)
     const onScroll = (event: Event) => {
-      if (!isInside(event.target)) {
+      if (scrollMovesAnchor(event, anchor)) {
         finish(null)
       }
     }
