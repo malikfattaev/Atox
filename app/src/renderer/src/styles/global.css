@@ -614,12 +614,18 @@ ul {
   animation: none;
 }
 
+/*
+ * Агент закончил или зовёт пользователя — кружок мягко «выпрыгивает». У состояний разные
+ * имена анимации, чтобы она проигрывалась заново и при переходе одного в другое.
+ */
 .chat-status__dot[data-status='unread'] {
   background: var(--color-accent);
+  animation: status-pop 420ms cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
 .chat-status__dot[data-status='waiting'] {
   background: var(--color-attention);
+  animation: status-pop-attention 420ms cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
 @keyframes status-pulse {
@@ -629,8 +635,22 @@ ul {
   }
 }
 
+@keyframes status-pop {
+  from {
+    transform: scale(0.4);
+  }
+}
+
+@keyframes status-pop-attention {
+  from {
+    transform: scale(0.4);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .chat-status__dot[data-status='working'] {
+  .chat-status__dot[data-status='working'],
+  .chat-status__dot[data-status='unread'],
+  .chat-status__dot[data-status='waiting'] {
     animation: none;
   }
 }
