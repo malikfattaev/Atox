@@ -4,9 +4,9 @@ import { AGENTS, findAgent, isAgentId } from '../../../shared/agents'
 import type { AgentCatalog, AgentModel } from '../../../shared/conversation'
 import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
-import { useAgentCatalog } from '../hooks/useAgentCatalog'
+import { loadAgentCatalog, useAgentCatalog } from '../hooks/useAgentCatalog'
 import { effortLabel } from '../lib/conversationText'
-import { showMenu, type MenuItem } from '../lib/menu'
+import { getOpenMenu, showMenu, updateMenu, type MenuItem } from '../lib/menu'
 import { currentModel, modelConfiguration } from '../lib/modelSelection'
 import { AgentIcon } from './AgentIcon'
 
@@ -28,27 +28,49 @@ export function ModelPicker({ chat, openRequest }: ModelPickerProps) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const model = catalog && currentModel(chat, catalog)
   const effort = chat.effort ?? model?.defaultEffort
+  // Меню открыто, пока ждёт выбора: пока оно открыто, список моделей может догрузиться.
+  const openedMenu = useRef<{ id: number; agents: string[] } | null>(null)
+  // Свежие чат и модели для действий, которые доделываются после ожидания.
+  const latest = useRef({ chat, catalog, model })
+  latest.current = { chat, catalog, model }
 
   const openMenu = async () => {
     const button = buttonRef.current
     if (!button) {
       return
     }
+    // Список моделей не загрузился раньше — спрашиваем агента снова, меню обновится само.
+    void loadAgentCatalog(chat.agent)
     // Агента можно сменить в любой момент: новый продолжит разговор с того же места.
     const agents = await atox.agents.available()
-    const action = await showMenu(buildMenu({ chat, catalog, model, agents }), button)
+    const choice = showMenu(buildMenu({ ...latest.current, agents }), button)
+    const menu = getOpenMenu()
+    openedMenu.current = menu && { id: menu.id, agents }
+    const action = await choice
+    if (openedMenu.current?.id === menu?.id) {
+      openedMenu.current = null
+    }
     if (!action) {
       return
     }
+    const current = latest.current
     const [kind, value = ''] = splitAction(action)
     if (kind === 'agent' && isAgentId(value)) {
-      await configureChat(chat.id, { agent: value })
-    } else if (kind === 'model' && catalog) {
-      await configureChat(chat.id, modelConfiguration(chat, catalog, value))
+      await configureChat(current.chat.id, { agent: value })
+    } else if (kind === 'model' && current.catalog) {
+      await configureChat(current.chat.id, modelConfiguration(current.chat, current.catalog, value))
     } else if (kind === 'effort') {
-      await configureChat(chat.id, { effort: value || null })
+      await configureChat(current.chat.id, { effort: value || null })
     }
   }
+
+  // Список моделей догрузился или сменился агент, пока меню открыто: меню показывает новое.
+  useEffect(() => {
+    const menu = openedMenu.current
+    if (menu) {
+      updateMenu(menu.id, buildMenu({ chat, catalog, model, agents: menu.agents }))
+    }
+  }, [chat, catalog, model])
 
   // Последняя версия openMenu: эффект ниже срабатывает только на новый запрос открыть меню.
   const openMenuRef = useRef(openMenu)
