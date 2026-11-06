@@ -5,14 +5,39 @@ const DEFAULT_TIMEOUT_MS = 20_000
 /** Ответ GitHub со страницами PR и issue — до нескольких сотен килобайт, diff — до мегабайт. */
 const DEFAULT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
-/** Ошибка запуска программы: код выхода и то, что она написала в stderr. */
+/** Как называть программу в сообщениях: `gh` пользователь знает как GitHub. */
+const PROGRAM_NAMES: Readonly<Record<string, string>> = { gh: 'GitHub' }
+
+/**
+ * Ошибка запуска программы: код выхода и то, что она написала в stderr. Если программа
+ * не ответила вовремя или ничего не написала, сообщение объясняет, что случилось.
+ */
 export class CommandError extends Error {
   constructor(
+    readonly program: string,
     readonly code: string | number | undefined,
-    readonly stderr: string
+    readonly stderr: string,
+    /** Программу остановили по таймауту — тогда кода выхода у неё нет. */
+    readonly timedOut = false
   ) {
-    super(stderr.trim() || `Command failed with code ${code}`)
+    // По таймауту в stderr может остаться обрывок вывода — он объяснил бы меньше.
+    super((!timedOut && stderr.trim()) || failureDescription(program, code, timedOut))
   }
+}
+
+function failureDescription(
+  program: string,
+  code: string | number | undefined,
+  timedOut: boolean
+): string {
+  const name = PROGRAM_NAMES[program] ?? program
+  if (timedOut) {
+    return `${name} didn’t respond in ${DEFAULT_TIMEOUT_MS / 1000} s`
+  }
+  if (code === 'ENOENT') {
+    return `${program} not found`
+  }
+  return `${name} failed with code ${code}`
 }
 
 export interface CommandOptions {
@@ -39,11 +64,14 @@ export function runCommand(
       args,
       { cwd, env, timeout: DEFAULT_TIMEOUT_MS, maxBuffer: DEFAULT_MAX_OUTPUT_BYTES },
       (error, stdout, stderr) => {
-        const code = error?.code ?? 0
+        // Остановленная сигналом программа — в том числе по таймауту — кода выхода не имеет,
+        // и это ошибка, а не успех с недописанным выводом.
+        const code = error ? error.code : 0
         if (typeof code === 'number' && successCodes.includes(code)) {
           resolve(String(stdout))
         } else {
-          reject(new CommandError(error?.code, String(stderr)))
+          const timedOut = error?.killed === true && code === null
+          reject(new CommandError(program, code ?? undefined, String(stderr), timedOut))
         }
       }
     )
