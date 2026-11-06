@@ -82,7 +82,7 @@ export interface ProjectsState {
   removeChat(chatId: string): Promise<void>
   /** Убирает чат с помощниками в архив: из сайдбара он пропадает, история остаётся. */
   archiveChat(chatId: string): Promise<void>
-  /** Возвращает чат из архива и открывает его. */
+  /** Возвращает чат из архива в сайдбар, не открывая его. */
   restoreChat(chatId: string): Promise<void>
   /** Удаляет чат из архива насовсем. */
   removeArchivedChat(chatId: string): Promise<void>
@@ -358,12 +358,11 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
+  // Чат возвращается в сайдбар, но не открывается: архив смотрят в настройках, и переход
+  // в чат закрыл бы их посреди разбора — можно вернуть несколько чатов подряд.
   const restoreChat = useCallback(
-    async (chatId: string) => {
-      applyProjects(await atox.chats.restore(chatId))
-      selectChat(chatId)
-    },
-    [applyProjects, selectChat]
+    async (chatId: string) => applyProjects(await atox.chats.restore(chatId)),
+    [applyProjects]
   )
 
   const removeArchivedChat = useCallback(
