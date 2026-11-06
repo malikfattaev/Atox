@@ -54,6 +54,15 @@ const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 /** Метка вокруг вывода `env`: .zshrc может что-нибудь напечатать до или после. */
 const OUTPUT_MARKER = '__ATOX_ENVIRONMENT__'
 
+/**
+ * Как часто перечитывать окружение в фоне, когда окно получает фокус. Пользователь мог
+ * поправить профиль или поставить программу, но каждое чтение — запуск интерактивной
+ * оболочки с его .zshrc, поэтому не чаще раза в несколько минут.
+ */
+const FOCUS_REFRESH_INTERVAL_MS = 5 * 60 * 1000
+
+type Environment = Record<string, string>
+
 export function resolveShell(): string {
   return process.env['SHELL'] || userInfo().shell || DEFAULT_SHELL
 }
@@ -64,19 +73,54 @@ export function resolveShell(): string {
  * пользователи задают ключи и настройки агентов.
  */
 export class ShellEnvironment {
-  private environment: Promise<Record<string, string>> | null = null
+  private environment: Promise<Environment> | null = null
+  /** Идущее перечитывание: пока оно не закончилось, `get` отдаёт прежнее окружение. */
+  private refreshing: Promise<Environment> | null = null
+  private readAt = 0
 
-  get(): Promise<Record<string, string>> {
-    this.environment ??= this.read()
+  get(): Promise<Environment> {
+    // Без профиля агенты найдутся хуже, но запустятся с тем, что есть у процесса.
+    this.environment ??= this.read().then((environment) => environment ?? sessionEnvironment())
     return this.environment
   }
 
-  private async read(): Promise<Record<string, string>> {
-    const base = sessionEnvironment()
+  /**
+   * Окружение, прочитанное не раньше, чем `maxAgeMs` назад: более старое перечитывается.
+   * Не прочиталось — остаётся прежнее: урезанное окружение процесса хуже вчерашнего профиля.
+   */
+  async fresh(maxAgeMs: number): Promise<Environment> {
+    const current = await this.get()
+    if (this.refreshing) {
+      return this.refreshing
+    }
+    if (Date.now() - this.readAt < maxAgeMs) {
+      return current
+    }
+    this.refreshing ??= this.read()
+      .then((environment) => {
+        if (environment) {
+          this.environment = Promise.resolve(environment)
+        }
+        return environment ?? current
+      })
+      .finally(() => {
+        this.refreshing = null
+      })
+    return this.refreshing
+  }
+
+  /** Окно снова в фокусе: перечитывает окружение в фоне, но не чаще раза в интервал. */
+  refreshOnFocus(): void {
+    void this.fresh(FOCUS_REFRESH_INTERVAL_MS)
+  }
+
+  /** Окружение оболочки входа; `null` — прочитать его не получилось. */
+  private async read(): Promise<Environment | null> {
+    this.readAt = Date.now()
     try {
       const stdout = await runLoginShell(
         `printf '%s' ${OUTPUT_MARKER}; env -0; printf '%s' ${OUTPUT_MARKER}`,
-        base
+        sessionEnvironment()
       )
       const parsed = parseEnvironment(stdout)
       if (parsed) {
@@ -86,8 +130,7 @@ export class ShellEnvironment {
     } catch (error) {
       console.error('Failed to read the login shell environment', error)
     }
-    // Без профиля агенты найдутся хуже, но запустятся с тем, что есть у процесса.
-    return base
+    return null
   }
 }
 

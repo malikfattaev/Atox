@@ -165,6 +165,8 @@ async function bootstrap(): Promise<void> {
   })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshOnFocus())
+  // Пока окно было не в фокусе, в терминале могли поставить программу или поправить профиль.
+  app.on('browser-window-focus', () => shell.refreshOnFocus())
   app.on('will-quit', () => branches.dispose())
   // Лимиты тратятся и в других программах агентов: вернувшись в окно, пользователь видит свежие.
   planLimits.start()
