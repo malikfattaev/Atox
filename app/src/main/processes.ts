@@ -5,6 +5,16 @@ const DEFAULT_TIMEOUT_MS = 20_000
 /** Ответ GitHub со страницами PR и issue — до нескольких сотен килобайт, diff — до мегабайт. */
 const DEFAULT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
+/**
+ * Окружение для фоновых запусков git. Без него `git status` и подобные команды попутно
+ * обновляют индекс и берут `index.lock`, и `git commit`, который агент запустил в этот момент,
+ * падает с «index.lock: File exists». Обязательные блокировки — у `git restore` и `git rm` —
+ * эта переменная не отключает.
+ */
+export const BACKGROUND_GIT_ENVIRONMENT: Readonly<Record<string, string>> = {
+  GIT_OPTIONAL_LOCKS: '0'
+}
+
 /** Как называть программу в сообщениях: `gh` пользователь знает как GitHub. */
 const PROGRAM_NAMES: Readonly<Record<string, string>> = { gh: 'GitHub' }
 
@@ -84,4 +94,12 @@ export function errorMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error)
   const line = text.split('\n').find((candidate) => candidate.trim()) ?? text
   return line.replace(/^(gh|fatal|error):\s*/i, '').trim()
+}
+
+/** Запускает git в фоне: не мешая git, который в той же папке запустил агент. */
+export function runGit(args: readonly string[], options: CommandOptions): Promise<string> {
+  return runCommand('git', args, {
+    ...options,
+    env: { ...options.env, ...BACKGROUND_GIT_ENVIRONMENT }
+  })
 }

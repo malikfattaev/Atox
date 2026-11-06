@@ -3,6 +3,7 @@ import { watch, type FSWatcher } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { promisify } from 'node:util'
 import type { GitBranches } from '../shared/api'
+import { BACKGROUND_GIT_ENVIRONMENT } from './processes'
 
 const execFileAsync = promisify(execFile)
 
@@ -138,7 +139,9 @@ function readHeadPath(path: string): Promise<string | null> {
 /** Вывод команды git в папке или `null`, если она завершилась ошибкой или ничего не вывела. */
 async function git(path: string, args: string[]): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['-C', path, ...args])
+    const { stdout } = await execFileAsync('git', ['-C', path, ...args], {
+      env: { ...process.env, ...BACKGROUND_GIT_ENVIRONMENT }
+    })
     return stdout.trim() || null
   } catch {
     return null
