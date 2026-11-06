@@ -2666,7 +2666,8 @@ ul {
 }
 
 .message__file,
-.composer__attachment[data-kind='file'] {
+.composer__attachment[data-kind='file'],
+.composer__attachment[data-kind='pending'] {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2688,6 +2689,11 @@ ul {
   flex-shrink: 0;
   width: var(--message-file-icon-size);
   height: var(--message-file-icon-size);
+  color: var(--color-text-muted);
+}
+
+/* Вложение, которое ещё готовится: спиннер на месте будущей миниатюры. */
+.composer__attachment[data-kind='pending'] {
   color: var(--color-text-muted);
 }
 

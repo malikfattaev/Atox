@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isImageType, type PickedFile } from '../../../shared/attachments'
+import { ipcErrorMessage } from './ipcError'
 
 const { atox } = window
 
@@ -43,7 +44,10 @@ function loadPreview(path: string): Promise<string | null> {
  * не картинка.
  */
 export function useImagePreview(path: string): string | null | undefined {
-  const [loaded, setLoaded] = useState<{ path: string; preview: string | null }>()
+  const [loaded, setLoaded] = useState<{
+    path: string
+    preview: string | null
+  }>()
   const cached = previews.get(path)
   useEffect(() => {
     if (cached) {
@@ -69,22 +73,48 @@ export function fileName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1) || path
 }
 
+/** Файл, который не удалось приложить, и почему. */
+export interface AttachFailure {
+  name: string
+  message: string
+}
+
+/** Итог приложения файлов: ошибка одного файла не мешает приложиться остальным. */
+export interface AttachResult {
+  attachments: Attachment[]
+  failures: AttachFailure[]
+}
+
 /**
  * Прикладывает вставленные или перетащенные файлы: картинки — картинками, остальные — путями.
  * Картинка из буфера обмена сохраняется во временный файл. Файлы без пути на диске
  * (например, текст из буфера) пропускаются.
  */
-export async function attachFiles(files: readonly File[]): Promise<Attachment[]> {
-  const attachments = await Promise.all(
-    files.map(async (file): Promise<Attachment | null> => {
-      if (isAttachableImage(file)) {
-        return attachImage(file)
+export async function attachFiles(files: readonly File[]): Promise<AttachResult> {
+  const results = await Promise.allSettled(files.map(attachFile))
+  const attachments: Attachment[] = []
+  const failures: AttachFailure[] = []
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      if (result.value) {
+        attachments.push(result.value)
       }
-      const path = atox.files.getPath(file)
-      return path ? { kind: 'file', path } : null
-    })
-  )
-  return attachments.filter((attachment) => attachment !== null)
+    } else {
+      failures.push({
+        name: files[index].name,
+        message: ipcErrorMessage(result.reason)
+      })
+    }
+  })
+  return { attachments, failures }
+}
+
+async function attachFile(file: File): Promise<Attachment | null> {
+  if (isAttachableImage(file)) {
+    return attachImage(file)
+  }
+  const path = atox.files.getPath(file)
+  return path ? { kind: 'file', path } : null
 }
 
 /** Файл, выбранный в системном диалоге: с превью — картинка, без него — файл. */

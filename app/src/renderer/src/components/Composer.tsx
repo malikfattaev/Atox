@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { ArrowUp, CircleAlert, FileText, Plus, Square, X } from 'lucide-react'
+import { ArrowUp, CircleAlert, FileText, LoaderCircle, Plus, Square, X } from 'lucide-react'
 import {
   isChatCommand,
   type AgentCommand,
@@ -9,7 +9,13 @@ import type { Chat } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { LOCAL_COMMAND_ALIASES, useAgentCommands } from '../hooks/useAgentCommands'
-import { attachFiles, attachPicked, fileName, type Attachment } from '../lib/attachments'
+import {
+  attachFiles,
+  attachPicked,
+  fileName,
+  type AttachFailure,
+  type Attachment
+} from '../lib/attachments'
 import { ipcErrorMessage } from '../lib/ipcError'
 import { currentModel, matchEffort, matchModel, modelConfiguration } from '../lib/modelSelection'
 import { CommandMenu, filterCommands } from './CommandMenu'
@@ -25,6 +31,20 @@ const COMMAND_NAME = /^\/(\S*)$/
 
 /** Команда с аргументом целиком: «/effort high». */
 const COMMAND_LINE = /^\/(\S+)(?:\s+([\s\S]*))?$/
+
+/** Файл, который ещё готовится (картинка из буфера сохраняется на диск): без него не отправить. */
+interface PendingAttachment {
+  id: number
+  name: string
+}
+
+let nextPendingId = 0
+
+function attachFailureMessage(failures: readonly AttachFailure[]): string {
+  return failures
+    .map(({ name, message }) => `Could not attach ${name || 'the file'}: ${message}`)
+    .join('\n')
+}
 
 interface ComposerProps {
   chat: Chat
@@ -45,8 +65,11 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   const [viewedImage, setViewedImage] = useState<ShownImage | null>(null)
   /** Что не получилось в последний раз (отправка, вложение): видно над полем, пока его не закроют. */
   const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingAttachment[]>([])
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const canSend = text.trim().length > 0 || attachments.length > 0
+  const hasContent = text.trim().length > 0 || attachments.length > 0
+  // Пока вложение готовится, сообщение ушло бы без него.
+  const canSend = hasContent && pending.length === 0
 
   // Подсказки команд: видны, пока набирается имя команды и их не закрыли Escape.
   const commandQuery = COMMAND_NAME.exec(text)?.[1]
@@ -134,7 +157,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
 
   const submit = (value: string) => {
     const message = value.trim()
-    if (!message && attachments.length === 0) {
+    if ((!message && attachments.length === 0) || pending.length > 0) {
       return
     }
     setError(null)
@@ -143,7 +166,10 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       const pathsOf = (kind: Attachment['kind']) =>
         sent.filter((attachment) => attachment.kind === kind).map(({ path }) => path)
       atox.conversations
-        .send(chat.id, message, { images: pathsOf('image'), files: pathsOf('file') })
+        .send(chat.id, message, {
+          images: pathsOf('image'),
+          files: pathsOf('file')
+        })
         .catch((sendError: unknown) => {
           // Сообщение не ушло: возвращаем его в поле, чтобы не набирать заново. Если пользователь
           // уже начал писать следующее, неотправленное встаёт перед ним.
@@ -230,9 +256,18 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     if (files.length === 0) {
       return false
     }
-    void attachFiles(files)
-      .then(addAttachments)
-      .catch((error) => console.error('Failed to attach the files', error))
+    const added = files.map((file) => ({
+      id: ++nextPendingId,
+      name: file.name
+    }))
+    setPending((current) => [...current, ...added])
+    void attachFiles(files).then(({ attachments: attached, failures }) => {
+      setPending((current) => current.filter((entry) => !added.includes(entry)))
+      addAttachments(attached)
+      if (failures.length > 0) {
+        setError(attachFailureMessage(failures))
+      }
+    })
     inputRef.current?.focus()
     return true
   }
@@ -320,7 +355,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       )}
       {/* Само поле: вложения, «+», текст и отправка. Остальное — под ним и не мешает писать. */}
       <div className="composer__box">
-        {attachments.length > 0 && (
+        {(attachments.length > 0 || pending.length > 0) && (
           <ul className="composer__attachments">
             {attachments.map((attachment) => (
               <li
@@ -335,7 +370,10 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
                     className="composer__attachment-preview"
                     aria-label="Open image"
                     onClick={() =>
-                      setViewedImage({ src: attachment.preview, path: attachment.path })
+                      setViewedImage({
+                        src: attachment.preview,
+                        path: attachment.path
+                      })
                     }
                     onContextMenu={imageContextMenu({
                       src: attachment.preview,
@@ -361,6 +399,18 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
                 </button>
               </li>
             ))}
+            {pending.map(({ id, name }) => (
+              <li
+                key={`pending:${id}`}
+                className="composer__attachment"
+                data-kind="pending"
+                title={name}
+                role="status"
+                aria-label={`Attaching ${name}`}
+              >
+                <LoaderCircle className="icon activity__spinner" aria-hidden />
+              </li>
+            ))}
           </ul>
         )}
         <div className="composer__row">
@@ -383,7 +433,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
             onChange={(event) => setText(event.target.value)}
             onKeyDown={handleKeyDown}
           />
-          {running && !canSend ? (
+          {running && !hasContent ? (
             <button
               type="button"
               className="composer__button"
