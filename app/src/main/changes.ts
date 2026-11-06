@@ -8,7 +8,7 @@ import {
   type FileChangeKind,
   type FileDiff
 } from '../shared/changes'
-import { CommandError, errorMessage, runGit } from './processes'
+import { errorMessage, isNotRepositoryError, runGit } from './processes'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Строки нового файла считаются, только пока он не больше этого: огромный файл — не код. */
@@ -30,9 +30,6 @@ interface CountedFile {
   modifiedAt: number
   counts: LineCounts
 }
-
-/** Так git отвечает в папке вне репозитория (`fatal: not a git repository …`). */
-const NOT_REPOSITORY_MESSAGE = 'not a git repository'
 
 /** Репозиторий проекта: его корень и папка проекта в нём. */
 interface Scope {
@@ -71,7 +68,7 @@ export class WorkingTreeReader {
       this.listed.delete(projectPath)
       // Не репозиторий — только когда так говорит сам git: таймаут или отсутствие git
       // пользователь должен увидеть как есть, а не как «это не репозиторий».
-      return isNotRepository(error)
+      return isNotRepositoryError(error)
         ? { ok: false, error: { kind: 'not-git' } }
         : { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
     }
@@ -275,10 +272,6 @@ function countLines(content: Buffer): number {
     index = content.indexOf(NEWLINE, index + 1)
   }
   return content.length > 0 && content.at(-1) !== NEWLINE ? lines + 1 : lines
-}
-
-function isNotRepository(error: unknown): boolean {
-  return error instanceof CommandError && error.stderr.includes(NOT_REPOSITORY_MESSAGE)
 }
 
 type StatusEntry = Pick<FileChange, 'path' | 'previousPath' | 'kind'>

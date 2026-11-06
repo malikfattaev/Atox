@@ -15,6 +15,9 @@ export const BACKGROUND_GIT_ENVIRONMENT: Readonly<Record<string, string>> = {
   LANGUAGE: 'en'
 }
 
+/** Так git отвечает в папке вне репозитория (`fatal: not a git repository …`). */
+const NOT_REPOSITORY_MESSAGE = 'not a git repository'
+
 /** Как называть программу в сообщениях: `gh` пользователь знает как GitHub. */
 const PROGRAM_NAMES: Readonly<Record<string, string>> = { gh: 'GitHub' }
 
@@ -94,6 +97,11 @@ export function errorMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : String(error)
   const line = text.split('\n').find((candidate) => candidate.trim()) ?? text
   return line.replace(/^(gh|fatal|error):\s*/i, '').trim()
+}
+
+/** Git ответил, что папка — не репозиторий; другие сбои (таймаут, нет git) — не это. */
+export function isNotRepositoryError(error: unknown): boolean {
+  return error instanceof CommandError && error.stderr.includes(NOT_REPOSITORY_MESSAGE)
 }
 
 /** Запускает git в фоне: не мешая git, который в той же папке запустил агент. */
