@@ -3,6 +3,7 @@ import { Bot, FolderPlus, GitPullRequest, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
 import { useSettings } from '../hooks/SettingsContext'
+import { PlanLimits } from './PlanLimits'
 import { ProfileBar } from './ProfileBar'
 import { ProjectItem } from './ProjectItem'
 import { SIDEBAR_WIDTH } from '../../../shared/settings'
@@ -93,6 +94,7 @@ export function Sidebar({
         )}
       </section>
 
+      <PlanLimits />
       <ProfileBar onOpenSettings={onOpenSettings} />
 
       <PanelResizer
