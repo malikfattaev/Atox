@@ -281,9 +281,19 @@ export interface ConversationSnapshot {
   usage?: ConversationUsage
   /** Сколько токенов агент написал, отвечая на текущее сообщение. */
   turnTokens?: number
+  /**
+   * Номер последнего события, которое вошло в снимок; нет — событий ещё не было. События
+   * с номером не больше этого окну применять не нужно: снимок их уже содержит.
+   */
+  seq?: number
 }
 
-export type ConversationEvent =
+export type ConversationEvent = ConversationEventBody & {
+  /** Порядковый номер события в main-процессе: растёт с каждым событием любого чата. */
+  seq: number
+}
+
+type ConversationEventBody =
   /** Новый элемент ленты или новая версия существующего (с тем же `id`). */
   | { chatId: string; type: 'item'; item: TimelineItem }
   /** Продолжение текста элемента, который агент ещё пишет. */
@@ -401,6 +411,13 @@ export const TOOL_OUTPUT_LIMIT = 64 * 1024
 
 /** Применяет событие к разговору, не изменяя исходный снимок. */
 export function applyConversationEvent(
+  snapshot: ConversationSnapshot,
+  event: ConversationEvent
+): ConversationSnapshot {
+  return { ...applyEventBody(snapshot, event), seq: event.seq }
+}
+
+function applyEventBody(
   snapshot: ConversationSnapshot,
   event: ConversationEvent
 ): ConversationSnapshot {

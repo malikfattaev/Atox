@@ -31,7 +31,7 @@ export function useConversation(chatId: string, visible: boolean): ConversationS
 
   useEffect(() => {
     let cancelled = false
-    // События, пришедшие до снимка, применяются поверх него: так ничего не теряется.
+    // События, пришедшие до снимка, ждут его: те, что в снимок не вошли, применяются поверх.
     let pending: ConversationEvent[] | null = []
     latestRef.current = LOADING_STATE
     setState(LOADING_STATE)
@@ -63,10 +63,11 @@ export function useConversation(chatId: string, visible: boolean): ConversationS
         }
         const events = pending ?? []
         pending = null
-        // Снимок мог уже включать часть событий: повторное применение элемента его не дублирует,
-        // а дельту текста — да, поэтому дельты до снимка отбрасываются.
+        // Снимок уже содержит события до своего номера: повторная дельта удвоила бы текст, а
+        // старая версия элемента откатила бы его.
+        const applied = snapshot.seq ?? 0
         const replayed = events
-          .filter((event) => event.type !== 'delta')
+          .filter((event) => event.seq > applied)
           .reduce(applyConversationEvent, snapshot)
         latestRef.current = { ...replayed, loading: false }
         setState(latestRef.current)
