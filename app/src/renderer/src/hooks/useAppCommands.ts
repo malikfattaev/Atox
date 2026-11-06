@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { AppCommand } from '../../../shared/commands'
+import type { Project } from '../../../shared/models'
 import { IS_MAC } from '../../../shared/platform'
 import { SHORTCUT_RECORDER_ATTRIBUTE } from '../components/ShortcutRecorder'
 import type { ProjectsState } from './useProjects'
@@ -9,6 +10,20 @@ import type { ProjectsState } from './useProjects'
  * Цифра берётся по положению клавиши, поэтому сочетания одинаково работают на любой раскладке.
  */
 const NUMBER_KEY_CODE = /^Digit([1-9])$/
+
+/**
+ * Чат, который представляет данный в порядке сайдбара: помощников там нет, поэтому из
+ * помощника переключение идёт от его родительского чата, а не с начала списка.
+ */
+function listedChatId(projects: readonly Project[], chatId: string): string {
+  for (const { chats } of projects) {
+    const chat = chats.find(({ id }) => id === chatId)
+    if (chat) {
+      return chat.parentChatId ?? chat.id
+    }
+  }
+  return chatId
+}
 
 interface AppCommandHandlers {
   projects: ProjectsState
@@ -27,11 +42,13 @@ export function useAppCommands(handlers: AppCommandHandlers): void {
 
   useEffect(() => {
     const selectRelative = (step: number) => {
-      const { orderedChatIds, activeChatId, selectChat } = handlersRef.current.projects
+      const { projects, orderedChatIds, activeChatId, selectChat } = handlersRef.current.projects
       if (orderedChatIds.length === 0) {
         return
       }
-      const current = activeChatId ? orderedChatIds.indexOf(activeChatId) : -1
+      const current = activeChatId
+        ? orderedChatIds.indexOf(listedChatId(projects, activeChatId))
+        : -1
       const next = (current + step + orderedChatIds.length) % orderedChatIds.length
       selectChat(orderedChatIds[next]!)
     }
