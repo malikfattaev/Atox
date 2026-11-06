@@ -59,8 +59,16 @@ interface Turn {
 
 type ItemStatus = 'inProgress' | 'completed' | 'failed' | 'declined'
 
+interface TokenUsageBreakdown {
+  totalTokens: number
+  outputTokens: number
+}
+
 interface TokenUsage {
-  last: { totalTokens: number; outputTokens: number }
+  /** С начала треда. */
+  total: TokenUsageBreakdown
+  /** Последний запрос к модели; за ход их бывает много — по запросу на каждый вызов инструмента. */
+  last: TokenUsageBreakdown
   modelContextWindow: number | null
 }
 
@@ -330,6 +338,11 @@ class CodexSession implements AgentSession {
   private readonly requestSignals = new Map<number | string, AbortController>()
   /** Модель и эффорт разговора — известны, когда тред открыт. */
   private selection: Partial<ModelSelection> = {}
+  /**
+   * Сколько токенов тред написал до текущего хода: счётчик хода — разница с итогом треда.
+   * Codex сообщает лишь итог треда и последний запрос, а запросов за ход бывает много.
+   */
+  private turnTokenBase: { turnId: string; outputTokens: number } | null = null
 
   constructor(
     private readonly options: SessionOptions,
@@ -645,8 +658,13 @@ class CodexSession implements AgentSession {
         break
       }
       case 'thread/tokenUsage/updated': {
-        const { tokenUsage } = params as { tokenUsage: TokenUsage }
-        this.events.tokens(tokenUsage.last.outputTokens)
+        const { turnId, tokenUsage } = params as { turnId: string; tokenUsage: TokenUsage }
+        const { total, last } = tokenUsage
+        if (this.turnTokenBase?.turnId !== turnId) {
+          // Первое сообщение о ходе: до него тред написал итог без этого запроса.
+          this.turnTokenBase = { turnId, outputTokens: total.outputTokens - last.outputTokens }
+        }
+        this.events.tokens(total.outputTokens - this.turnTokenBase.outputTokens)
         if (tokenUsage.modelContextWindow) {
           this.events.usage({
             context: {
