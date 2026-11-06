@@ -78,12 +78,15 @@ export function Workspace({
   const changesShown = changesOpen && Boolean(currentProjectId)
   const terminalOpen =
     !changesShown && Boolean(currentProjectId && terminalProjectIds.includes(currentProjectId))
-  const chatTitles = new Map(
-    projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
+  // Чат вместе с папкой его проекта: чату нужны только они, а не весь список проектов.
+  const chatEntries = new Map(
+    projects.flatMap((project) =>
+      project.chats.map((chat) => [chat.id, { chat, projectPath: project.path }] as const)
+    )
   )
   // Смонтированы недавно открытые и видимые чаты. Порядок — как в проектах, а не по свежести:
   // иначе каждое переключение переставляло бы панели в DOM.
-  const mountedChatIds = [...chatTitles.keys()].filter(
+  const mountedChatIds = [...chatEntries.keys()].filter(
     (chatId) => openedChatIds.includes(chatId) || visibleChatIds.includes(chatId)
   )
   const activeChatProject = activeChatId
@@ -97,7 +100,7 @@ export function Workspace({
           {/* У страниц поверх чатов свои заголовки. */}
           {!pageOpen && activeChatId && activeChatProject && (
             <WorkspaceTitle
-              chatTitle={chatTitles.get(activeChatId) ?? ''}
+              chatTitle={chatEntries.get(activeChatId)?.chat.title ?? ''}
               projectName={activeChatProject.name}
             />
           )}
@@ -136,7 +139,7 @@ export function Workspace({
               >
                 {isSplit && (
                   <header className="chat-pane__header">
-                    <span className="chat-pane__title">{chatTitles.get(chatId)}</span>
+                    <span className="chat-pane__title">{chatEntries.get(chatId)?.chat.title}</span>
                     <button
                       type="button"
                       className="chat-pane__close"
@@ -148,7 +151,12 @@ export function Workspace({
                     </button>
                   </header>
                 )}
-                <ChatView chatId={chatId} visible={visible} focused={focused} />
+                <ChatView
+                  chat={chatEntries.get(chatId)!.chat}
+                  projectPath={chatEntries.get(chatId)!.projectPath}
+                  visible={visible}
+                  focused={focused}
+                />
               </section>
             )
           })}
