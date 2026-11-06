@@ -144,6 +144,15 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
       setAttachments([])
     }
     setText('')
+    // Кнопка, которой отправили, сменяется кнопкой остановки или гаснет — фокус не должен
+    // уйти вместе с ней.
+    inputRef.current?.focus()
+  }
+
+  const stop = () => {
+    void atox.conversations.interrupt(chat.id)
+    // После остановки кнопка «Стоп» пропадает: фокус остаётся в поле, а не уходит в body.
+    inputRef.current?.focus()
   }
 
   const send = () => submit(text)
@@ -352,7 +361,7 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
               className="composer__button"
               aria-label="Stop"
               title="Stop (Esc)"
-              onClick={() => void atox.conversations.interrupt(chat.id)}
+              onClick={stop}
             >
               <Square className="icon composer__stop-icon" />
             </button>
