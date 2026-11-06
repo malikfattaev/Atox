@@ -12,6 +12,7 @@ import {
   type OrchestrationResponse
 } from '../../shared/orchestration'
 import type { AgentDetector } from '../agents'
+import { errorMessage } from '../conversations/display'
 import type { ConversationManager } from '../conversations/manager'
 import type { ChatLocation, ProjectStore } from '../store'
 import { formatMessage, formatReport, formatWorkerTask } from './prompts'
@@ -201,12 +202,12 @@ export class OrchestrationServer {
       return { chatId: chat.id, title: chat.title }
     },
 
-    send: (caller, { to, message }) => {
+    send: async (caller, { to, message }) => {
       if (!message?.trim()) {
         throw new CommandError('The message is empty.')
       }
       const target = this.resolveRecipient(caller.chat, to)
-      this.deliver(target, formatMessage(caller.chat, message))
+      await this.deliver(target, formatMessage(caller.chat, message))
       // Новое сообщение от агента — новая работа: помощник снова может отчитаться.
       if (target.parentChatId === caller.chat.id) {
         this.reportedChatIds.delete(target.id)
@@ -214,12 +215,12 @@ export class OrchestrationServer {
       return { chatId: target.id }
     },
 
-    report: (caller, { summary }) => {
-      const parent =
-        caller.chat.parentChatId && this.services.store.findChat(caller.chat.parentChatId)
-      if (!parent) {
+    report: async (caller, { summary }) => {
+      const parentId = caller.chat.parentChatId
+      if (!parentId) {
         throw new CommandError('Only a worker started with "atox start" can report.')
       }
+      const parent = this.recipient(parentId, 'The parent chat')
       if (!summary?.trim()) {
         throw new CommandError('The report is empty.')
       }
@@ -228,9 +229,15 @@ export class OrchestrationServer {
           'You already reported this task. Report again only after a new message from the agent.'
         )
       }
-      this.deliver(parent.chat, formatReport(caller.chat, summary))
+      // Отметка ставится до доставки, чтобы два отчёта подряд не ушли оба.
       this.reportedChatIds.add(caller.chat.id)
-      return { chatId: parent.chat.id }
+      try {
+        await this.deliver(parent, formatReport(caller.chat, summary))
+      } catch (error) {
+        this.reportedChatIds.delete(caller.chat.id)
+        throw error
+      }
+      return { chatId: parent.id }
     },
 
     remove: async (caller, { chatIds }) => {
@@ -277,24 +284,46 @@ export class OrchestrationServer {
 
   /** Писать можно только своему агенту-родителю или своим помощникам. */
   private resolveRecipient(sender: Chat, to: string): Chat {
-    const targetId = to === PARENT_ADDRESS ? sender.parentChatId : to
-    const target = targetId && this.services.store.findChat(targetId)?.chat
-    if (!target) {
-      throw new CommandError(
-        to === PARENT_ADDRESS ? 'This chat has no parent agent.' : `Chat ${to} not found.`
-      )
+    const toParent = to === PARENT_ADDRESS
+    const targetId = toParent ? sender.parentChatId : to
+    if (!targetId) {
+      throw new CommandError('This chat has no parent agent.')
     }
+    const target = this.recipient(targetId, toParent ? 'The parent chat' : `Chat ${to}`)
     if (target.id !== sender.parentChatId && target.parentChatId !== sender.id) {
       throw new CommandError('You can only message your parent agent or your own workers.')
     }
     return target
   }
 
-  /** Ставит текст в очередь агенту чата: он получит его, как только закончит текущую работу. */
-  private deliver(chat: Chat, text: string): void {
-    void this.services.conversations
-      .send(chat.id, text)
-      .catch((error) => console.error('Failed to deliver an agent message', error))
+  /**
+   * Чат, которому можно написать. Архивный или удалённый чат сообщений не получит: агент
+   * узнаёт об этом из ответа команды, а не теряет сообщение молча.
+   */
+  private recipient(chatId: string, description: string): Chat {
+    const chat = this.services.store.findChat(chatId)?.chat
+    if (chat) {
+      return chat
+    }
+    if (this.services.store.findArchivedChat(chatId)) {
+      throw new CommandError(`${description} is archived, so it cannot receive messages.`)
+    }
+    throw new CommandError(`${description} was not found.`)
+  }
+
+  /**
+   * Ставит текст в очередь агенту чата: он получит его, как только закончит текущую работу.
+   * Команда отвечает, только когда сообщение принято, — иначе ошибкой.
+   */
+  private async deliver(chat: Chat, text: string): Promise<void> {
+    try {
+      await this.services.conversations.send(chat.id, text)
+    } catch (error) {
+      console.error('Failed to deliver an agent message', error)
+      throw new CommandError(
+        `Could not deliver the message to "${chat.title}": ${errorMessage(error)}`
+      )
+    }
   }
 }
 
