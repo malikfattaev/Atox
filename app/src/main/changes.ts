@@ -14,6 +14,23 @@ import type { ShellEnvironment } from './shellEnvironment'
 /** Строки нового файла считаются, только пока он не больше этого: огромный файл — не код. */
 const UNTRACKED_COUNT_LIMIT_BYTES = 2 * 1024 * 1024
 
+/**
+ * Сколько новых файлов читать одновременно. Агент может создать тысячи файлов разом
+ * (зависимости, сборка), и чтение всех сразу упёрлось бы в лимит открытых файлов.
+ */
+const UNTRACKED_COUNT_CONCURRENCY = 16
+
+const NEWLINE = 0x0a
+
+type LineCounts = Pick<FileChange, 'additions' | 'deletions'>
+
+/** Посчитанные строки нового файла и то, по чему видно, что файл с тех пор не менялся. */
+interface CountedFile {
+  size: number
+  modifiedAt: number
+  counts: LineCounts
+}
+
 /** Так git отвечает в папке вне репозитория (`fatal: not a git repository …`). */
 const NOT_REPOSITORY_MESSAGE = 'not a git repository'
 
@@ -32,6 +49,12 @@ interface Scope {
  * с последним коммитом, без разницы, добавлены изменения в индекс или нет.
  */
 export class WorkingTreeReader {
+  /**
+   * Строки новых файлов каждого репозитория с прошлого прохода. Новые файлы перечитываются
+   * только когда изменились: иначе каждое обновление панели читало бы их все целиком.
+   */
+  private readonly lineCounts = new Map<string, ReadonlyMap<string, CountedFile>>()
+
   constructor(private readonly shellEnvironment: ShellEnvironment) {}
 
   async list(projectPath: string): Promise<ChangesResult> {
@@ -150,39 +173,37 @@ export class WorkingTreeReader {
     ])
     const stats = parseNumstat(numstat)
     const changes = parseStatus(status)
-    return Promise.all(
-      changes.map(async (change) => {
-        const counts =
-          change.kind === 'untracked'
-            ? await this.countLines(scope, change.path)
-            : (stats.get(change.path) ?? { additions: 0, deletions: 0 })
-        return { ...change, ...counts }
-      })
+    const untracked = await this.countUntracked(
+      scope,
+      changes.filter((change) => change.kind === 'untracked').map((change) => change.path)
     )
+    return changes.map((change) => {
+      const counts =
+        change.kind === 'untracked' ? untracked.get(change.path)?.counts : stats.get(change.path)
+      return { ...change, ...(counts ?? { additions: 0, deletions: 0 }) }
+    })
   }
 
-  /** Строки нового файла, которого git ещё не знает: все они — добавленные. */
-  private async countLines(
+  /**
+   * Строки новых файлов. Файл, у которого с прошлого прохода не изменились размер и время
+   * изменения, не перечитывается. Запоминаются только файлы этого прохода — закоммиченные
+   * и удалённые из памяти уходят.
+   */
+  private async countUntracked(
     scope: Scope,
-    path: string
-  ): Promise<Pick<FileChange, 'additions' | 'deletions'>> {
-    const binary = { additions: null, deletions: null }
-    const fullPath = join(scope.root, path)
-    try {
-      if ((await stat(fullPath)).size > UNTRACKED_COUNT_LIMIT_BYTES) {
-        return binary
-      }
-      const content = await readFile(fullPath)
-      // Так же определяет двоичные файлы и git: по нулевому байту.
-      if (content.includes(0)) {
-        return binary
-      }
-      const text = content.toString('utf8')
-      const lines = text.split('\n').length - (text.endsWith('\n') || text === '' ? 1 : 0)
-      return { additions: lines, deletions: 0 }
-    } catch {
-      return binary
+    paths: readonly string[]
+  ): Promise<ReadonlyMap<string, CountedFile>> {
+    const previous = this.lineCounts.get(scope.root)
+    const counted = new Map<string, CountedFile>()
+    for (let start = 0; start < paths.length; start += UNTRACKED_COUNT_CONCURRENCY) {
+      const batch = paths.slice(start, start + UNTRACKED_COUNT_CONCURRENCY)
+      const results = await Promise.all(
+        batch.map((path) => countFileLines(join(scope.root, path), previous?.get(path)))
+      )
+      batch.forEach((path, index) => counted.set(path, results[index]!))
     }
+    this.lineCounts.set(scope.root, counted)
+    return counted
   }
 
   private async trash(scope: Scope, path: string): Promise<void> {
@@ -203,6 +224,47 @@ export class WorkingTreeReader {
       ...(successCodes && { successCodes })
     })
   }
+}
+
+/** Строки нового файла, которого git ещё не знает: все они — добавленные. */
+async function countFileLines(
+  fullPath: string,
+  previous: CountedFile | undefined
+): Promise<CountedFile> {
+  const binary = { additions: null, deletions: null }
+  try {
+    const { size, mtimeMs } = await stat(fullPath)
+    if (previous && previous.size === size && previous.modifiedAt === mtimeMs) {
+      return previous
+    }
+    const counted = (counts: LineCounts): CountedFile => ({ size, modifiedAt: mtimeMs, counts })
+    if (size > UNTRACKED_COUNT_LIMIT_BYTES) {
+      return counted(binary)
+    }
+    const content = await readFile(fullPath)
+    // Так же определяет двоичные файлы и git: по нулевому байту.
+    if (content.includes(0)) {
+      return counted(binary)
+    }
+    return counted({ additions: countLines(content), deletions: 0 })
+  } catch {
+    // Файл успели удалить или его не прочитать: запоминать нечего, в следующий раз — заново.
+    return { size: -1, modifiedAt: -1, counts: binary }
+  }
+}
+
+/**
+ * Строки текста. Переводы строк считаются по байтам, без декодирования: в UTF-8 байт 0x0a
+ * бывает только переводом строки. Последняя строка без перевода строки — тоже строка.
+ */
+function countLines(content: Buffer): number {
+  let lines = 0
+  let index = content.indexOf(NEWLINE)
+  while (index >= 0) {
+    lines++
+    index = content.indexOf(NEWLINE, index + 1)
+  }
+  return content.length > 0 && content.at(-1) !== NEWLINE ? lines + 1 : lines
 }
 
 function isNotRepository(error: unknown): boolean {
