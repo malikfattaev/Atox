@@ -33,6 +33,7 @@ import { AsyncQueue } from './asyncQueue'
 import { readClaudeMcpServers, readClaudePlugins, readClaudeSkills } from './claudeIntegrations'
 import { displayPath, errorMessage } from './display'
 import { elicitationContent, elicitationFields } from './elicitation'
+import { withTimeout } from './timeout'
 import { UserRequests } from './userRequests'
 import type { AgentDriver, AgentLaunch, AgentSession, SessionEvents, SessionOptions } from './types'
 
@@ -301,7 +302,7 @@ async function readContext(session: Query): Promise<ContextReport> {
 
 /**
  * Спрашивает что-то у Claude Code без разговора: сессия без сообщений к модели не обращается,
- * а списки моделей и команд отдаёт сразу.
+ * а списки моделей и команд отдаёт сразу. Зависший Claude Code закрывается по таймауту.
  */
 async function withIdleSession<T>(
   launch: AgentLaunch,
@@ -314,7 +315,7 @@ async function withIdleSession<T>(
     options: { ...launchOptions(launch), ...(sessionId && { resume: sessionId }) }
   })
   try {
-    return await read(session)
+    return await withTimeout(read(session))
   } finally {
     input.end()
     session.close()
@@ -441,11 +442,11 @@ class ClaudeSession implements AgentSession {
   }
 
   limits(): Promise<PlanLimit[]> {
-    return readLimits(this.session, this.sessionLimit)
+    return withTimeout(readLimits(this.session, this.sessionLimit))
   }
 
   context(): Promise<ContextReport> {
-    return readContext(this.session)
+    return withTimeout(readContext(this.session))
   }
 
   close(): void {
