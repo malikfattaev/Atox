@@ -468,7 +468,9 @@ export function registerIpcHandlers({
 
   ipcMain.handle(IpcChannel.PlanLimitsGet, () => planLimits.get())
 
-  ipcMain.handle(IpcChannel.SettingsGet, () => settings.get())
+  ipcMain.on(IpcChannel.SettingsGet, (event) => {
+    event.returnValue = settings.get()
+  })
   ipcMain.handle(IpcChannel.SettingsUpdate, (_event, patch: Partial<Settings>) =>
     settings.update(patch)
   )

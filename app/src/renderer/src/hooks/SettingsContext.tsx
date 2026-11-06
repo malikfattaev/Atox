@@ -1,17 +1,29 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useSyncExternalStore, type ReactNode } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '../../../shared/settings'
 
 const SettingsContext = createContext<Settings>(DEFAULT_SETTINGS)
 
-/** Настройки из main-процесса; меняются и из меню, и из интерфейса — сюда приходят все изменения. */
+/**
+ * Настройки из main-процесса; меняются и из меню, и из интерфейса — сюда приходят все изменения.
+ * Читаются синхронно ещё до первой отрисовки, а подписка живёт с загрузки модуля: так первый кадр
+ * уже с сохранённой раскладкой и ни одно изменение не теряется между чтением и подпиской.
+ */
+let currentSettings = window.atox.settings.get()
+const settingsListeners = new Set<() => void>()
+window.atox.settings.subscribe((next) => {
+  currentSettings = next
+  settingsListeners.forEach((listener) => listener())
+})
+
+function subscribeToSettings(listener: () => void): () => void {
+  settingsListeners.add(listener)
+  return () => settingsListeners.delete(listener)
+}
+
+const getSettings = () => currentSettings
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
-
-  useEffect(() => {
-    void window.atox.settings.get().then(setSettings)
-    return window.atox.settings.subscribe(setSettings)
-  }, [])
-
+  const settings = useSyncExternalStore(subscribeToSettings, getSettings)
   return <SettingsContext.Provider value={settings}>{children}</SettingsContext.Provider>
 }
 
