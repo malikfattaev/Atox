@@ -19,8 +19,8 @@ export interface ProjectChanges {
 }
 
 /**
- * Незакоммиченные изменения проекта. Обновляются, пока работают агенты чатов этого проекта,
- * и когда окно получает фокус.
+ * Незакоммиченные изменения проекта. Обновляются, пока работают агенты чатов этого проекта
+ * или что-то происходит в его терминале, и когда окно получает фокус.
  */
 export function useProjectChanges(projectId: string): ProjectChanges {
   const [result, setResult] = useState<ChangesResult | null>(null)
@@ -76,12 +76,15 @@ export function useProjectChanges(projectId: string): ProjectChanges {
     refreshRef.current = refresh
     scheduleRefreshRef.current = scheduleRefresh
     refresh()
+    // Git и правки в терминале проекта меняют файлы так же, как агенты.
+    const unsubscribeTerminal = window.atox.terminals.onData(projectId, scheduleRefresh)
     // Файлы могли поменять в другом приложении, пока окно было не в фокусе.
     window.addEventListener('focus', refresh)
     return () => {
       disposed = true
       refreshRef.current = () => undefined
       scheduleRefreshRef.current = () => undefined
+      unsubscribeTerminal()
       window.removeEventListener('focus', refresh)
       clearTimeout(timer)
     }
