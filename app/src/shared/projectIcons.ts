@@ -454,6 +454,7 @@ export const PROJECT_ICONS = [
   { id: 'origami', name: 'Origami', group: 'animals', keywords: 'paper crane bird' },
 
   { id: 'sparkles', name: 'Magic', group: 'fun', keywords: 'sparkles ai new' },
+  { id: 'sparkle', name: 'Sparkle', group: 'fun', keywords: 'shine' },
   { id: 'zap', name: 'Fast', group: 'fun', keywords: 'lightning zap' },
   { id: 'flame', name: 'Hot', group: 'fun', keywords: 'fire flame' },
   { id: 'trophy', name: 'Trophy', group: 'fun', keywords: 'win award' },
@@ -461,8 +462,17 @@ export const PROJECT_ICONS = [
   { id: 'target', name: 'Goal', group: 'fun', keywords: 'target aim' },
   { id: 'gift', name: 'Gift', group: 'fun', keywords: 'present' },
   { id: 'party-popper', name: 'Party', group: 'fun', keywords: 'celebrate' },
+  { id: 'ticket', name: 'Ticket', group: 'fun', keywords: 'event pass' },
   { id: 'ghost', name: 'Ghost', group: 'fun', keywords: 'spooky' },
-  { id: 'dice', name: 'Dice', group: 'fun', keywords: 'random game' }
+  { id: 'skull', name: 'Skull', group: 'fun', keywords: 'danger pirate' },
+  { id: 'bomb', name: 'Bomb', group: 'fun', keywords: 'explosive' },
+  { id: 'sword', name: 'Sword', group: 'fun', keywords: 'rpg weapon' },
+  { id: 'swords', name: 'Battle', group: 'fun', keywords: 'pvp fight' },
+  { id: 'dice', name: 'Dice', group: 'fun', keywords: 'random game' },
+  { id: 'toy-brick', name: 'Bricks', group: 'fun', keywords: 'lego toy' },
+  { id: 'spade', name: 'Spade', group: 'fun', keywords: 'cards poker' },
+  { id: 'club', name: 'Club', group: 'fun', keywords: 'cards poker' },
+  { id: 'diamond', name: 'Diamond', group: 'fun', keywords: 'cards gem' }
 ] as const satisfies readonly {
   id: string
   name: string
