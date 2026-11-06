@@ -12,6 +12,7 @@ export const PROJECT_ICON_GROUPS = [
   { id: 'food', name: 'Food & Drink' },
   { id: 'sports', name: 'Sports & Health' },
   { id: 'science', name: 'Science & Nature' },
+  { id: 'animals', name: 'Animals' },
   { id: 'fun', name: 'Fun' }
 ] as const
 
@@ -433,9 +434,25 @@ export const PROJECT_ICONS = [
   { id: 'tree', name: 'Tree', group: 'science', keywords: 'nature' },
   { id: 'tree-pine', name: 'Pine', group: 'science', keywords: 'christmas forest' },
 
-  { id: 'cat', name: 'Cat', group: 'fun', keywords: 'pet animal' },
-  { id: 'dog', name: 'Dog', group: 'fun', keywords: 'pet animal' },
-  { id: 'paw-print', name: 'Paw', group: 'fun', keywords: 'pet animal' },
+  { id: 'cat', name: 'Cat', group: 'animals', keywords: 'pet animal' },
+  { id: 'dog', name: 'Dog', group: 'animals', keywords: 'pet animal' },
+  { id: 'paw-print', name: 'Paw', group: 'animals', keywords: 'pet animal' },
+  { id: 'rabbit', name: 'Rabbit', group: 'animals', keywords: 'bunny' },
+  { id: 'squirrel', name: 'Squirrel', group: 'animals', keywords: 'animal' },
+  { id: 'rat', name: 'Rat', group: 'animals', keywords: 'mouse animal' },
+  { id: 'bird', name: 'Bird', group: 'animals', keywords: 'twitter animal' },
+  { id: 'feather', name: 'Feather', group: 'animals', keywords: 'light bird' },
+  { id: 'fish', name: 'Fish', group: 'animals', keywords: 'sea animal' },
+  { id: 'fish-symbol', name: 'Fish Symbol', group: 'animals', keywords: 'sea' },
+  { id: 'shrimp', name: 'Shrimp', group: 'animals', keywords: 'seafood' },
+  { id: 'shell', name: 'Shell', group: 'animals', keywords: 'sea snail' },
+  { id: 'turtle', name: 'Turtle', group: 'animals', keywords: 'slow animal' },
+  { id: 'snail', name: 'Snail', group: 'animals', keywords: 'slow' },
+  { id: 'worm', name: 'Worm', group: 'animals', keywords: 'animal' },
+  { id: 'panda', name: 'Panda', group: 'animals', keywords: 'bear animal' },
+  { id: 'bone', name: 'Bone', group: 'animals', keywords: 'dog skeleton' },
+  { id: 'origami', name: 'Origami', group: 'animals', keywords: 'paper crane bird' },
+
   { id: 'sparkles', name: 'Magic', group: 'fun', keywords: 'sparkles ai new' },
   { id: 'zap', name: 'Fast', group: 'fun', keywords: 'lightning zap' },
   { id: 'flame', name: 'Hot', group: 'fun', keywords: 'fire flame' },
