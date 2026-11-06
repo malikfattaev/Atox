@@ -9,6 +9,7 @@ import { ConversationManager } from './conversations/manager'
 import { TranscriptStore } from './conversations/transcripts'
 import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
+import { handleImageProtocol, registerImageScheme } from './imageProtocol'
 import {
   broadcastGitBranches,
   broadcastConversationEvent,
@@ -60,8 +61,11 @@ if (!app.isPackaged) {
  */
 const isPrimaryInstance = app.requestSingleInstanceLock()
 
+registerImageScheme()
+
 async function bootstrap(): Promise<void> {
   await app.whenReady()
+  handleImageProtocol()
 
   const userData = app.getPath('userData')
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
