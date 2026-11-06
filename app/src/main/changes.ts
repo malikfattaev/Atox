@@ -50,6 +50,11 @@ interface Scope {
  */
 export class WorkingTreeReader {
   /**
+   * Последний список изменений каждой папки проекта. По нему diff файла узнаёт, как файл
+   * изменён, не пересчитывая весь список: панель запрашивает diff сразу после списка.
+   */
+  private readonly listed = new Map<string, ReadonlyMap<string, FileChange>>()
+  /**
    * Строки новых файлов каждого репозитория с прошлого прохода. Новые файлы перечитываются
    * только когда изменились: иначе каждое обновление панели читало бы их все целиком.
    */
@@ -59,8 +64,11 @@ export class WorkingTreeReader {
 
   async list(projectPath: string): Promise<ChangesResult> {
     try {
-      return { ok: true, files: await this.files(await this.scope(projectPath)) }
+      const files = await this.files(await this.scope(projectPath))
+      this.listed.set(projectPath, new Map(files.map((file) => [file.path, file])))
+      return { ok: true, files }
     } catch (error) {
+      this.listed.delete(projectPath)
       // Не репозиторий — только когда так говорит сам git: таймаут или отсутствие git
       // пользователь должен увидеть как есть, а не как «это не репозиторий».
       return isNotRepository(error)
@@ -72,7 +80,9 @@ export class WorkingTreeReader {
   /** Изменения одного файла; `null` — файл уже не изменён. */
   async diff(projectPath: string, path: string): Promise<FileDiff | null> {
     const scope = await this.scope(projectPath)
-    const change = (await this.files(scope)).find((file) => file.path === path)
+    const change =
+      this.listed.get(projectPath)?.get(path) ??
+      (await this.files(scope)).find((file) => file.path === path)
     if (!change) {
       return null
     }
