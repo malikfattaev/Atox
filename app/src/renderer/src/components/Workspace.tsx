@@ -81,6 +81,11 @@ export function Workspace({
   const chatTitles = new Map(
     projects.flatMap((project) => project.chats.map((chat) => [chat.id, chat.title] as const))
   )
+  // Смонтированы недавно открытые и видимые чаты. Порядок — как в проектах, а не по свежести:
+  // иначе каждое переключение переставляло бы панели в DOM.
+  const mountedChatIds = [...chatTitles.keys()].filter(
+    (chatId) => openedChatIds.includes(chatId) || visibleChatIds.includes(chatId)
+  )
   const activeChatProject = activeChatId
     ? projects.find((project) => project.chats.some((chat) => chat.id === activeChatId))
     : undefined
@@ -115,12 +120,12 @@ export function Workspace({
           data-split={isSplit}
           style={{ '--split-position': `${splitPosition * 100}%` } as CSSProperties}
         >
-          {openedChatIds.map((chatId) => {
+          {mountedChatIds.map((chatId) => {
             const pane = visibleChatIds.indexOf(chatId)
             const visible = !pageOpen && pane >= 0
             const focused = visible && chatId === activeChatId
             return (
-              // Открытые чаты остаются смонтированными: скрытый чат не теряет черновик и прокрутку.
+              // Недавние чаты остаются смонтированными: возврат в них не перезагружает ленту.
               <section
                 key={chatId}
                 className="chat-pane"
