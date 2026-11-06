@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 
 /** Сколько ждать ответа программы, прежде чем считать запуск неудавшимся. */
 const DEFAULT_TIMEOUT_MS = 20_000
@@ -31,21 +32,32 @@ export class CommandError extends Error {
     readonly code: string | number | undefined,
     readonly stderr: string,
     /** Программу остановили по таймауту — тогда кода выхода у неё нет. */
-    readonly timedOut = false
+    readonly timedOut = false,
+    /**
+     * Папки, в которой запускали программу, нет: запуск тогда тоже падает с `ENOENT`, но
+     * программа тут ни при чём — проект удалили или перенесли.
+     */
+    readonly missingFolder: string | null = null
   ) {
     // По таймауту в stderr может остаться обрывок вывода — он объяснил бы меньше.
-    super((!timedOut && stderr.trim()) || failureDescription(program, code, timedOut))
+    super(
+      (!timedOut && stderr.trim()) || failureDescription(program, code, timedOut, missingFolder)
+    )
   }
 }
 
 function failureDescription(
   program: string,
   code: string | number | undefined,
-  timedOut: boolean
+  timedOut: boolean,
+  missingFolder: string | null
 ): string {
   const name = PROGRAM_NAMES[program] ?? program
   if (timedOut) {
     return `${name} didn’t respond in ${DEFAULT_TIMEOUT_MS / 1000} s`
+  }
+  if (missingFolder !== null) {
+    return `The project folder was not found: ${missingFolder}`
   }
   if (code === 'ENOENT') {
     return `${program} not found`
@@ -84,7 +96,10 @@ export function runCommand(
           resolve(String(stdout))
         } else {
           const timedOut = error?.killed === true && code === null
-          reject(new CommandError(program, code ?? undefined, String(stderr), timedOut))
+          const missingFolder = code === 'ENOENT' && !existsSync(cwd) ? cwd : null
+          reject(
+            new CommandError(program, code ?? undefined, String(stderr), timedOut, missingFolder)
+          )
         }
       }
     )
