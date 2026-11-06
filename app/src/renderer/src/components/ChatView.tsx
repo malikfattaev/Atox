@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useConversation } from '../hooks/useConversation'
 import type { UserMessage } from '../../../shared/conversation'
@@ -33,7 +33,6 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
   const project = projects.find(({ chats }) => chats.some(({ id }) => id === chatId))
   const chat = project?.chats.find(({ id }) => id === chatId)
   const rendered = Boolean(project && chat)
-  const lastUserMessage = conversation.items.findLast((item) => item.kind === 'user')?.id
 
   /**
    * Следует ли лента за агентом, решает её положение, а не колесо или клики: так её не сбивают
@@ -72,10 +71,11 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
     }
   }
 
-  // Новое сообщение пользователя: он ждёт ответа, лента снова следует за агентом.
-  useLayoutEffect(() => {
+  // Пользователь отправил сообщение из поля: он ждёт ответа, лента снова следует за агентом.
+  // Сообщения от других агентов (atox send, отчёты помощников) читающего историю не сдвигают.
+  const followAgent = useCallback(() => {
     stickToBottom.current = true
-  }, [lastUserMessage])
+  }, [])
 
   useLayoutEffect(() => {
     if (visible) {
@@ -129,6 +129,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
           started={started}
           focused={focused}
           usage={conversation.usage}
+          onSend={followAgent}
         />
       </div>
     </div>
