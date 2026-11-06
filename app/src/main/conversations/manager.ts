@@ -164,10 +164,15 @@ export class ConversationManager {
     return (await this.conversation(chatId)).snapshot
   }
 
+  /**
+   * `titleFrom` — текст, по которому назвать чат вместо самого сообщения: у задания помощнику
+   * первая строка — служебная и у всех помощников одинаковая.
+   */
   async send(
     chatId: string,
     text: string,
-    { images = [], files = [] }: MessageAttachments = {}
+    { images = [], files = [] }: MessageAttachments = {},
+    { titleFrom = text }: { titleFrom?: string } = {}
   ): Promise<void> {
     const message = text.trim()
     if (!message && images.length === 0 && files.length === 0) {
@@ -191,7 +196,7 @@ export class ConversationManager {
     if (
       isFirst &&
       message &&
-      this.services.store.applyAutomaticTitle(chatId, titleFromMessage(message))
+      this.services.store.applyAutomaticTitle(chatId, titleFromMessage(titleFrom))
     ) {
       this.services.onProjectsChanged()
     }
