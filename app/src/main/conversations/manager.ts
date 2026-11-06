@@ -687,6 +687,19 @@ export class ConversationManager {
     let started = false
     /** Сессия не смогла продолжить разговор, и её сменила новая: её события больше не нужны. */
     let abandoned = false
+    /**
+     * Ошибки сессии, пока неясно, продолжила ли она разговор. Если не продолжила, сообщение
+     * уйдёт новой сессии с перепиской, и ошибка прежней — например, «разговор не найден» —
+     * пользователю ни к чему.
+     */
+    let heldErrors: TimelineItem[] = []
+    const releaseErrors = () => {
+      const errors = heldErrors
+      heldErrors = []
+      for (const item of errors) {
+        this.emit(chatId, conversation, { type: 'item', item })
+      }
+    }
     const resumeFailed = () => {
       // Остановленное сообщение ничего не говорит о разговоре: его проверит следующее.
       const turn = conversation.turn
@@ -694,6 +707,7 @@ export class ConversationManager {
         return false
       }
       abandoned = true
+      heldErrors = []
       this.restartWithHistory(chatId, conversation)
       return true
     }
@@ -708,9 +722,14 @@ export class ConversationManager {
       },
       {
         item: (item) => {
-          if (!abandoned) {
-            this.emit(chatId, conversation, { type: 'item', item })
+          if (abandoned) {
+            return
           }
+          if (item.kind === 'error' && resumedId !== null && !started) {
+            heldErrors.push(item)
+            return
+          }
+          this.emit(chatId, conversation, { type: 'item', item })
         },
         delta: (itemId, field, delta) => {
           if (!abandoned) {
@@ -724,6 +743,7 @@ export class ConversationManager {
         },
         turnFinished: () => {
           if (conversation.session === session && !resumeFailed()) {
+            releaseErrors()
             this.finishTurn(chatId, conversation)
             this.reportPlanLimits(agent, session)
           }
@@ -739,6 +759,7 @@ export class ConversationManager {
             return
           }
           started = true
+          releaseErrors()
           if (conversation.sessionId !== sessionId) {
             conversation.sessionId = sessionId
             this.persist(chatId, conversation, { immediately: true })
@@ -746,6 +767,7 @@ export class ConversationManager {
         },
         closed: () => {
           if (conversation.session === session && !resumeFailed()) {
+            releaseErrors()
             conversation.session = null
             this.finishTurn(chatId, conversation)
           }
