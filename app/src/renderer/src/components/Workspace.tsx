@@ -11,6 +11,7 @@ import { RepositoryView, type RepositorySection } from './RepositoryView'
 import { SettingsView } from './SettingsView'
 import { SplitResizer } from './SplitResizer'
 import { TerminalPanel } from './TerminalPanel'
+import { Welcome } from './Welcome'
 import { WorkspaceTitle } from './WorkspaceTitle'
 import { WorkspaceToolbar } from './WorkspaceToolbar'
 
@@ -155,7 +156,9 @@ export function Workspace({
             />
           )}
           {!pageOpen && !activeChatId && (
-            <p className="workspace__empty">Select a chat or create a new one</p>
+            <div className="workspace__empty">
+              <Welcome />
+            </div>
           )}
         </div>
       </div>
