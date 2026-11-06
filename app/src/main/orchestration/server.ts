@@ -186,8 +186,14 @@ export class OrchestrationServer {
       const { chat } = this.services.store.createWorkerChat(caller.chat.id, agent, title)
       this.startingChatIds.add(chat.id)
       try {
-        // Задание — первое сообщение помощнику: он сразу начинает работать.
-        await this.services.conversations.send(chat.id, formatWorkerTask(caller.chat, task))
+        // Задание — первое сообщение помощнику: он сразу начинает работать. Чат без своего
+        // названия называется по заданию, а не по служебному началу сообщения.
+        await this.services.conversations.send(
+          chat.id,
+          formatWorkerTask(caller.chat, task),
+          {},
+          { titleFrom: task }
+        )
       } finally {
         this.startingChatIds.delete(chat.id)
       }
