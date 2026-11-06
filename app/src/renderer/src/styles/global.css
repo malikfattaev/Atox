@@ -2284,6 +2284,89 @@ ul {
   color: var(--color-text-muted);
 }
 
+/* Приветствие на пустой рабочей области: знак, обращение по имени и подсказка. */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.welcome__title {
+  margin: 12px 0 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  animation: welcome-rise 600ms 250ms ease-out backwards;
+}
+
+.welcome__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  animation: welcome-rise 600ms 350ms ease-out backwards;
+}
+
+.welcome__hint kbd {
+  padding: 1px 6px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  letter-spacing: 0.08em;
+  background: var(--color-hover);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.bloom-mark {
+  width: 72px;
+  height: 72px;
+  overflow: visible;
+}
+
+/* Лепестки складываются, как в иконке: пересечения светлее, а фон не участвует. */
+.bloom-mark__petals,
+.bloom-mark__glow {
+  isolation: isolate;
+}
+
+.bloom-mark__glow {
+  opacity: 0.4;
+  filter: blur(6px);
+}
+
+.bloom-mark__petal {
+  mix-blend-mode: screen;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  transform: rotate(var(--petal-angle));
+  animation: bloom-open 900ms calc(var(--petal-index) * 70ms) cubic-bezier(0.2, 0.8, 0.2, 1)
+    backwards;
+}
+
+/* Лепестки раскрываются из одного: каждый поворачивается от вертикали к своему углу. */
+@keyframes bloom-open {
+  from {
+    opacity: 0;
+    transform: rotate(0deg) scale(0.6);
+  }
+}
+
+@keyframes welcome-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bloom-mark__petal,
+  .welcome__title,
+  .welcome__hint {
+    animation: none;
+  }
+}
+
 /* Чат в рабочей области; когда чаты открыты рядом, каждый занимает свою часть ширины. */
 .chat-pane {
   position: absolute;
