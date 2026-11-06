@@ -123,6 +123,19 @@ export class ProjectStore {
   }
 
   /**
+   * Запоминает чат последним открытым в пространстве его проекта. Неизвестный чат (его могли
+   * удалить, пока шло сообщение) пропускается; без изменений файл не переписывается.
+   */
+  rememberChat(chatId: string): void {
+    const project = this.findChat(chatId)?.project
+    const space = project && this.findSpace(project.spaceId)
+    if (space && space.lastChatId !== chatId) {
+      space.lastChatId = chatId
+      this.persist()
+    }
+  }
+
+  /**
    * Удаляет пространство; его проекты переходят в соседнее, ничего не теряется.
    * Последнее пространство удалить нельзя. Возвращает пространство, куда ушли проекты.
    */

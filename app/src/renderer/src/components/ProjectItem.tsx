@@ -51,7 +51,8 @@ export function ProjectItem({ project, branch, onOpenRepository }: ProjectItemPr
     removeProject,
     moveChat
   } = useProjectsContext()
-  // При запуске все проекты свёрнуты: список остаётся коротким, а состояние не запоминается.
+  // При запуске проекты свёрнуты, кроме проекта открытого чата (его раскрывает эффект ниже):
+  // список остаётся коротким, а раскрытие не запоминается.
   const [expanded, setExpanded] = useState(false)
   const [renaming, setRenaming] = useState(false)
   // Строка проекта, под которой открыт выбор значка; `null` — выбор закрыт.
