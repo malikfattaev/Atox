@@ -9,6 +9,13 @@ import { useProjectsContext } from './ProjectsContext'
  */
 const LIVE_REFRESH_MS = 1500
 
+/**
+ * Сколько вывод терминала проекта должен молчать, чтобы обновить изменения: команда (git,
+ * сборка) закончила писать. Программа, которая пишет без остановки (сервер разработки, htop),
+ * так не заставляет перечитывать git каждые полторы секунды.
+ */
+const TERMINAL_QUIET_MS = 1000
+
 /** Разделитель идентификаторов чатов в ключе подписок; в самих идентификаторах его нет. */
 const CHAT_IDS_SEPARATOR = '\n'
 
@@ -73,11 +80,17 @@ export function useProjectChanges(projectId: string): ProjectChanges {
       }, LIVE_REFRESH_MS)
     }
 
+    let terminalQuietTimer: ReturnType<typeof setTimeout> | undefined
+    const refreshWhenTerminalQuiet = () => {
+      clearTimeout(terminalQuietTimer)
+      terminalQuietTimer = setTimeout(refresh, TERMINAL_QUIET_MS)
+    }
+
     refreshRef.current = refresh
     scheduleRefreshRef.current = scheduleRefresh
     refresh()
     // Git и правки в терминале проекта меняют файлы так же, как агенты.
-    const unsubscribeTerminal = window.atox.terminals.onData(projectId, scheduleRefresh)
+    const unsubscribeTerminal = window.atox.terminals.onData(projectId, refreshWhenTerminalQuiet)
     // Файлы могли поменять в другом приложении, пока окно было не в фокусе.
     window.addEventListener('focus', refresh)
     return () => {
@@ -87,6 +100,7 @@ export function useProjectChanges(projectId: string): ProjectChanges {
       unsubscribeTerminal()
       window.removeEventListener('focus', refresh)
       clearTimeout(timer)
+      clearTimeout(terminalQuietTimer)
     }
   }, [projectId])
 
