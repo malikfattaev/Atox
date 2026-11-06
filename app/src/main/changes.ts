@@ -8,11 +8,14 @@ import {
   type FileChangeKind,
   type FileDiff
 } from '../shared/changes'
-import { errorMessage, runGit } from './processes'
+import { CommandError, errorMessage, runGit } from './processes'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Строки нового файла считаются, только пока он не больше этого: огромный файл — не код. */
 const UNTRACKED_COUNT_LIMIT_BYTES = 2 * 1024 * 1024
+
+/** Так git отвечает в папке вне репозитория (`fatal: not a git repository …`). */
+const NOT_REPOSITORY_MESSAGE = 'not a git repository'
 
 /** Репозиторий проекта: его корень и папка проекта в нём. */
 interface Scope {
@@ -32,16 +35,14 @@ export class WorkingTreeReader {
   constructor(private readonly shellEnvironment: ShellEnvironment) {}
 
   async list(projectPath: string): Promise<ChangesResult> {
-    let scope: Scope
     try {
-      scope = await this.scope(projectPath)
-    } catch {
-      return { ok: false, error: { kind: 'not-git' } }
-    }
-    try {
-      return { ok: true, files: await this.files(scope) }
+      return { ok: true, files: await this.files(await this.scope(projectPath)) }
     } catch (error) {
-      return { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
+      // Не репозиторий — только когда так говорит сам git: таймаут или отсутствие git
+      // пользователь должен увидеть как есть, а не как «это не репозиторий».
+      return isNotRepository(error)
+        ? { ok: false, error: { kind: 'not-git' } }
+        : { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
     }
   }
 
@@ -202,6 +203,10 @@ export class WorkingTreeReader {
       ...(successCodes && { successCodes })
     })
   }
+}
+
+function isNotRepository(error: unknown): boolean {
+  return error instanceof CommandError && error.stderr.includes(NOT_REPOSITORY_MESSAGE)
 }
 
 type StatusEntry = Pick<FileChange, 'path' | 'previousPath' | 'kind'>
