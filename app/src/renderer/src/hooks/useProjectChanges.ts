@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangesResult } from '../../../shared/changes'
+import { ipcErrorMessage } from '../lib/ipcError'
+import { useProjectsContext } from './ProjectsContext'
 
 /**
  * Как часто перечитывать изменения, пока агенты работают: они правят файлы посреди ответа,
@@ -7,49 +9,97 @@ import type { ChangesResult } from '../../../shared/changes'
  */
 const LIVE_REFRESH_MS = 1500
 
+/** Разделитель идентификаторов чатов в ключе подписок; в самих идентификаторах его нет. */
+const CHAT_IDS_SEPARATOR = '\n'
+
 export interface ProjectChanges {
   /** `null` — ещё не загружены. */
   result: ChangesResult | null
   refresh(): void
 }
 
-/** Незакоммиченные изменения проекта; обновляются, пока агенты работают и когда окно в фокусе. */
+/**
+ * Незакоммиченные изменения проекта. Обновляются, пока работают агенты чатов этого проекта,
+ * и когда окно получает фокус.
+ */
 export function useProjectChanges(projectId: string): ProjectChanges {
   const [result, setResult] = useState<ChangesResult | null>(null)
-  const latestRequestRef = useRef(0)
-
-  const refresh = useCallback(() => {
-    const request = ++latestRequestRef.current
-    void window.atox.changes.list(projectId).then((next) => {
-      // Ответы могут прийти не по порядку: показывается только самый свежий запрос.
-      if (request === latestRequestRef.current) {
-        setResult(next)
-      }
-    })
-  }, [projectId])
+  const { projects } = useProjectsContext()
+  // Строка, а не массив: подписки пересоздаются, только когда меняется состав чатов.
+  const chatIdsKey =
+    projects
+      .find((project) => project.id === projectId)
+      ?.chats.map((chat) => chat.id)
+      .join(CHAT_IDS_SEPARATOR) ?? ''
+  const refreshRef = useRef<() => void>(() => undefined)
+  const scheduleRefreshRef = useRef<() => void>(() => undefined)
 
   useEffect(() => {
     setResult(null)
-    refresh()
-    let timer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+    // Каждый проход — несколько запусков git. Новый не начинается, пока идёт прежний:
+    // вместо этого запоминается, что после него нужен ещё один, — он увидит свежие изменения.
+    let running = false
+    let pending = false
+    const refresh = () => {
+      if (running) {
+        pending = true
+        return
+      }
+      running = true
+      window.atox.changes
+        .list(projectId)
+        .catch((error: unknown): ChangesResult => {
+          return { ok: false, error: { kind: 'failed', message: ipcErrorMessage(error) } }
+        })
+        .then((next) => {
+          running = false
+          if (disposed) {
+            return
+          }
+          setResult(next)
+          if (pending) {
+            pending = false
+            refresh()
+          }
+        })
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined
     const scheduleRefresh = () => {
       timer ??= setTimeout(() => {
-        timer = null
+        timer = undefined
         refresh()
       }, LIVE_REFRESH_MS)
     }
-    const unsubscribe = window.atox.conversations.onAnyEvent(scheduleRefresh)
+
+    refreshRef.current = refresh
+    scheduleRefreshRef.current = scheduleRefresh
+    refresh()
     // Файлы могли поменять в другом приложении, пока окно было не в фокусе.
     window.addEventListener('focus', refresh)
     return () => {
-      latestRequestRef.current++
-      unsubscribe()
+      disposed = true
+      refreshRef.current = () => undefined
+      scheduleRefreshRef.current = () => undefined
       window.removeEventListener('focus', refresh)
-      if (timer) {
-        clearTimeout(timer)
-      }
+      clearTimeout(timer)
     }
-  }, [refresh])
+  }, [projectId])
 
+  // События чатов других проектов к изменениям в этой папке отношения не имеют.
+  useEffect(() => {
+    if (!chatIdsKey) {
+      return
+    }
+    const unsubscribes = chatIdsKey
+      .split(CHAT_IDS_SEPARATOR)
+      .map((chatId) =>
+        window.atox.conversations.onEvent(chatId, () => scheduleRefreshRef.current())
+      )
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
+  }, [chatIdsKey])
+
+  const refresh = useCallback(() => refreshRef.current(), [])
   return { result, refresh }
 }
