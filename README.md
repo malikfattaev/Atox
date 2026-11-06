@@ -27,7 +27,7 @@
 </p>
 
 <p align="center">
-  <img src="web/public/screenshot.png" alt="Atox: a chat with Claude in the Atox project" width="860">
+  <img src="web/public/screenshot.png" alt="Atox: a chat with Claude in the Atox project, with plan limits in the sidebar" width="860">
 </p>
 
 ## What it does
