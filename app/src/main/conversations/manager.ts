@@ -15,6 +15,7 @@ import {
   type ConversationEvent,
   type ConversationSnapshot,
   type ConversationSummary,
+  type PlanLimit,
   type RequestAnswer,
   type StreamedField,
   type TimelineItem
@@ -118,6 +119,8 @@ export interface ConversationServices {
   /** Окружение процесса агента; с `chatId` — с переменными для команды `atox` этого чата. */
   environment(chatId?: string): Promise<Record<string, string>>
   onEvent(event: ConversationEvent): void
+  /** Сессия агента сообщила лимиты подписки — после очередного ответа. */
+  onPlanLimits(agent: AgentId, limits: PlanLimit[]): void
   /** Список чатов изменился без участия окна — например, чат получил название. */
   onProjectsChanged(): void
 }
@@ -628,6 +631,7 @@ export class ConversationManager {
         turnFinished: () => {
           if (conversation.session === session && !resumeFailed()) {
             this.finishTurn(chatId, conversation)
+            this.reportPlanLimits(agent, session)
           }
         },
         usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
@@ -688,6 +692,19 @@ export class ConversationManager {
       )
     }
     return { executable, cwd, env: await this.services.environment(chatId) }
+  }
+
+  /** Лимиты подписки агента без сессии чата — отдельным процессом агента. */
+  async planLimits(agent: AgentId): Promise<PlanLimit[]> {
+    return this.services.drivers[agent].limits(await this.launch(agent, homedir()))
+  }
+
+  /** Каждый ответ расходует лимиты: работающая сессия сразу сообщает, сколько осталось. */
+  private reportPlanLimits(agent: AgentId, session: AgentSession): void {
+    session
+      .limits()
+      .then((limits) => this.services.onPlanLimits(agent, limits))
+      .catch((error) => console.error(`Failed to read ${agent} plan limits`, error))
   }
 
   private async loadCatalog(agent: AgentId): Promise<AgentCatalog> {
