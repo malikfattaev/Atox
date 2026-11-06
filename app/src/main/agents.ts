@@ -5,9 +5,10 @@ import { AGENTS, type AgentId } from '../shared/agents'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /**
- * Не найден какой-то агент — окружение оболочки перечитывается, если оно старше этого:
- * агента могли поставить, а PATH к нему дописать в профиле уже после запуска Atox. Чаще не
- * нужно — иначе каждое открытие меню без установленного агента запускало бы оболочку.
+ * Запускают агента, которого нет, — окружение оболочки перечитывается, если оно старше этого:
+ * агента могли поставить, а PATH к нему дописать в профиле уже после запуска Atox. Только при
+ * запуске и не чаще: большинство не ставит всех агентов, и фоновый поиск, перечитывающий
+ * оболочку из-за каждого отсутствующего, запускал бы её на каждое открытие меню.
  */
 const MISSING_AGENT_REFRESH_INTERVAL_MS = 60_000
 
@@ -35,7 +36,20 @@ export class AgentDetector {
       return path
     }
     // Агента нет в прошлом ответе — возможно, его только что поставили.
-    return (await this.startDetection()).get(agent) ?? null
+    const found = await this.startDetection()
+    return found.get(agent) ?? (await this.findAfterShellRefresh(agent))
+  }
+
+  /** Ищет агента в перечитанном окружении оболочки, если прежнее уже устарело. */
+  private async findAfterShellRefresh(agent: AgentId): Promise<string | null> {
+    const environment = await this.shell.get()
+    const fresh = await this.shell.fresh(MISSING_AGENT_REFRESH_INTERVAL_MS)
+    if (fresh === environment) {
+      return null
+    }
+    const found = await findAgents(fresh)
+    this.executables = Promise.resolve(found)
+    return found.get(agent) ?? null
   }
 
   /** Прошлый ответ; первый запрос ждёт поиска. Заодно в фоне начинается новый поиск. */
@@ -62,13 +76,7 @@ export class AgentDetector {
   }
 
   private async detect(): Promise<Map<AgentId, string>> {
-    const environment = await this.shell.get()
-    const found = await findAgents(environment)
-    if (found.size === AGENTS.length) {
-      return found
-    }
-    const fresh = await this.shell.fresh(MISSING_AGENT_REFRESH_INTERVAL_MS)
-    return fresh === environment ? found : findAgents(fresh)
+    return findAgents(await this.shell.get())
   }
 }
 
