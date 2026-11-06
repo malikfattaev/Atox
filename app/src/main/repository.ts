@@ -16,7 +16,13 @@ import type {
   RepositoryResult,
   ReviewDecision
 } from '../shared/repository'
-import { BACKGROUND_GIT_ENVIRONMENT, CommandError, errorMessage, runCommand } from './processes'
+import {
+  BACKGROUND_GIT_ENVIRONMENT,
+  CommandError,
+  errorMessage,
+  isNotRepositoryError,
+  runCommand
+} from './processes'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Сколько коммитов загружать за раз: дальше список подгружается при прокрутке. */
@@ -219,11 +225,14 @@ export class RepositoryReader {
       ])
       return { ok: true, data: { ...page, total: Number(total.trim()) } }
     } catch (error) {
-      if (!(await this.isRepository(path))) {
+      // Не репозиторий — только когда так говорит сам git: таймаут или отсутствие git
+      // пользователь должен увидеть как есть.
+      if (isNotRepositoryError(error)) {
         return { ok: false, error: { kind: 'not-git' } }
       }
-      // В новом репозитории ещё нет коммитов — тогда HEAD никуда не указывает.
-      if (!(await this.hasCommits(path))) {
+      // В новом репозитории ещё нет коммитов — тогда HEAD никуда не указывает. Об этом
+      // говорит ответ git, а не сбой его запуска.
+      if (isGitAnswer(error) && !(await this.hasCommits(path))) {
         return { ok: true, data: { items: [], next: null, total: 0 } }
       }
       return { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
@@ -503,13 +512,6 @@ export class RepositoryReader {
     return new Set(output.split('\n').filter(Boolean))
   }
 
-  private isRepository(path: string): Promise<boolean> {
-    return this.run('git', ['rev-parse', '--git-dir'], path).then(
-      () => true,
-      () => false
-    )
-  }
-
   private hasCommits(path: string): Promise<boolean> {
     return this.run('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], path).then(
       () => true,
@@ -682,6 +684,11 @@ function isInaccessibleRepository(error: unknown): boolean {
   return error instanceof CommandError && error.stderr.includes('Could not resolve to a Repository')
 }
 
+/** Git запустился и ответил ошибкой — а не завис и не отсутствует. */
+function isGitAnswer(error: unknown): boolean {
+  return error instanceof CommandError && typeof error.code === 'number'
+}
+
 function isGatewayError(error: unknown): boolean {
   return error instanceof CommandError && GATEWAY_ERROR.test(error.stderr)
 }
@@ -694,7 +701,7 @@ function classifyGitHubError(error: unknown): RepositoryError {
     if (error.code === 'ENOENT') {
       return { kind: 'gh-missing' }
     }
-    if (error.stderr.includes('not a git repository')) {
+    if (isNotRepositoryError(error)) {
       return { kind: 'not-git' }
     }
     if (error.stderr.includes('gh auth login')) {
