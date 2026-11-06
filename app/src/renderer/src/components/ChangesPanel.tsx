@@ -41,9 +41,14 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
   const width = draftWidth ?? terminalWidth
   const { result, refresh } = useProjectChanges(projectId)
   const [expandedPaths, setExpandedPaths] = useState<ReadonlySet<string>>(new Set())
+  const [discardingPath, setDiscardingPath] = useState<string | null>(null)
+  const [discardError, setDiscardError] = useState<string | null>(null)
   const files = result?.ok ? result.files : null
 
-  useEffect(() => setExpandedPaths(new Set()), [projectId])
+  useEffect(() => {
+    setExpandedPaths(new Set())
+    setDiscardError(null)
+  }, [projectId])
 
   const toggle = (path: string) =>
     setExpandedPaths((paths) => {
@@ -55,8 +60,18 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
     })
 
   const discard = async (path: string) => {
-    if (await atox.changes.discard(projectId, path)) {
+    setDiscardError(null)
+    setDiscardingPath(path)
+    try {
+      if (await atox.changes.discard(projectId, path)) {
+        refresh()
+      }
+    } catch (error) {
+      setDiscardError(`Could not discard changes to ${path}. ${ipcErrorMessage(error)}`)
+      // Отмена могла выполниться наполовину — например, файл убран из индекса, но остался.
       refresh()
+    } finally {
+      setDiscardingPath(null)
     }
   }
 
@@ -82,6 +97,11 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
       </header>
 
       <div className="changes-panel__body">
+        {discardError && (
+          <p className="changes-panel__message" role="alert">
+            {discardError}
+          </p>
+        )}
         {result && !result.ok && (
           <p className="changes-panel__message">
             {result.error.kind === 'not-git'
@@ -99,6 +119,7 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
                 file={file}
                 listing={files}
                 expanded={expandedPaths.has(file.path)}
+                discarding={discardingPath === file.path}
                 onToggle={() => toggle(file.path)}
                 onDiscard={() => void discard(file.path)}
               />
@@ -125,6 +146,8 @@ interface ChangedFileProps {
   /** Список, в котором пришёл файл: новый список — повод перечитать раскрытые изменения. */
   listing: readonly FileChange[]
   expanded: boolean
+  /** Изменения файла сейчас отменяются. */
+  discarding: boolean
   onToggle(): void
   onDiscard(): void
 }
@@ -134,6 +157,7 @@ function ChangedFile({
   file,
   listing,
   expanded,
+  discarding,
   onToggle,
   onDiscard
 }: ChangedFileProps) {
@@ -170,6 +194,7 @@ function ChangedFile({
           className="changed-file__discard"
           aria-label={`Discard changes to ${name}`}
           title="Discard changes"
+          disabled={discarding}
           onClick={onDiscard}
         >
           <Undo2 className="icon" />
