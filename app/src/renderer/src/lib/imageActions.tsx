@@ -6,7 +6,7 @@ const { atox } = window
 
 /** Картинка в окне: что показывать и, если она лежит на диске, путь к файлу. */
 export interface ShownImage {
-  /** Картинка как data URL. */
+  /** Адрес картинки: `atox-image://` для файлов с диска. */
   src: string
   /** Файл картинки; без него её можно только скопировать. */
   path?: string
@@ -20,6 +20,8 @@ type ImageAction = 'copy' | 'save'
  */
 export async function copyImage(src: string): Promise<void> {
   const image = new Image()
+  // Без CORS картинка с другой схемы «пачкает» canvas, и выгрузить из него PNG нельзя.
+  image.crossOrigin = 'anonymous'
   image.src = src
   await image.decode()
   const canvas = document.createElement('canvas')

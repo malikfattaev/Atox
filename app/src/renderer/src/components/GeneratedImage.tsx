@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { CircleAlert, ImageOff, LoaderCircle } from 'lucide-react'
 import type { TimelineItem } from '../../../shared/conversation'
-import { useImagePreview } from '../lib/attachments'
+import { imageUrl } from '../../../shared/imageProtocol'
 import { imageContextMenu, type ShownImage } from '../lib/imageActions'
 import { ImageViewer } from './ImageViewer'
 
@@ -34,6 +34,7 @@ export function GeneratedImage({ item }: { item: ImageItem }) {
 
 /**
  * Картинка с диска по пути: и нарисованная агентом, и та, на которую он сослался в ответе.
+ * Грузится, только когда долистали до неё, и не хранится в памяти окна строкой base64.
  * Разметка строчная (span), чтобы картинка могла стоять внутри абзаца Markdown.
  */
 export function LocalImage({
@@ -44,17 +45,11 @@ export function LocalImage({
   /** Что показать, если картинки нет: по умолчанию — ошибка «файла нет». */
   fallback?: ReactNode
 }) {
-  const preview = useImagePreview(path)
   const [viewed, setViewed] = useState<ShownImage | null>(null)
+  // Путь, картинку по которому открыть не удалось: при смене пути пробуем заново.
+  const [failedPath, setFailedPath] = useState<string | null>(null)
 
-  if (preview === undefined) {
-    return (
-      <span className="generated-image__placeholder" role="status">
-        <LoaderCircle className="icon activity__spinner" />
-      </span>
-    )
-  }
-  if (preview === null) {
+  if (failedPath === path) {
     if (fallback !== undefined) {
       return fallback
     }
@@ -65,7 +60,7 @@ export function LocalImage({
       </span>
     )
   }
-  const image = { src: preview, path }
+  const image = { src: imageUrl(path), path }
   return (
     <>
       <button
@@ -76,7 +71,13 @@ export function LocalImage({
         onClick={() => setViewed(image)}
         onContextMenu={imageContextMenu(image)}
       >
-        <img src={preview} alt="" />
+        <img
+          src={image.src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedPath(path)}
+        />
       </button>
       {viewed && <ImageViewer image={viewed} onClose={() => setViewed(null)} />}
     </>

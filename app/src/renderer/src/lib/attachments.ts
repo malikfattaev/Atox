@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isImageType, type PickedFile } from '../../../shared/attachments'
+import { imageUrl } from '../../../shared/imageProtocol'
 import { ipcErrorMessage } from './ipcError'
 
 const { atox } = window
@@ -10,58 +11,82 @@ export type Attachment =
       kind: 'image'
       /** Путь к файлу картинки: его получает агент. */
       path: string
-      /** Картинка как data URL — для превью в окне. */
+      /** Адрес картинки для превью в окне (`atox-image://`). */
       preview: string
     }
   | { kind: 'file'; path: string }
 
 /**
- * Превью картинок по пути: приложенные в этом окне попадают сюда сразу, остальные (например,
- * нарисованные агентом) читаются с диска один раз.
+ * Сколько путей помнить как уже открывавшиеся картинки. Хранятся только пути, сами картинки
+ * кэширует Chromium; предел не даёт списку расти вечно в долгой сессии.
  */
-const previews = new Map<string, string>()
+const KNOWN_IMAGES_LIMIT = 500
 
-/** Картинки, которые сейчас читаются с диска: одна загрузка на путь. */
-const loading = new Map<string, Promise<string | null>>()
+/**
+ * Пути картинок, которые уже открывались: их превью показывается сразу, без проверки файла.
+ * Set помнит порядок добавления, поэтому первыми вытесняются самые давние.
+ */
+const knownImages = new Set<string>()
 
-function loadPreview(path: string): Promise<string | null> {
-  let pending = loading.get(path)
+function rememberImage(path: string): void {
+  knownImages.delete(path)
+  knownImages.add(path)
+  if (knownImages.size > KNOWN_IMAGES_LIMIT) {
+    const oldest = knownImages.values().next().value
+    if (oldest !== undefined) {
+      knownImages.delete(oldest)
+    }
+  }
+}
+
+/** Картинки, которые сейчас проверяются: одна проверка на путь. */
+const checking = new Map<string, Promise<boolean>>()
+
+/** Открывается ли файл как картинка: его нет, он битый или это не картинка — `false`. */
+function checkImage(path: string): Promise<boolean> {
+  let pending = checking.get(path)
   if (!pending) {
-    pending = atox.images.read(path).then((preview) => {
-      loading.delete(path)
-      if (preview) {
-        previews.set(path, preview)
+    const image = new Image()
+    image.src = imageUrl(path)
+    pending = image.decode().then(
+      () => true,
+      () => false
+    )
+    void pending.then((loadable) => {
+      checking.delete(path)
+      if (loadable) {
+        rememberImage(path)
       }
-      return preview
     })
-    loading.set(path, pending)
+    checking.set(path, pending)
   }
   return pending
 }
 
 /**
- * Превью картинки по пути к файлу: `undefined` — ещё читается, `null` — файла нет или это
- * не картинка.
+ * Превью картинки по пути к файлу: адрес для `<img>`; `undefined` — файл ещё проверяется,
+ * `null` — файла нет или это не картинка.
  */
 export function useImagePreview(path: string): string | null | undefined {
-  const [loaded, setLoaded] = useState<{
-    path: string
-    preview: string | null
-  }>()
-  const cached = previews.get(path)
+  const [checked, setChecked] = useState<{ path: string; loadable: boolean }>()
+  const known = knownImages.has(path)
   useEffect(() => {
-    if (cached) {
+    if (known) {
       return
     }
     let current = true
-    loadPreview(path)
-      .catch(() => null)
-      .then((preview) => current && setLoaded({ path, preview }))
+    void checkImage(path).then((loadable) => current && setChecked({ path, loadable }))
     return () => {
       current = false
     }
-  }, [path, cached])
-  return cached ?? (loaded?.path === path ? loaded.preview : undefined)
+  }, [path, known])
+  if (known) {
+    return imageUrl(path)
+  }
+  if (checked?.path !== path) {
+    return undefined
+  }
+  return checked.loadable ? imageUrl(path) : null
 }
 
 export function isAttachableImage(file: File): boolean {
@@ -122,24 +147,12 @@ export function attachPicked({ path, preview }: PickedFile): Attachment {
   if (!preview) {
     return { kind: 'file', path }
   }
-  previews.set(path, preview)
-  return { kind: 'image', path, preview }
+  rememberImage(path)
+  return { kind: 'image', path, preview: imageUrl(path) }
 }
 
 async function attachImage(file: File): Promise<Attachment> {
-  const [path, preview] = await Promise.all([
-    atox.files.getPath(file) || atox.files.savePastedImage(file),
-    readAsDataUrl(file)
-  ])
-  previews.set(path, preview)
-  return { kind: 'image', path, preview }
-}
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read the image'))
-    reader.readAsDataURL(file)
-  })
+  const path = atox.files.getPath(file) || (await atox.files.savePastedImage(file))
+  rememberImage(path)
+  return { kind: 'image', path, preview: imageUrl(path) }
 }
