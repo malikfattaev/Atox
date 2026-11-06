@@ -231,7 +231,11 @@ export interface AtoxApi {
     subscribe(listener: (state: PlanLimitsState) => void): () => void
   }
   settings: {
-    get(): Promise<Settings>
+    /**
+     * Синхронно: раскладка (ширина сайдбара, терминала) нужна уже в первом кадре — иначе
+     * окно сначала отрисовалось бы с размерами по умолчанию, а потом прыгнуло.
+     */
+    get(): Settings
     update(patch: Partial<Settings>): Promise<Settings>
     subscribe(listener: (settings: Settings) => void): () => void
   }

@@ -220,7 +220,7 @@ const api: AtoxApi = {
     }
   },
   settings: {
-    get: () => ipcRenderer.invoke(IpcChannel.SettingsGet),
+    get: () => ipcRenderer.sendSync(IpcChannel.SettingsGet) as Settings,
     update: (patch) => ipcRenderer.invoke(IpcChannel.SettingsUpdate, patch),
     subscribe: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, settings: Settings) => listener(settings)
