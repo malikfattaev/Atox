@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
+import { ArrowUp, CircleAlert, FileText, Plus, Square, X } from 'lucide-react'
 import {
   isChatCommand,
   type AgentCommand,
@@ -10,6 +10,7 @@ import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useAgentCatalog } from '../hooks/useAgentCatalog'
 import { LOCAL_COMMAND_ALIASES, useAgentCommands } from '../hooks/useAgentCommands'
 import { attachFiles, attachPicked, fileName, type Attachment } from '../lib/attachments'
+import { ipcErrorMessage } from '../lib/ipcError'
 import { currentModel, matchEffort, matchModel, modelConfiguration } from '../lib/modelSelection'
 import { CommandMenu, filterCommands } from './CommandMenu'
 import { ImageViewer } from './ImageViewer'
@@ -42,6 +43,8 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [viewedImage, setViewedImage] = useState<ShownImage | null>(null)
+  /** Что не получилось в последний раз (отправка, вложение): видно над полем, пока его не закроют. */
+  const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const canSend = text.trim().length > 0 || attachments.length > 0
 
@@ -134,13 +137,23 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     if (!message && attachments.length === 0) {
       return
     }
+    setError(null)
     if (attachments.length > 0 || !runLocalCommand(message)) {
+      const sent = attachments
       const pathsOf = (kind: Attachment['kind']) =>
-        attachments.filter((attachment) => attachment.kind === kind).map(({ path }) => path)
-      void atox.conversations.send(chat.id, message, {
-        images: pathsOf('image'),
-        files: pathsOf('file')
-      })
+        sent.filter((attachment) => attachment.kind === kind).map(({ path }) => path)
+      atox.conversations
+        .send(chat.id, message, { images: pathsOf('image'), files: pathsOf('file') })
+        .catch((sendError: unknown) => {
+          // Сообщение не ушло: возвращаем его в поле, чтобы не набирать заново. Если пользователь
+          // уже начал писать следующее, неотправленное встаёт перед ним.
+          setText((current) => (current ? `${value}\n${current}` : value))
+          setAttachments((current) => [
+            ...sent,
+            ...current.filter(({ path }) => !sent.some((attachment) => attachment.path === path))
+          ])
+          setError(`Could not send the message: ${ipcErrorMessage(sendError)}`)
+        })
       setAttachments([])
     }
     setText('')
@@ -289,6 +302,21 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
           onHover={setActiveIndex}
           onChoose={(command) => chooseCommand(command, true)}
         />
+      )}
+      {error && (
+        <div className="composer__error" role="alert">
+          <CircleAlert className="icon" aria-hidden />
+          <span className="composer__error-text">{error}</span>
+          <button
+            type="button"
+            className="composer__error-close"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={() => setError(null)}
+          >
+            <X className="icon" />
+          </button>
+        </div>
       )}
       {/* Само поле: вложения, «+», текст и отправка. Остальное — под ним и не мешает писать. */}
       <div className="composer__box">
