@@ -6,6 +6,7 @@ export const PROJECT_ICON_GROUPS = [
   { id: 'infrastructure', name: 'Data & Infrastructure' },
   { id: 'design', name: 'Design & Media' },
   { id: 'business', name: 'Business & Docs' },
+  { id: 'communication', name: 'Chat & Social' },
   { id: 'science', name: 'Science & Nature' },
   { id: 'fun', name: 'Fun' }
 ] as const
@@ -263,6 +264,25 @@ export const PROJECT_ICONS = [
   { id: 'clock', name: 'Time', group: 'business', keywords: 'clock hours' },
   { id: 'alarm-clock', name: 'Reminder', group: 'business', keywords: 'alarm deadline' },
   { id: 'tags', name: 'Tags', group: 'business', keywords: 'labels categories' },
+
+  { id: 'message-circle', name: 'Chat', group: 'communication', keywords: 'message conversation' },
+  { id: 'message-square', name: 'Message', group: 'communication', keywords: 'comment feedback' },
+  { id: 'messages', name: 'Messenger', group: 'communication', keywords: 'chat discussion' },
+  { id: 'message-heart', name: 'Community', group: 'communication', keywords: 'social love' },
+  { id: 'mail', name: 'Mail', group: 'communication', keywords: 'email letter' },
+  { id: 'mailbox', name: 'Mailbox', group: 'communication', keywords: 'newsletter' },
+  { id: 'send', name: 'Send', group: 'communication', keywords: 'telegram share' },
+  { id: 'phone', name: 'Phone', group: 'communication', keywords: 'call voip' },
+  { id: 'at-sign', name: 'Mention', group: 'communication', keywords: 'email handle' },
+  { id: 'rss', name: 'RSS', group: 'communication', keywords: 'feed blog' },
+  { id: 'speech', name: 'Voice', group: 'communication', keywords: 'speech talk' },
+  { id: 'languages', name: 'Translation', group: 'communication', keywords: 'i18n language' },
+  { id: 'quote', name: 'Quote', group: 'communication', keywords: 'citation' },
+  { id: 'thumbs-up', name: 'Like', group: 'communication', keywords: 'reaction approve' },
+  { id: 'smile', name: 'Smile', group: 'communication', keywords: 'emoji happy' },
+  { id: 'laugh', name: 'Fun', group: 'communication', keywords: 'laugh joke' },
+  { id: 'user-plus', name: 'Invite', group: 'communication', keywords: 'signup onboarding' },
+  { id: 'vote', name: 'Vote', group: 'communication', keywords: 'poll election' },
 
   { id: 'flask', name: 'Lab', group: 'science', keywords: 'experiment chemistry flask' },
   { id: 'atom', name: 'Physics', group: 'science', keywords: 'atom react' },
