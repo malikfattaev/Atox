@@ -101,7 +101,7 @@ export function Sidebar({
         edge="right"
         label="Resize sidebar"
         onDrag={setDraftWidth}
-        onCommit={(next) => void window.atox.settings.update({ sidebarWidth: next })}
+        onCommit={(next) => window.atox.settings.update({ sidebarWidth: next })}
       />
     </aside>
   )

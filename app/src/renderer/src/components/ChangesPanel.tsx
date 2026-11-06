@@ -111,7 +111,7 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
         edge="left"
         label="Resize changes"
         onDrag={setDraftWidth}
-        onCommit={(next) => void atox.settings.update({ terminalWidth: next })}
+        onCommit={(next) => atox.settings.update({ terminalWidth: next })}
       />
     </aside>
   )
