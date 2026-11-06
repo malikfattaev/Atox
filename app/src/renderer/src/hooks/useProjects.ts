@@ -309,23 +309,40 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
-  // Перенос применяется сразу, не дожидаясь main-процесса: иначе брошенный элемент
-  // на мгновение вернулся бы на старое место.
-  const moveProject = useCallback(
-    async (projectId: string, toIndex: number) => {
-      setProjects((current) => {
-        const fromIndex = current.findIndex(({ id }) => id === projectId)
-        const moved = moveItemWithinGroup(
-          current,
-          fromIndex,
-          toIndex,
-          (a, b) => a.spaceId === b.spaceId
-        )
-        return moved ?? current
-      })
-      applyProjects(await atox.projects.move(projectId, toIndex))
+  /**
+   * Применяет перенос сразу, не дожидаясь main-процесса: иначе брошенный элемент на мгновение
+   * вернулся бы на старое место. Если main перенос не принял, список перечитывается — элемент
+   * возвращается туда, где он на самом деле лежит.
+   */
+  const moveOptimistically = useCallback(
+    async (move: (current: Project[]) => Project[] | null, save: () => Promise<Project[]>) => {
+      const moved = move(projectsRef.current)
+      if (moved) {
+        applyProjects(moved)
+      }
+      try {
+        applyProjects(await save())
+      } catch (error) {
+        applyProjects(await atox.projects.list())
+        throw error
+      }
     },
     [applyProjects]
+  )
+
+  const moveProject = useCallback(
+    (projectId: string, toIndex: number) =>
+      moveOptimistically(
+        (current) =>
+          moveItemWithinGroup(
+            current,
+            current.findIndex(({ id }) => id === projectId),
+            toIndex,
+            (a, b) => a.spaceId === b.spaceId
+          ),
+        () => atox.projects.move(projectId, toIndex)
+      ),
+    [moveOptimistically]
   )
 
   const moveProjectToSpace = useCallback(
@@ -376,16 +393,20 @@ export function useProjects(): ProjectsState {
   )
 
   const moveChat = useCallback(
-    async (chatId: string, toIndex: number) => {
-      setProjects((current) =>
-        current.map((project) => {
-          const chats = moveChatGroup(project.chats, chatId, toIndex)
-          return chats ? { ...project, chats } : project
-        })
-      )
-      applyProjects(await atox.chats.move(chatId, toIndex))
-    },
-    [applyProjects]
+    (chatId: string, toIndex: number) =>
+      moveOptimistically(
+        (current) => {
+          let changed = false
+          const next = current.map((project) => {
+            const chats = moveChatGroup(project.chats, chatId, toIndex)
+            changed ||= chats !== null
+            return chats ? { ...project, chats } : project
+          })
+          return changed ? next : null
+        },
+        () => atox.chats.move(chatId, toIndex)
+      ),
+    [moveOptimistically]
   )
 
   const configureChat = useCallback(
