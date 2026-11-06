@@ -36,6 +36,8 @@ const INITIAL_VIEW: WorkspaceView = { shownProjectIds: {}, layouts: {} }
 export interface ProjectsState {
   /** Проекты всех пространств. */
   projects: Project[]
+  /** Проекты и пространства ещё загружаются — пустой список пока ничего не значит. */
+  loading: boolean
   spaces: Space[]
   /** `null` — пространства ещё загружаются. */
   activeSpaceId: string | null
@@ -94,6 +96,7 @@ export interface ProjectsState {
 
 export function useProjects(): ProjectsState {
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
   const [view, setView] = useState<WorkspaceView>(INITIAL_VIEW)
   const [openedChatIds, setOpenedChatIds] = useState<string[]>([])
   // Действия читают и меняют состояние сразу, не дожидаясь отрисовки: например, новый чат
@@ -168,7 +171,10 @@ export function useProjects(): ProjectsState {
   )
 
   useEffect(() => {
-    void atox.projects.list().then(applyProjects)
+    void atox.projects.list().then((next) => {
+      applyProjects(next)
+      setProjectsLoaded(true)
+    })
     return atox.chats.onChanged(applyProjects)
   }, [applyProjects])
 
@@ -417,6 +423,7 @@ export function useProjects(): ProjectsState {
 
   return {
     projects,
+    loading: !projectsLoaded || activeSpaceId === null,
     spaces,
     activeSpaceId,
     spaceProjects,
