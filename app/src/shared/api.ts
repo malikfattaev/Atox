@@ -165,6 +165,11 @@ export interface AtoxApi {
     pick(): Promise<PickedFile[]>
     /** Сохраняет вставленную картинку во временный файл и возвращает путь к нему. */
     savePastedImage(image: File): Promise<string>
+    /**
+     * Открывает файл или папку по ссылке из ответа агента; относительный путь — от
+     * `baseDirectory`. Программы и скрипты не запускаются, а показываются в файловом менеджере.
+     */
+    open(path: string, baseDirectory?: string): Promise<void>
   }
   images: {
     /** Картинка с диска как data URL; `null` — файла нет, он слишком большой или это не картинка. */
@@ -292,6 +297,7 @@ export const IpcChannel = {
   TerminalsExit: 'terminals:exit',
   FilesSavePastedImage: 'files:save-pasted-image',
   FilesPick: 'files:pick',
+  FilesOpen: 'files:open',
   ImagesRead: 'images:read',
   ImagesSaveAs: 'images:save-as',
   GitBranches: 'git:branches',

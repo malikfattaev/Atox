@@ -33,6 +33,7 @@ import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
 import type { PlanLimitsMonitor } from './planLimits'
+import { openFileLink } from './fileLinks'
 import { readImage, saveImageAs } from './images'
 import { savePastedImage } from './pastedImages'
 import { pickFiles } from './pickedFiles'
@@ -398,6 +399,9 @@ export function registerIpcHandlers({
   )
   ipcMain.handle(IpcChannel.FilesSavePastedImage, (_event, data: ArrayBuffer, type: string) =>
     savePastedImage(data, type)
+  )
+  ipcMain.handle(IpcChannel.FilesOpen, (_event, path: unknown, baseDirectory: unknown) =>
+    openFileLink(String(path), typeof baseDirectory === 'string' ? baseDirectory : undefined)
   )
 
   ipcMain.handle(IpcChannel.ImagesRead, (_event, path: string) => readImage(path))

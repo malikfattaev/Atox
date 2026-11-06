@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useConversation } from '../hooks/useConversation'
 import type { UserMessage } from '../../../shared/conversation'
+import { LinkBaseDirectoryContext } from '../lib/linkTargets'
 import { Composer } from './Composer'
 import { Timeline } from './Timeline'
 
@@ -111,14 +112,17 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
       >
         <div ref={columnRef} className="chat-view__column">
           {started && (
-            <Timeline
-              chatId={chat.id}
-              items={conversation.items}
-              queued={conversation.queued ?? NO_QUEUED_MESSAGES}
-              running={conversation.running}
-              turnTokens={conversation.turnTokens ?? 0}
-              visible={visible}
-            />
+            // Относительные пути в ссылках из ответов считаются от папки проекта.
+            <LinkBaseDirectoryContext.Provider value={project.path}>
+              <Timeline
+                chatId={chat.id}
+                items={conversation.items}
+                queued={conversation.queued ?? NO_QUEUED_MESSAGES}
+                running={conversation.running}
+                turnTokens={conversation.turnTokens ?? 0}
+                visible={visible}
+              />
+            </LinkBaseDirectoryContext.Provider>
           )}
         </div>
       </div>

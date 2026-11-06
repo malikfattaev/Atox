@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { BrowserWindow, nativeTheme, shell, type BrowserWindowConstructorOptions } from 'electron'
+import { EXTERNAL_LINK_PROTOCOLS } from '../shared/links'
 import { IS_MAC } from '../shared/platform'
 
 const WINDOW_SIZE = {
@@ -8,8 +9,6 @@ const WINDOW_SIZE = {
   minWidth: 720,
   minHeight: 480
 } as const
-
-const EXTERNAL_URL_PROTOCOLS = new Set(['http:', 'https:'])
 
 /** Фон окна на Linux до первой отрисовки — цвет сайдбара (`--color-window` в стилях). */
 const LINUX_BACKGROUND = { light: '#f2f2f4', dark: '#28282a' } as const
@@ -54,10 +53,11 @@ export function createMainWindow(): BrowserWindow {
   }
   window.once('ready-to-show', () => window.show())
 
-  // Ссылки из приложения (в том числе из терминала) открываются в системном браузере,
+  // Ссылки из приложения (в том числе из терминала) открываются в системном браузере или почте,
   // а не в новых окнах Electron. Другие схемы не открываем: их мог подставить вывод программы.
+  // Файлы из ответов агента открывает сам ответ через `files.open`.
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (EXTERNAL_URL_PROTOCOLS.has(new URL(url).protocol)) {
+    if (URL.canParse(url) && EXTERNAL_LINK_PROTOCOLS.has(new URL(url).protocol)) {
       void shell.openExternal(url)
     }
     return { action: 'deny' }
