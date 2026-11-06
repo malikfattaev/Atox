@@ -32,7 +32,7 @@ import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
 import { handoffMessage } from './handoff'
 import { PromiseCache } from './promiseCache'
-import { settleItem, type TranscriptStore } from './transcripts'
+import { settleItem, type QueuedMessage, type TranscriptStore } from './transcripts'
 import type { AgentDriver, AgentLaunch, AgentSession } from './types'
 
 /**
@@ -71,15 +71,6 @@ type EventPayload = ConversationEvent extends infer Event
     : never
   : never
 
-interface QueuedMessage {
-  /** Сообщение, каким его покажут в ленте, когда агент за него возьмётся. */
-  item: UserMessage
-  /** Текст для агента: с путями приложенных файлов. */
-  text: string
-  images: readonly string[]
-  /** Агент чата в момент отправки: его потом не меняет переключение, пока сообщение в очереди. */
-  agent: AgentId
-}
 
 interface PendingDelta {
   itemId: string
@@ -110,6 +101,11 @@ interface Conversation {
   stale: boolean
   /** Сообщения, которые агент ещё не начал обрабатывать. */
   queue: QueuedMessage[]
+  /**
+   * Очередь восстановлена после перезапуска Atox и ждёт пользователя: агент не запускается
+   * сам при старте приложения — очередь уйдёт ему со следующим сообщением в чате.
+   */
+  queuePaused: boolean
   /** Сообщение, над которым агент работает сейчас. */
   turn: QueuedMessage | null
   /** Сообщение, которое остановили, пока агент ещё запускался: отправлять его не нужно. */
@@ -206,10 +202,12 @@ export class ConversationManager {
       images,
       agent
     })
-    // Свободный агент возьмётся за сообщение сразу, и в очереди его не увидят.
-    if (conversation.turn) {
+    // Свободный агент возьмётся за сообщение сразу, и в очереди его не увидят. Восстановленная
+    // очередь уходит первой: её сообщения отправили раньше.
+    if (conversation.turn || conversation.queuePaused) {
       this.emitQueue(chatId, conversation)
     }
+    conversation.queuePaused = false
     this.pump(chatId, conversation)
   }
 
@@ -342,7 +340,7 @@ export class ConversationManager {
   /** Чаты, в которых агент работает или ждёт очереди: о них спрашивают перед выходом. */
   runningChatIds(): string[] {
     return [...this.loaded.entries()]
-      .filter(([, conversation]) => conversation.turn !== null || conversation.queue.length > 0)
+      .filter(([, conversation]) => isBusy(conversation))
       .map(([chatId]) => chatId)
   }
 
@@ -470,6 +468,7 @@ export class ConversationManager {
   /** Останавливает агента и забывает разговор: следующее сообщение начнёт новый. */
   private clear(chatId: string, conversation: Conversation): void {
     conversation.queue = []
+    conversation.queuePaused = false
     this.emitQueue(chatId, conversation)
     conversation.turn = null
     conversation.interruptedTurn = null
@@ -504,9 +503,13 @@ export class ConversationManager {
       }
       conversation = this.services.transcripts
         .load(chatId)
-        .then(({ items, sessionId, sessionAgent, lastAgent }) => {
+        .then(({ items, queue, sessionId, sessionAgent, lastAgent }) => {
           const loaded: Conversation = {
-            snapshot: { items, running: false },
+            snapshot: {
+              items,
+              running: false,
+              ...(queue.length > 0 && { queued: queue.map(({ item }) => item) })
+            },
             session: null,
             sessionId,
             sessionAgent,
@@ -514,7 +517,8 @@ export class ConversationManager {
             handoffFrom: null,
             disposed: false,
             stale: false,
-            queue: [],
+            queue,
+            queuePaused: queue.length > 0,
             turn: null,
             interruptedTurn: null,
             pendingDeltas: new Map(),
@@ -537,7 +541,8 @@ export class ConversationManager {
    * очереди в ленту только теперь: всё, что агент написал до этого, остаётся над ним.
    */
   private pump(chatId: string, conversation: Conversation): void {
-    const next = conversation.turn ? undefined : conversation.queue.shift()
+    const next =
+      conversation.turn || conversation.queuePaused ? undefined : conversation.queue.shift()
     if (!next) {
       this.updateRunning(chatId, conversation)
       return
@@ -934,10 +939,12 @@ export class ConversationManager {
       type: 'queue',
       queued: conversation.queue.map(({ item }) => item)
     })
+    // Очередь сохраняется вместе с лентой: выход из Atox не должен терять сообщения.
+    this.persist(chatId, conversation)
   }
 
   private updateRunning(chatId: string, conversation: Conversation): void {
-    const running = conversation.turn !== null || conversation.queue.length > 0
+    const running = isBusy(conversation)
     if (conversation.snapshot.running !== running) {
       this.emit(chatId, conversation, { type: 'running', running })
     }
@@ -961,6 +968,7 @@ export class ConversationManager {
       if (this.loaded.get(chatId) === conversation) {
         this.services.transcripts.save(chatId, {
           items: conversation.snapshot.items,
+          queue: conversation.queue,
           sessionId: conversation.sessionId,
           sessionAgent: conversation.sessionAgent,
           lastAgent: conversation.lastAgent
@@ -973,6 +981,13 @@ export class ConversationManager {
       conversation.persistTimer = setTimeout(save, PERSIST_DELAY_MS)
     }
   }
+}
+
+/** Агент работает или ждёт очереди; восстановленная очередь, пока ждёт пользователя, — нет. */
+function isBusy(conversation: Conversation): boolean {
+  return (
+    conversation.turn !== null || (conversation.queue.length > 0 && !conversation.queuePaused)
+  )
 }
 
 /** Пути приложенных файлов агент получает в конце сообщения и открывает их сам. */
