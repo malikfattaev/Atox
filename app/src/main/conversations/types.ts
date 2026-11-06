@@ -51,8 +51,11 @@ export interface SessionEvents {
 export interface AgentSession {
   /** `images` — пути к картинкам, приложенным к сообщению. */
   send(text: string, images: readonly string[]): void
-  /** Просит агента остановить текущую работу; закончит он её событием `turnFinished`. */
-  interrupt(): void
+  /**
+   * Просит агента остановить текущую работу; закончит он её событием `turnFinished`.
+   * Отклоняется, если агент не принял просьбу: тогда остановить его может только `close`.
+   */
+  interrupt(): Promise<void>
   /** Ответ пользователя на запрос агента — элемент ленты `approval` или `question` с этим `id`. */
   answer(itemId: string, answer: RequestAnswer): void
   /** Лимиты подписки; пустой список — агент работает не по подписке. */

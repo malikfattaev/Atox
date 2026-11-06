@@ -45,6 +45,12 @@ const PERSIST_DELAY_MS = 2000
  */
 const STREAM_FLUSH_MS = 50
 
+/**
+ * Сколько ждать, пока агент остановит ход по «Стоп». Обычно он останавливается за секунду;
+ * дольше — агент завис: сессию закрывают, а следующее сообщение продолжит разговор заново.
+ */
+const INTERRUPT_TIMEOUT_MS = 10_000
+
 /** Каким вопросом к драйверу узнаётся каждый список на странице настроек. */
 const INTEGRATION_READERS: {
   [Kind in IntegrationKind]: (
@@ -112,6 +118,8 @@ interface Conversation {
   pendingTokens: number | null
   streamTimer: ReturnType<typeof setTimeout> | null
   persistTimer: ReturnType<typeof setTimeout> | null
+  /** Запасной путь «Стоп»: закроет сессию, если агент так и не остановит ход. */
+  interruptTimer: ReturnType<typeof setTimeout> | null
 }
 
 export interface ConversationServices {
@@ -199,12 +207,47 @@ export class ConversationManager {
    */
   async interrupt(chatId: string): Promise<void> {
     const conversation = await this.conversation(chatId)
-    if (conversation.turn) {
-      // Пока агент запускается, сессии ещё нет: сообщение просто не уйдёт ему.
-      conversation.interruptedTurn = conversation.turn
-      conversation.session?.interrupt()
+    const { turn, session } = conversation
+    if (!turn) {
+      return
     }
-    this.updateRunning(chatId, conversation)
+    // Пока агент запускается, сессии ещё нет: сообщение просто не уйдёт ему.
+    conversation.interruptedTurn = turn
+    if (!session) {
+      return
+    }
+    session.interrupt().catch((error) => {
+      console.error('Failed to interrupt the agent', error)
+      this.forceStop(chatId, conversation, turn)
+    })
+    conversation.interruptTimer ??= setTimeout(
+      () => this.forceStop(chatId, conversation, turn),
+      INTERRUPT_TIMEOUT_MS
+    )
+  }
+
+  /**
+   * Агент не остановил ход сам: его сессия закрывается, ход заканчивается. Разговор не
+   * теряется — следующее сообщение продолжит его в новой сессии.
+   */
+  private forceStop(chatId: string, conversation: Conversation, turn: QueuedMessage): void {
+    this.clearInterruptTimer(conversation)
+    if (conversation.turn !== turn || conversation.disposed) {
+      return
+    }
+    const { session } = conversation
+    // Сначала сессия забывается: её `closed` придёт уже не к этому чату.
+    conversation.session = null
+    conversation.stale = false
+    session?.close()
+    this.finishTurn(chatId, conversation)
+  }
+
+  private clearInterruptTimer(conversation: Conversation): void {
+    if (conversation.interruptTimer) {
+      clearTimeout(conversation.interruptTimer)
+      conversation.interruptTimer = null
+    }
   }
 
   /**
@@ -426,6 +469,7 @@ export class ConversationManager {
     this.emitQueue(chatId, conversation)
     conversation.turn = null
     conversation.interruptedTurn = null
+    this.clearInterruptTimer(conversation)
     conversation.session?.close()
     conversation.session = null
     conversation.sessionId = null
@@ -472,7 +516,8 @@ export class ConversationManager {
             pendingDeltas: new Map(),
             pendingTokens: null,
             streamTimer: null,
-            persistTimer: null
+            persistTimer: null,
+            interruptTimer: null
           }
           this.loaded.set(chatId, loaded)
           return loaded
@@ -560,6 +605,7 @@ export class ConversationManager {
     }
     conversation.turn = null
     conversation.interruptedTurn = null
+    this.clearInterruptTimer(conversation)
     const { items } = conversation.snapshot
     const index = items.findIndex(({ id }) => id === turn.item.id)
     const item = items[index]
@@ -762,6 +808,7 @@ export class ConversationManager {
       clearTimeout(conversation.streamTimer)
       conversation.streamTimer = null
     }
+    this.clearInterruptTimer(conversation)
     conversation.session?.close()
     conversation.session = null
   }
