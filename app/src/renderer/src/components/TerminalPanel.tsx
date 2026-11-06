@@ -5,7 +5,7 @@ import { PanelResizer } from './PanelResizer'
 import { TerminalView } from './TerminalView'
 
 interface TerminalPanelProps {
-  /** Проекты с открытым терминалом: их оболочки остаются подключёнными. */
+  /** Проекты, терминалы которых остаются подключёнными, даже когда панель закрыта. */
   projectIds: readonly string[]
   /** Терминал какого проекта показать; `null` — панель скрыта. */
   shownProjectId: string | null

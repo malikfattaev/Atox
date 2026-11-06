@@ -72,12 +72,13 @@ export function Workspace({
     page?.kind === 'settings' || page?.kind === 'agents' || Boolean(repositoryProject)
   const isSplit = !pageOpen && visibleChatIds.length > 1
   // Терминалы убранных проектов main-процесс уже остановил.
-  const terminalProjectIds = terminals.openProjectIds.filter((id) =>
+  const terminalProjectIds = terminals.attachedProjectIds.filter((id) =>
     projects.some((project) => project.id === id)
   )
   const changesShown = changesOpen && Boolean(currentProjectId)
   const terminalOpen =
-    !changesShown && Boolean(currentProjectId && terminalProjectIds.includes(currentProjectId))
+    !changesShown &&
+    Boolean(currentProjectId && terminals.openProjectIds.includes(currentProjectId))
   // Чат вместе с папкой его проекта: чату нужны только они, а не весь список проектов.
   const chatEntries = new Map(
     projects.flatMap((project) =>
