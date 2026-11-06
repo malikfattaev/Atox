@@ -13,7 +13,8 @@ export const PROJECT_ICON_GROUPS = [
   { id: 'sports', name: 'Sports & Health' },
   { id: 'science', name: 'Science & Nature' },
   { id: 'animals', name: 'Animals' },
-  { id: 'fun', name: 'Fun' }
+  { id: 'fun', name: 'Fun' },
+  { id: 'shapes', name: 'Shapes & Symbols' }
 ] as const
 
 export type ProjectIconGroup = (typeof PROJECT_ICON_GROUPS)[number]['id']
@@ -472,7 +473,20 @@ export const PROJECT_ICONS = [
   { id: 'toy-brick', name: 'Bricks', group: 'fun', keywords: 'lego toy' },
   { id: 'spade', name: 'Spade', group: 'fun', keywords: 'cards poker' },
   { id: 'club', name: 'Club', group: 'fun', keywords: 'cards poker' },
-  { id: 'diamond', name: 'Diamond', group: 'fun', keywords: 'cards gem' }
+  { id: 'diamond', name: 'Diamond', group: 'fun', keywords: 'cards gem' },
+
+  { id: 'circle', name: 'Circle', group: 'shapes', keywords: 'round' },
+  { id: 'square', name: 'Square', group: 'shapes', keywords: 'box' },
+  { id: 'triangle', name: 'Triangle', group: 'shapes', keywords: 'warning' },
+  { id: 'hexagon', name: 'Hexagon', group: 'shapes', keywords: 'honeycomb' },
+  { id: 'pentagon', name: 'Pentagon', group: 'shapes', keywords: 'shape' },
+  { id: 'octagon', name: 'Octagon', group: 'shapes', keywords: 'stop' },
+  { id: 'cone', name: 'Cone', group: 'shapes', keywords: '3d' },
+  { id: 'pyramid', name: 'Pyramid', group: 'shapes', keywords: '3d egypt' },
+  { id: 'torus', name: 'Torus', group: 'shapes', keywords: 'donut 3d' },
+  { id: 'asterisk', name: 'Asterisk', group: 'shapes', keywords: 'star wildcard' },
+  { id: 'omega', name: 'Omega', group: 'shapes', keywords: 'greek' },
+  { id: 'spline', name: 'Spline', group: 'shapes', keywords: 'curve bezier' }
 ] as const satisfies readonly {
   id: string
   name: string
