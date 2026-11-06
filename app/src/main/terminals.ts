@@ -19,7 +19,7 @@ const ESCAPE = 0x1b
 const LINE_FEED = 0x0a
 
 /**
- * Сколько чанков, уже вытесненных из буфера, копить перед тем, как убрать их из массива:
+ * Сколько пустых мест от вытесненных чанков копить перед тем, как убрать их из массива:
  * убирать по одному — сдвигать весь массив на каждый чанк вывода. Массив переписывается,
  * только когда вытесненных не меньше половины, — так на чанк приходится постоянная работа.
  */
@@ -45,6 +45,9 @@ class OutputBuffer {
     let first = this.chunks[this.head]
     while (first !== undefined && this.length - first.length >= this.limit) {
       this.length -= first.length
+      // Вытесненный чанк остаётся в массиве до уплотнения, но его текст отпускается сразу:
+      // иначе до уплотнения в памяти копились бы мегабайты уже ненужного вывода.
+      this.chunks[this.head] = ''
       first = this.chunks[++this.head]
     }
     if (this.head >= COMPACT_THRESHOLD && this.head * 2 >= this.chunks.length) {
