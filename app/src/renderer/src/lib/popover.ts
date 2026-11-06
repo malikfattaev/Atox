@@ -47,3 +47,27 @@ export function placeAt(panel: HTMLElement, anchor: MenuAnchor): Placement {
   )
   return { left, top, maxHeight }
 }
+
+/**
+ * Элемент, к которому привязана панель: кнопка или то, на чём кликнули для контекстного меню
+ * (событие мыши несёт свой `target`). `null` — точка без элемента.
+ */
+export function anchorElement(anchor: MenuAnchor): Element | null {
+  if (anchor instanceof Element) {
+    return anchor
+  }
+  return 'target' in anchor && anchor.target instanceof Element ? anchor.target : null
+}
+
+/**
+ * Сдвинула ли прокрутка якорь панели — только тогда панель оторвалась бы от него и её пора
+ * закрыть. Прокрутка соседних областей (например, лента чата, которая сама едет при стриминге)
+ * панель не трогает. Без элемента-якоря закрывает любая прокрутка.
+ */
+export function scrollMovesAnchor(event: Event, anchor: Element | null): boolean {
+  const scrolled = event.target
+  if (!(scrolled instanceof Node)) {
+    return false
+  }
+  return anchor === null || scrolled.contains(anchor)
+}
