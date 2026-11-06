@@ -52,8 +52,10 @@ export class WorkingTreeReader {
    */
   private readonly listed = new Map<string, ReadonlyMap<string, FileChange>>()
   /**
-   * Строки новых файлов каждого репозитория с прошлого прохода. Новые файлы перечитываются
-   * только когда изменились: иначе каждое обновление панели читало бы их все целиком.
+   * Строки новых файлов каждой папки проекта с прошлого прохода — по корню репозитория и
+   * папке в нём: проекты из подпапок одного репозитория не вытесняют запомненное друг у друга.
+   * Новые файлы перечитываются только когда изменились: иначе каждое обновление панели читало
+   * бы их все целиком.
    */
   private readonly lineCounts = new Map<string, ReadonlyMap<string, CountedFile>>()
 
@@ -200,7 +202,8 @@ export class WorkingTreeReader {
     scope: Scope,
     paths: readonly string[]
   ): Promise<ReadonlyMap<string, CountedFile>> {
-    const previous = this.lineCounts.get(scope.root)
+    const key = lineCountsKey(scope)
+    const previous = this.lineCounts.get(key)
     const counted = new Map<string, CountedFile>()
     for (let start = 0; start < paths.length; start += UNTRACKED_COUNT_CONCURRENCY) {
       const batch = paths.slice(start, start + UNTRACKED_COUNT_CONCURRENCY)
@@ -209,7 +212,7 @@ export class WorkingTreeReader {
       )
       batch.forEach((path, index) => counted.set(path, results[index]!))
     }
-    this.lineCounts.set(scope.root, counted)
+    this.lineCounts.set(key, counted)
     return counted
   }
 
@@ -337,4 +340,9 @@ function parseNumstat(output: string): Map<string, Pick<FileChange, 'additions' 
     })
   }
   return stats
+}
+
+/** Ключ запомненных строк: папка проекта внутри своего репозитория. */
+function lineCountsKey({ root, pathspec }: Scope): string {
+  return `${root}\0${pathspec}`
 }
