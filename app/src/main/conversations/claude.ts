@@ -153,15 +153,21 @@ type RateLimits = NonNullable<SDKControlGetUsageResponse['rate_limits']>
 
 type RateLimitWindow = { utilization: number | null; resets_at: string | null }
 
+/** Название окна лимита: полное — как в `/usage` Claude Code, короткое — для индикатора. */
+interface LimitName {
+  label: string
+  shortLabel: string
+}
+
 /** Окно лимита подписки на 5 часов — «Current session» в `/usage` Claude Code. */
-const SESSION_LIMIT_LABEL = 'Current session'
+const SESSION_LIMIT: LimitName = { label: 'Current session', shortLabel: '5h' }
 
 /** Окна лимитов в том порядке и с теми названиями, что у `/usage` в Claude Code. */
-const LIMIT_WINDOWS: readonly { key: keyof RateLimits; label: string }[] = [
-  { key: 'five_hour', label: SESSION_LIMIT_LABEL },
-  { key: 'seven_day', label: 'Current week (all models)' },
-  { key: 'seven_day_opus', label: 'Current week (Opus)' },
-  { key: 'seven_day_sonnet', label: 'Current week (Sonnet)' }
+const LIMIT_WINDOWS: readonly (LimitName & { key: keyof RateLimits })[] = [
+  { key: 'five_hour', ...SESSION_LIMIT },
+  { key: 'seven_day', label: 'Current week (all models)', shortLabel: 'Week' },
+  { key: 'seven_day_opus', label: 'Current week (Opus)', shortLabel: 'Opus week' },
+  { key: 'seven_day_sonnet', label: 'Current week (Sonnet)', shortLabel: 'Sonnet week' }
 ]
 
 /**
@@ -191,32 +197,25 @@ async function readLimits(
   if (!limits) {
     return []
   }
-  const windows: [string, RateLimitWindow | null | undefined][] = [
-    ...LIMIT_WINDOWS.map(({ key, label }): [string, RateLimitWindow | null | undefined] => [
-      label,
+  const windows: [LimitName, RateLimitWindow | null | undefined][] = [
+    ...LIMIT_WINDOWS.map(({ key, ...name }): [LimitName, RateLimitWindow | null | undefined] => [
+      name,
       limits[key] as RateLimitWindow | null | undefined
     ]),
-    ...(limits.model_scoped ?? []).map((window): [string, RateLimitWindow] => [
-      `Current week (${window.display_name})`,
+    ...(limits.model_scoped ?? []).map((window): [LimitName, RateLimitWindow] => [
+      {
+        label: `Current week (${window.display_name})`,
+        shortLabel: `${window.display_name} week`
+      },
       window
     ])
   ]
-  return windows.flatMap(([label, window]): PlanLimit[] => {
-    if (label === SESSION_LIMIT_LABEL) {
+  return windows.flatMap(([name, window]): PlanLimit[] => {
+    if (name === SESSION_LIMIT) {
       const session = sessionLimit(window, streamed)
       return session ? [session] : []
     }
-    if (!window || window.utilization === null) {
-      return []
-    }
-    const resetsAt = window.resets_at ? Date.parse(window.resets_at) : Number.NaN
-    return [
-      {
-        label,
-        percent: window.utilization,
-        ...(Number.isFinite(resetsAt) && { resetsAt })
-      }
-    ]
+    return window ? planLimit(name, window) : []
   })
 }
 
@@ -225,22 +224,33 @@ function sessionLimit(
   window: RateLimitWindow | null | undefined,
   streamed: StreamedSessionLimit | null | undefined
 ): PlanLimit | null {
-  if (window && window.utilization !== null) {
-    const resetsAt = window.resets_at ? Date.parse(window.resets_at) : Number.NaN
-    return {
-      label: SESSION_LIMIT_LABEL,
-      percent: window.utilization,
-      ...(Number.isFinite(resetsAt) && { resetsAt })
-    }
+  const [reported] = window ? planLimit(SESSION_LIMIT, window) : []
+  if (reported) {
+    return reported
   }
   if (streamed && (streamed.resetsAt === undefined || streamed.resetsAt * 1000 > Date.now())) {
     return {
-      label: SESSION_LIMIT_LABEL,
+      ...SESSION_LIMIT,
       percent: streamed.utilization * 100,
       ...(streamed.resetsAt !== undefined && { resetsAt: streamed.resetsAt * 1000 })
     }
   }
   return null
+}
+
+/** Окно лимита из ответа `/usage`; окно без процента Anthropic сейчас не сообщает. */
+function planLimit(name: LimitName, window: RateLimitWindow): PlanLimit[] {
+  if (window.utilization === null) {
+    return []
+  }
+  const resetsAt = window.resets_at ? Date.parse(window.resets_at) : Number.NaN
+  return [
+    {
+      ...name,
+      percent: window.utilization,
+      ...(Number.isFinite(resetsAt) && { resetsAt })
+    }
+  ]
 }
 
 /**

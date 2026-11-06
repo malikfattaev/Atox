@@ -42,6 +42,8 @@ export interface ConversationUsage {
 export interface PlanLimit {
   /** Например «Current session» (5 часов), «Current week (all models)» или «Weekly limit». */
   label: string
+  /** Короткое название для индикатора в сайдбаре: «5h», «Week». */
+  shortLabel: string
   /** Израсходовано, 0–100. */
   percent: number
   /** Когда окно сбросится, мс с начала эпохи; нет — агент не сообщил. */

@@ -244,11 +244,11 @@ interface CodexRateLimits {
 const MINUTES_PER_HOUR = 60
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
 
-/** Названия окон Codex по длительности — как в его `/status`. */
-const CODEX_WINDOW_LABELS: ReadonlyMap<number, string> = new Map([
-  [5 * MINUTES_PER_HOUR, '5-hour limit'],
-  [7 * MINUTES_PER_DAY, 'Weekly limit'],
-  [30 * MINUTES_PER_DAY, 'Monthly limit']
+/** Названия окон Codex по длительности — полное, как в его `/status`, и короткое. */
+const CODEX_WINDOW_NAMES: ReadonlyMap<number, { label: string; shortLabel: string }> = new Map([
+  [5 * MINUTES_PER_HOUR, { label: '5-hour limit', shortLabel: '5h' }],
+  [7 * MINUTES_PER_DAY, { label: 'Weekly limit', shortLabel: 'Week' }],
+  [30 * MINUTES_PER_DAY, { label: 'Monthly limit', shortLabel: 'Month' }]
 ])
 
 /**
@@ -264,7 +264,7 @@ async function readCodexLimits(rpc: JsonRpcProcess): Promise<PlanLimit[]> {
     window
       ? [
           {
-            label: codexWindowLabel(window.windowDurationMins),
+            ...codexWindowName(window.windowDurationMins),
             percent: window.usedPercent,
             ...(window.resetsAt !== null && { resetsAt: window.resetsAt * 1000 })
           }
@@ -274,17 +274,19 @@ async function readCodexLimits(rpc: JsonRpcProcess): Promise<PlanLimit[]> {
 }
 
 /** «5-hour limit», «Weekly limit»; окно непривычной длины — «12-hour limit», «3-day limit». */
-function codexWindowLabel(minutes: number | null): string {
+function codexWindowName(minutes: number | null): { label: string; shortLabel: string } {
   if (minutes === null) {
-    return 'Usage limit'
+    return { label: 'Usage limit', shortLabel: 'Limit' }
   }
-  const known = CODEX_WINDOW_LABELS.get(minutes)
+  const known = CODEX_WINDOW_NAMES.get(minutes)
   if (known) {
     return known
   }
-  return minutes % MINUTES_PER_DAY === 0
-    ? `${minutes / MINUTES_PER_DAY}-day limit`
-    : `${Math.round(minutes / MINUTES_PER_HOUR)}-hour limit`
+  const [count, unit, short] =
+    minutes % MINUTES_PER_DAY === 0
+      ? [minutes / MINUTES_PER_DAY, 'day', 'd']
+      : [Math.round(minutes / MINUTES_PER_HOUR), 'hour', 'h']
+  return { label: `${count}-${unit} limit`, shortLabel: `${count}${short}` }
 }
 
 async function initialize(rpc: JsonRpcProcess, clientInfo: ClientInfo): Promise<void> {
