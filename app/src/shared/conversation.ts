@@ -148,6 +148,10 @@ export type TimelineItem =
       files?: string[]
       /** Агент, которому ушло сообщение: чат могли переключить, пока он отвечал. */
       agent: AgentId
+      /**
+       * Когда агент взялся за сообщение. Сообщение из очереди получает время, когда она до него
+       * дошла: по нему считается, сколько агент работает над ответом.
+       */
       createdAt: number
       /** Когда агент закончил отвечать на это сообщение; нет — ещё работает или ждёт очереди. */
       finishedAt?: number
@@ -234,6 +238,9 @@ export type CompactionStatus = 'running' | 'done' | 'failed'
 
 export type TimelineItemKind = TimelineItem['kind']
 
+/** Сообщение пользователя — в ленте или в очереди к агенту. */
+export type UserMessage = Extract<TimelineItem, { kind: 'user' }>
+
 /** Чего агент ждёт от пользователя: разрешения на вызов или ответа на вопросы. */
 export type UserRequestKind = 'approval' | 'question'
 
@@ -256,6 +263,11 @@ export interface ConversationSnapshot {
   items: TimelineItem[]
   /** Агент сейчас работает над сообщением. */
   running: boolean
+  /**
+   * Сообщения, которые ждут, пока агент закончит текущий ответ. В ленту они попадают, когда
+   * агент за них берётся: иначе остаток прежнего ответа оказался бы под новым сообщением.
+   */
+  queued?: UserMessage[]
   /** Агент ждёт ответа пользователя на разрешение или вопросы. */
   waitingFor?: UserRequestKind
   /** Контекст и лимиты по последнему ответу агента; нет — агент ещё не отвечал в этом запуске. */
@@ -276,6 +288,8 @@ export type ConversationEvent =
       delta: string
     }
   | { chatId: string; type: 'running'; running: boolean }
+  /** Очередь сообщений к агенту изменилась: новое сообщение или агент взялся за следующее. */
+  | { chatId: string; type: 'queue'; queued: UserMessage[] }
   /** Агент начал или перестал ждать ответа пользователя; `null` — больше не ждёт. */
   | { chatId: string; type: 'waiting'; waitingFor: UserRequestKind | null }
   | { chatId: string; type: 'usage'; usage: ConversationUsage }
@@ -386,6 +400,10 @@ export function applyConversationEvent(
   switch (event.type) {
     case 'running':
       return snapshot.running === event.running ? snapshot : { ...snapshot, running: event.running }
+    case 'queue': {
+      const { queued: _previous, ...rest } = snapshot
+      return event.queued.length > 0 ? { ...rest, queued: event.queued } : rest
+    }
     case 'waiting': {
       const { waitingFor: _previous, ...rest } = snapshot
       return event.waitingFor ? { ...rest, waitingFor: event.waitingFor } : rest

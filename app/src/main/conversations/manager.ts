@@ -18,7 +18,8 @@ import {
   type PlanLimit,
   type RequestAnswer,
   type StreamedField,
-  type TimelineItem
+  type TimelineItem,
+  type UserMessage
 } from '../../shared/conversation'
 import type {
   IntegrationItems,
@@ -63,7 +64,9 @@ type EventPayload = ConversationEvent extends infer Event
   : never
 
 interface QueuedMessage {
-  itemId: string
+  /** Сообщение, каким его покажут в ленте, когда агент за него возьмётся. */
+  item: UserMessage
+  /** Текст для агента: с путями приложенных файлов. */
   text: string
   images: readonly string[]
   /** Агент чата в момент отправки: его потом не меняет переключение, пока сообщение в очереди. */
@@ -157,15 +160,11 @@ export class ConversationManager {
     }
     const conversation = await this.conversation(chatId)
     const { agent } = this.findChat(chatId).chat
-    const isFirst = !conversation.snapshot.items.some(({ kind }) => kind === 'user')
-    if (conversation.lastAgent && conversation.lastAgent !== agent) {
-      this.emit(chatId, conversation, {
-        type: 'item',
-        item: { kind: 'agent-switch', id: randomUUID(), agent }
-      })
-    }
-    conversation.lastAgent = agent
-    const item: TimelineItem = {
+    const isFirst =
+      conversation.turn === null &&
+      conversation.queue.length === 0 &&
+      !conversation.snapshot.items.some(({ kind }) => kind === 'user')
+    const item: UserMessage = {
       kind: 'user',
       id: randomUUID(),
       text: message,
@@ -174,7 +173,6 @@ export class ConversationManager {
       agent,
       createdAt: Date.now()
     }
-    this.emit(chatId, conversation, { type: 'item', item })
     if (
       isFirst &&
       message &&
@@ -183,11 +181,15 @@ export class ConversationManager {
       this.services.onProjectsChanged()
     }
     conversation.queue.push({
-      itemId: item.id,
+      item,
       text: withAttachedFiles(message, files),
       images,
       agent
     })
+    // Свободный агент возьмётся за сообщение сразу, и в очереди его не увидят.
+    if (conversation.turn) {
+      this.emitQueue(chatId, conversation)
+    }
     this.pump(chatId, conversation)
   }
 
@@ -421,6 +423,7 @@ export class ConversationManager {
   /** Останавливает агента и забывает разговор: следующее сообщение начнёт новый. */
   private clear(chatId: string, conversation: Conversation): void {
     conversation.queue = []
+    this.emitQueue(chatId, conversation)
     conversation.turn = null
     conversation.interruptedTurn = null
     conversation.session?.close()
@@ -480,17 +483,36 @@ export class ConversationManager {
     return conversation
   }
 
-  /** Отдаёт агенту следующее сообщение из очереди, если он свободен. */
+  /**
+   * Отдаёт агенту следующее сообщение из очереди, если он свободен. Сообщение переходит из
+   * очереди в ленту только теперь: всё, что агент написал до этого, остаётся над ним.
+   */
   private pump(chatId: string, conversation: Conversation): void {
     const next = conversation.turn ? undefined : conversation.queue.shift()
-    if (next) {
-      conversation.turn = next
-      this.emit(chatId, conversation, { type: 'tokens', turnTokens: 0 })
-    }
-    this.updateRunning(chatId, conversation)
     if (!next) {
+      this.updateRunning(chatId, conversation)
       return
     }
+    this.emitQueue(chatId, conversation)
+    // Сообщения могли уйти другому агенту, пока прежний ещё отвечал: строка о смене агента
+    // встаёт прямо перед первым из них.
+    if (conversation.lastAgent && conversation.lastAgent !== next.agent) {
+      this.emit(chatId, conversation, {
+        type: 'item',
+        item: { kind: 'agent-switch', id: randomUUID(), agent: next.agent }
+      })
+    }
+    conversation.lastAgent = next.agent
+    next.item = { ...next.item, createdAt: Date.now() }
+    this.emit(chatId, conversation, { type: 'item', item: next.item })
+    this.runTurn(chatId, conversation, next)
+  }
+
+  /** Отправляет агенту сообщение, которое уже стоит в ленте. */
+  private runTurn(chatId: string, conversation: Conversation, next: QueuedMessage): void {
+    conversation.turn = next
+    this.emit(chatId, conversation, { type: 'tokens', turnTokens: 0 })
+    this.updateRunning(chatId, conversation)
     this.ensureSession(chatId, conversation, next.agent)
       .then((session) => {
         if (conversation.interruptedTurn === next) {
@@ -526,7 +548,7 @@ export class ConversationManager {
     }
     conversation.handoffFrom = null
     const { items } = conversation.snapshot
-    const index = items.findIndex(({ id }) => id === message.itemId)
+    const index = items.findIndex(({ id }) => id === message.item.id)
     const history = index < 0 ? items : items.slice(0, index)
     return handoffMessage(previousAgent, message.agent, history, message.text)
   }
@@ -538,7 +560,7 @@ export class ConversationManager {
     }
     conversation.turn = null
     conversation.interruptedTurn = null
-    const item = conversation.snapshot.items.find(({ id }) => id === turn.itemId)
+    const item = conversation.snapshot.items.find(({ id }) => id === turn.item.id)
     if (item?.kind === 'user') {
       this.emit(chatId, conversation, {
         type: 'item',
@@ -674,12 +696,12 @@ export class ConversationManager {
     conversation.stale = false
     conversation.sessionId = null
     conversation.handoffFrom = conversation.sessionAgent
-    if (conversation.turn) {
-      conversation.queue.unshift(conversation.turn)
-      conversation.turn = null
-    }
     this.persist(chatId, conversation, { immediately: true })
-    this.pump(chatId, conversation)
+    // Сообщение уже в ленте: его отправляют заново, не возвращая в очередь.
+    const turn = conversation.turn
+    if (turn) {
+      this.runTurn(chatId, conversation, turn)
+    }
   }
 
   private async launch(agent: AgentId, cwd: string, chatId?: string): Promise<AgentLaunch> {
@@ -798,6 +820,17 @@ export class ConversationManager {
     if ((conversation.snapshot.waitingFor ?? null) !== waitingFor) {
       this.dispatch(chatId, conversation, { type: 'waiting', waitingFor })
     }
+  }
+
+  /** Сообщает окну, какие сообщения ждут очереди. */
+  private emitQueue(chatId: string, conversation: Conversation): void {
+    if (conversation.queue.length === 0 && !conversation.snapshot.queued) {
+      return
+    }
+    this.emit(chatId, conversation, {
+      type: 'queue',
+      queued: conversation.queue.map(({ item }) => item)
+    })
   }
 
   private updateRunning(chatId: string, conversation: Conversation): void {
