@@ -277,6 +277,17 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
     inputRef.current?.focus()
   }
 
+  /** Вставляет текст в поле на место курсора — как обычная вставка, но из любого места чата. */
+  const insertIntoInput = (inserted: string) => {
+    const input = inputRef.current
+    if (!input) {
+      return
+    }
+    input.focus()
+    input.setRangeText(inserted, input.selectionStart, input.selectionEnd, 'end')
+    setText(input.value)
+  }
+
   const addFilesRef = useRef(addFiles)
   addFilesRef.current = addFiles
 
@@ -292,8 +303,23 @@ export function Composer({ chat, running, started, focused, usage }: ComposerPro
         target instanceof HTMLElement &&
         target !== inputRef.current &&
         (target.isContentEditable || target.matches('input, textarea, select'))
-      const files = [...(event.clipboardData?.files ?? [])]
-      if (!editingElsewhere && files.length > 0 && addFilesRef.current(files)) {
+      const clipboard = event.clipboardData
+      const files = [...(clipboard?.files ?? [])]
+      if (editingElsewhere || !clipboard || files.length === 0) {
+        return
+      }
+      // Таблицы и текстовые редакторы кладут в буфер вместе с текстом его картинку. Файлы,
+      // скопированные в Finder, тоже приходят с текстом — их именами, — но лежат на диске.
+      const text = clipboard.getData('text/plain')
+      const copiedFromDisk = files.some((file) => atox.files.getPath(file))
+      if (text && !copiedFromDisk) {
+        if (target !== inputRef.current) {
+          event.preventDefault()
+          insertIntoInput(text)
+        }
+        return
+      }
+      if (addFilesRef.current(files)) {
         event.preventDefault()
       }
     }
