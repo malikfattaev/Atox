@@ -50,7 +50,7 @@ export function TerminalPanel({
         edge="left"
         label="Resize terminal"
         onDrag={setDraftWidth}
-        onCommit={(next) => void window.atox.settings.update({ terminalWidth: next })}
+        onCommit={(next) => window.atox.settings.update({ terminalWidth: next })}
       />
     </aside>
   )

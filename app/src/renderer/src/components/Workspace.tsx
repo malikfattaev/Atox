@@ -152,7 +152,7 @@ export function Workspace({
               position={splitPosition}
               containerRef={chatsRef}
               onDrag={setDraftPosition}
-              onCommit={(position) => void setSplitPosition(currentProjectId, position)}
+              onCommit={(position) => setSplitPosition(currentProjectId, position)}
             />
           )}
           {!pageOpen && !activeChatId && (
