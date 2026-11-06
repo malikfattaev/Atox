@@ -1,10 +1,10 @@
-import { useId, useMemo, useState, type MouseEvent } from 'react'
+import { memo, useId, useMemo, useState, type MouseEvent } from 'react'
 import { Archive, ChevronDown, Columns2, GitBranch, Pencil, Trash2 } from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
 import { isCommandClick } from '../../../shared/shortcuts'
 import { useChatActivity } from '../hooks/ChatActivityContext'
-import { useProjectsContext } from '../hooks/ProjectsContext'
+import { useProjectActions } from '../hooks/ProjectsContext'
 import { showMenu } from '../lib/menu'
 import { AgentIcon } from './AgentIcon'
 import { ChatStatus } from './ChatStatus'
@@ -15,9 +15,14 @@ interface ChatItemProps {
   chat: Chat
   /** Помощники, которых запустил агент этого чата; показываются под ним. */
   workers: Chat[]
-  projectId: string
   /** Ветка git, в которой работает чат; `null` — папка проекта не репозиторий. */
   branch: string | null
+  /** Чат в фокусе, если это чат карточки или его помощник; иначе `null`. */
+  activeChatId: string | null
+  /** Чаты на экране, если среди них есть чаты карточки; иначе пусто. */
+  visibleChatIds: readonly string[]
+  /** В проекте этого чата есть чат в фокусе — рядом с ним можно открыть другой. */
+  canOpenBesideActive: boolean
 }
 
 /**
@@ -25,19 +30,34 @@ interface ChatItemProps {
  * под ним сворачиваемая строка «N agents» и компактные строки помощников.
  * Перетаскивается вся карточка целиком.
  */
-export function ChatItem({ chat, workers, projectId, branch }: ChatItemProps) {
+export const ChatItem = memo(function ChatItem({
+  chat,
+  workers,
+  branch,
+  activeChatId,
+  visibleChatIds,
+  canOpenBesideActive
+}: ChatItemProps) {
   const [renaming, setRenaming] = useState(false)
   const [workersExpanded, setWorkersExpanded] = useState(true)
   const workersId = useId()
   const { itemProps, handleProps } = useSortableItem(chat.id, renaming)
   const hasWorkers = workers.length > 0
   const workerChatIds = useMemo(() => workers.map(({ id }) => id), [workers])
+  const rowSelection = (rowChatId: string): RowSelection => {
+    const visible = visibleChatIds.includes(rowChatId)
+    return {
+      active: rowChatId === activeChatId,
+      visible,
+      canOpenBeside: canOpenBesideActive && !visible
+    }
+  }
 
   return (
     <li className="chat-group" data-has-workers={hasWorkers} {...itemProps}>
       <ChatRow
         chat={chat}
-        projectId={projectId}
+        {...rowSelection(chat.id)}
         branch={branch}
         workerChatIds={workerChatIds}
         renaming={renaming}
@@ -65,7 +85,7 @@ export function ChatItem({ chat, workers, projectId, branch }: ChatItemProps) {
           >
             <ul>
               {workers.map((worker) => (
-                <WorkerItem key={worker.id} chat={worker} projectId={projectId} />
+                <WorkerItem key={worker.id} chat={worker} {...rowSelection(worker.id)} />
               ))}
             </ul>
           </div>
@@ -73,15 +93,25 @@ export function ChatItem({ chat, workers, projectId, branch }: ChatItemProps) {
       )}
     </li>
   )
+})
+
+/** Как строка чата выглядит относительно экрана; считается в карточке, а не в каждой строке. */
+interface RowSelection {
+  /** Чат в фокусе. */
+  active: boolean
+  /** Чат на экране (в фокусе или рядом). */
+  visible: boolean
+  /** В меню есть «Open to the Side». */
+  canOpenBeside: boolean
 }
 
-function WorkerItem({ chat, projectId }: { chat: Chat; projectId: string }) {
+function WorkerItem({ chat, ...selection }: { chat: Chat } & RowSelection) {
   const [renaming, setRenaming] = useState(false)
   return (
     <li>
       <ChatRow
         chat={chat}
-        projectId={projectId}
+        {...selection}
         compact
         renaming={renaming}
         onRenamingChange={setRenaming}
@@ -90,9 +120,8 @@ function WorkerItem({ chat, projectId }: { chat: Chat; projectId: string }) {
   )
 }
 
-interface ChatRowProps {
+interface ChatRowProps extends RowSelection {
   chat: Chat
-  projectId: string
   branch?: string | null
   /** Помощники чата: пока работает любой из них, индикатор чата показывает работу. */
   workerChatIds?: readonly string[]
@@ -106,7 +135,9 @@ interface ChatRowProps {
 
 function ChatRow({
   chat,
-  projectId,
+  active,
+  visible,
+  canOpenBeside,
   branch = null,
   workerChatIds,
   compact = false,
@@ -114,19 +145,8 @@ function ChatRow({
   onRenamingChange,
   dragHandleProps
 }: ChatRowProps) {
-  const {
-    activeChatId,
-    visibleChatIds,
-    currentProjectId,
-    selectChat,
-    openChatBeside,
-    renameChat,
-    archiveChat,
-    removeChat
-  } = useProjectsContext()
-  const visible = visibleChatIds.includes(chat.id)
-  // Рядом открываются чаты того проекта, что сейчас на экране: раскладка у каждого проекта своя.
-  const canOpenBeside = Boolean(activeChatId) && projectId === currentProjectId && !visible
+  // Только действия: строка перерисовывается, лишь когда меняются её собственные данные.
+  const { selectChat, openChatBeside, renameChat, archiveChat, removeChat } = useProjectActions()
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
@@ -198,7 +218,7 @@ function ChatRow({
   return (
     <div
       className={compact ? 'row row--chat row--worker' : 'row row--chat'}
-      data-active={chat.id === activeChatId}
+      data-active={active}
       data-visible={visible}
       title={compact ? findAgent(chat.agent)?.name : undefined}
       onContextMenu={openContextMenu}
