@@ -14,6 +14,11 @@ export type LinkTarget =
   | { kind: 'none' }
 
 const URL_SCHEME = /^[a-z][a-z\d+.-]*:/i
+/**
+ * Путь к файлу со строкой (`app.ts:42`, `README.md:10:5`) по форме похож на адрес со схемой
+ * `app.ts:`. У таких ссылок после двоеточия только номера строки и колонки.
+ */
+const PATH_WITH_LINE = /^[^:/?#]+:\d+(?::\d+)?$/
 const FILE_PROTOCOL = 'file:'
 /** Хвост ссылки, который к пути не относится: `?query` и `#L42`. */
 const QUERY_OR_FRAGMENT = /[?#].*$/s
@@ -23,7 +28,7 @@ export function linkTarget(href: string | undefined): LinkTarget {
   if (!href || href.startsWith('#') || href.startsWith('//')) {
     return { kind: 'none' }
   }
-  if (!URL_SCHEME.test(href)) {
+  if (!URL_SCHEME.test(href) || PATH_WITH_LINE.test(href)) {
     return filePath(href.replace(QUERY_OR_FRAGMENT, ''))
   }
   if (!URL.canParse(href)) {
