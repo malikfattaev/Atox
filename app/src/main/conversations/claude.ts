@@ -176,8 +176,9 @@ interface StreamedSessionLimit {
 /**
  * Лимиты подписки из тех же данных, что показывает `/usage` в Claude Code. Метод в SDK помечен
  * экспериментальным; разбор локальной истории (`behaviors`) не нужен и пропускается.
- * Пятичасовое окно показывается всегда: если Anthropic его не сообщает, строка остаётся без
- * процента, а не пропадает молча. `streamed` — то же окно из событий текущего разговора.
+ * Пятичасового окна у подписки может не быть: тогда Anthropic не сообщает его ни здесь, ни
+ * в заголовках ответов, и Claude Code его тоже не показывает. `streamed` — то же окно из
+ * событий текущего разговора.
  */
 async function readLimits(
   session: Query,
@@ -202,7 +203,8 @@ async function readLimits(
   ]
   return windows.flatMap(([label, window]): PlanLimit[] => {
     if (label === SESSION_LIMIT_LABEL) {
-      return [sessionLimit(window, streamed)]
+      const session = sessionLimit(window, streamed)
+      return session ? [session] : []
     }
     if (!window || window.utilization === null) {
       return []
@@ -218,11 +220,11 @@ async function readLimits(
   })
 }
 
-/** Пятичасовое окно: из `/usage`, иначе из событий разговора, иначе — без процента. */
+/** Пятичасовое окно: из `/usage`, иначе из событий разговора; `null` — его сейчас нет. */
 function sessionLimit(
   window: RateLimitWindow | null | undefined,
   streamed: StreamedSessionLimit | null | undefined
-): PlanLimit {
+): PlanLimit | null {
   if (window && window.utilization !== null) {
     const resetsAt = window.resets_at ? Date.parse(window.resets_at) : Number.NaN
     return {
@@ -238,7 +240,7 @@ function sessionLimit(
       ...(streamed.resetsAt !== undefined && { resetsAt: streamed.resetsAt * 1000 })
     }
   }
-  return { label: SESSION_LIMIT_LABEL }
+  return null
 }
 
 /**

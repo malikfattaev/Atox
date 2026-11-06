@@ -38,12 +38,12 @@ export interface ConversationUsage {
   context: { used: number; limit: number }
 }
 
-/** Окно лимита подписки Claude: сколько из него израсходовано и когда оно начнётся заново. */
+/** Окно лимита подписки агента: сколько из него израсходовано и когда оно начнётся заново. */
 export interface PlanLimit {
-  /** Например «Current session» (5 часов) или «Current week (all models)». */
+  /** Например «Current session» (5 часов), «Current week (all models)» или «Weekly limit». */
   label: string
-  /** Израсходовано, 0–100; нет — Anthropic сейчас не сообщает это окно для подписки. */
-  percent?: number
+  /** Израсходовано, 0–100. */
+  percent: number
   /** Когда окно сбросится, мс с начала эпохи; нет — агент не сообщил. */
   resetsAt?: number
 }
