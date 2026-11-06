@@ -32,15 +32,13 @@ export function Sidebar({
   onOpenRepository
 }: SidebarProps) {
   const {
-    spaces,
-    activeSpaceId,
+    loading,
     spaceProjects,
     currentProjectId,
     addProject,
     moveProject,
     createChat
   } = useProjectsContext()
-  const activeSpace = spaces.find(({ id }) => id === activeSpaceId)
   const { sidebarWidth } = useSettings()
   const branches = useGitBranches()
   // Пока тянут край, ширина живёт здесь; в настройки попадает только итоговая.
@@ -74,8 +72,8 @@ export function Sidebar({
       </div>
 
       <section className="sidebar__section">
-        {/* Пока пространства загружаются, пустое состояние не показываем — оно бы мигнуло. */}
-        {activeSpace && spaceProjects.length === 0 ? (
+        {/* Пока проекты загружаются, пустое состояние не показываем — оно бы мигнуло. */}
+        {!loading && spaceProjects.length === 0 ? (
           <p className="sidebar__empty">No projects yet</p>
         ) : (
           <SortableList
