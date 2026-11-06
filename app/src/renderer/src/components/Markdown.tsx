@@ -1,23 +1,27 @@
 import {
   memo,
   useContext,
+  useMemo,
   type AnchorHTMLAttributes,
   type ClipboardEvent,
   type MouseEvent
 } from 'react'
-import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform, type Components, type Options } from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { imageTypeOfPath } from '../../../shared/attachments'
 import { ipcErrorMessage } from '../lib/ipcError'
 import { LinkBaseDirectoryContext, linkTarget } from '../lib/linkTargets'
+import { splitMarkdownBlocks } from '../lib/markdownBlocks'
 import { LocalImage } from './GeneratedImage'
 
 const { atox } = window
 
-const REMARK_PLUGINS = [remarkGfm]
+type RemarkPlugins = NonNullable<Options['remarkPlugins']>
+
+const REMARK_PLUGINS: RemarkPlugins = [remarkGfm]
 /** Вывод команд — обычный текст с переносами строк, а не абзацы Markdown. */
-const LINE_BREAK_PLUGINS = [remarkGfm, remarkBreaks]
+const LINE_BREAK_PLUGINS: RemarkPlugins = [remarkGfm, remarkBreaks]
 
 const FILE_URL_PREFIX = 'file://'
 
@@ -92,7 +96,25 @@ function copyCodeAsPlainText(event: ClipboardEvent<HTMLDivElement>): void {
   event.clipboardData.setData('text/plain', selection.toString())
 }
 
-/** Ответ агента в Markdown, как в GitHub: таблицы, списки задач, зачёркивание. */
+/** Одна часть ответа: разбирается заново, только когда меняется её собственный текст. */
+const MarkdownBlock = memo(function MarkdownBlock({
+  text,
+  plugins
+}: {
+  text: string
+  plugins: RemarkPlugins
+}) {
+  return (
+    <ReactMarkdown remarkPlugins={plugins} components={COMPONENTS} urlTransform={urlTransform}>
+      {text}
+    </ReactMarkdown>
+  )
+})
+
+/**
+ * Ответ агента в Markdown, как в GitHub: таблицы, списки задач, зачёркивание. Текст делится
+ * на части, и пока агент пишет, разбирается только последняя.
+ */
 export const Markdown = memo(function Markdown({
   text,
   preserveLineBreaks = false
@@ -101,15 +123,14 @@ export const Markdown = memo(function Markdown({
   /** Каждый перенос строки — новая строка, как в выводе команд агента. */
   preserveLineBreaks?: boolean
 }) {
+  const blocks = useMemo(() => splitMarkdownBlocks(text), [text])
+  const plugins = preserveLineBreaks ? LINE_BREAK_PLUGINS : REMARK_PLUGINS
   return (
     <div className="markdown" onCopy={copyCodeAsPlainText}>
-      <ReactMarkdown
-        remarkPlugins={preserveLineBreaks ? LINE_BREAK_PLUGINS : REMARK_PLUGINS}
-        components={COMPONENTS}
-        urlTransform={urlTransform}
-      >
-        {text}
-      </ReactMarkdown>
+      {blocks.map((block, index) => (
+        // Части только дописываются в конец: место части в ответе и есть её ключ.
+        <MarkdownBlock key={index} text={block} plugins={plugins} />
+      ))}
     </div>
   )
 })
