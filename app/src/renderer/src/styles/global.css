@@ -3395,6 +3395,45 @@ ul {
   border-color: var(--color-popover-border);
 }
 
+/* Что не получилось — сообщение не ушло, файл не приложился: над полем, пока его не закроют. */
+.composer__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  color: var(--color-danger);
+  background: var(--color-danger-background);
+  font-size: var(--font-size-small);
+}
+
+.composer__error .icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.composer__error-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.composer__error-close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.composer__error-close:hover {
+  opacity: 1;
+}
+
 /* «+», текст и отправка в одну строку; когда текст растёт, кнопки остаются внизу. */
 .composer__row {
   display: flex;
