@@ -10,7 +10,9 @@ import {
 } from 'react'
 import { isWorkerChat } from '../../../shared/chats'
 import { ChatActivityTracker, type ChatActivityStatus } from '../lib/chatActivity'
+import { playChime } from '../lib/chime'
 import { useProjectsContext } from './ProjectsContext'
+import { useSettings } from './SettingsContext'
 import type { ProjectsState } from './useProjects'
 
 const ChatActivityContext = createContext<ChatActivityTracker | null>(null)
@@ -25,6 +27,9 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
   const [chatsCovered, setChatsCovered] = useState(false)
   const chatsCoveredRef = useRef(chatsCovered)
   chatsCoveredRef.current = chatsCovered
+  const { notificationSounds } = useSettings()
+  const notificationSoundsRef = useRef(notificationSounds)
+  notificationSoundsRef.current = notificationSounds
 
   const [tracker] = useState(
     () =>
@@ -33,7 +38,12 @@ export function ChatActivityProvider({ children }: { children: ReactNode }) {
           !chatsCoveredRef.current &&
           projectsRef.current.visibleChatIds.includes(chatId) &&
           document.hasFocus(),
-        notify: (chatId, message) => showChatNotification(projectsRef.current, chatId, message)
+        notify: (chatId, message, tone) => {
+          showChatNotification(projectsRef.current, chatId, message)
+          if (notificationSoundsRef.current) {
+            playChime(tone)
+          }
+        }
       })
   )
 
@@ -120,7 +130,11 @@ function showChatNotification(projects: ProjectsState, chatId: string, message: 
   if (!project || !chat) {
     return
   }
-  const notification = new Notification(chat.title, { body: `${project.name} · ${message}` })
+  // Вместо системного звука играет свой звук Atox: его включают и выключают в настройках.
+  const notification = new Notification(chat.title, {
+    body: `${project.name} · ${message}`,
+    silent: true
+  })
   notification.onclick = () => {
     window.atox.system.focusWindow()
     projects.selectChat(chatId)
