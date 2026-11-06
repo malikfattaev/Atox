@@ -1,6 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef } from 'react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useConversation } from '../hooks/useConversation'
+import type { UserMessage } from '../../../shared/conversation'
 import { Composer } from './Composer'
 import { Timeline } from './Timeline'
 
@@ -9,6 +10,9 @@ const STICK_TO_BOTTOM_PX = 48
 
 /** Ближе этого к низу лента считается докрученной до конца: запас на дробные пиксели. */
 const AT_BOTTOM_PX = 2
+
+/** Пустая очередь — одним массивом: новый на каждую отрисовку сбивал бы `memo` у ленты. */
+const NO_QUEUED_MESSAGES: readonly UserMessage[] = []
 
 interface ChatViewProps {
   chatId: string
@@ -77,7 +81,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
     if (visible) {
       scrollToBottom()
     }
-  }, [conversation.items, conversation.running, visible])
+  }, [conversation.items, conversation.queued, conversation.running, visible])
 
   // Лента или окно поменяли размер (вырос ввод, раздвинули чаты): низ остаётся на месте.
   useEffect(() => {
@@ -110,6 +114,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
             <Timeline
               chatId={chat.id}
               items={conversation.items}
+              queued={conversation.queued ?? NO_QUEUED_MESSAGES}
               running={conversation.running}
               turnTokens={conversation.turnTokens ?? 0}
               visible={visible}

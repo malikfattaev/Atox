@@ -14,7 +14,7 @@ import {
   Wrench,
   type LucideProps
 } from 'lucide-react'
-import type { TimelineItem, ToolKind } from '../../../shared/conversation'
+import type { TimelineItem, ToolKind, UserMessage } from '../../../shared/conversation'
 import { findAgent } from '../../../shared/agents'
 import {
   compactionText,
@@ -33,7 +33,7 @@ import { QuestionCard } from './QuestionCard'
 import { Markdown } from './Markdown'
 import { ContextCard, LimitsCard } from './UsageCards'
 
-type UserItem = Extract<TimelineItem, { kind: 'user' }>
+type UserItem = UserMessage
 type ActivityItem = Extract<TimelineItem, { kind: 'tool' | 'reasoning' }>
 type CompactionItem = Extract<TimelineItem, { kind: 'compaction' }>
 
@@ -76,6 +76,8 @@ const CLOCK_INTERVAL_MS = 1000
 interface TimelineProps {
   chatId: string
   items: readonly TimelineItem[]
+  /** Сообщения, которые ждут, пока агент закончит текущий ответ, — под лентой. */
+  queued: readonly UserMessage[]
   running: boolean
   /** Сколько токенов агент написал, отвечая на текущее сообщение. */
   turnTokens: number
@@ -86,6 +88,7 @@ interface TimelineProps {
 export const Timeline = memo(function Timeline({
   chatId,
   items,
+  queued,
   running,
   turnTokens,
   visible
@@ -97,21 +100,7 @@ export const Timeline = memo(function Timeline({
       {blocks.map((block) => {
         switch (block.type) {
           case 'user':
-            return (
-              <div
-                key={block.item.id}
-                className="user-message"
-                data-fresh={Date.now() - block.item.createdAt < FRESH_MESSAGE_MS || undefined}
-              >
-                {(block.item.images || block.item.files) && (
-                  <MessageAttachments
-                    images={block.item.images ?? []}
-                    files={block.item.files ?? []}
-                  />
-                )}
-                {block.item.text && <div className="message message--user">{block.item.text}</div>}
-              </div>
-            )
+            return <UserMessageView key={block.item.id} item={block.item} />
           case 'assistant':
             return (
               <Markdown
@@ -159,9 +148,29 @@ export const Timeline = memo(function Timeline({
             ) : null
         }
       })}
+      {queued.map((item) => (
+        <UserMessageView key={item.id} item={item} queued />
+      ))}
     </div>
   )
 })
+
+/** Сообщение пользователя; `queued` — ждёт, пока агент закончит текущий ответ. */
+function UserMessageView({ item, queued = false }: { item: UserItem; queued?: boolean }) {
+  return (
+    <div
+      className="user-message"
+      data-fresh={Date.now() - item.createdAt < FRESH_MESSAGE_MS || undefined}
+      data-queued={queued || undefined}
+    >
+      {(item.images || item.files) && (
+        <MessageAttachments images={item.images ?? []} files={item.files ?? []} />
+      )}
+      {item.text && <div className="message message--user">{item.text}</div>}
+      {queued && <span className="user-message__queued">Queued</span>}
+    </div>
+  )
+}
 
 interface MessageAttachmentsProps {
   images: readonly string[]
