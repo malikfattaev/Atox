@@ -62,12 +62,13 @@ export function anchorElement(anchor: MenuAnchor): Element | null {
 /**
  * Сдвинула ли прокрутка якорь панели — только тогда панель оторвалась бы от него и её пора
  * закрыть. Прокрутка соседних областей (например, лента чата, которая сама едет при стриминге)
- * панель не трогает. Без элемента-якоря закрывает любая прокрутка.
+ * панель не трогает. Панель, открытая в точке без элемента под ней, сдвигается только вместе
+ * со страницей.
  */
 export function scrollMovesAnchor(event: Event, anchor: Element | null): boolean {
   const scrolled = event.target
   if (!(scrolled instanceof Node)) {
     return false
   }
-  return anchor === null || scrolled.contains(anchor)
+  return anchor === null ? scrolled instanceof Document : scrolled.contains(anchor)
 }

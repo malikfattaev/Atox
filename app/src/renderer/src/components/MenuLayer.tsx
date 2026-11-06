@@ -126,7 +126,8 @@ function MenuRoot({ menu, leaving, onExited }: MenuRootProps) {
     }
     const anchor = anchorElement(menu.anchor)
     const onScroll = (event: Event) => {
-      if (scrollMovesAnchor(event, anchor)) {
+      // Длинное меню прокручивается само — это его не закрывает.
+      if (!isInside(event.target) && scrollMovesAnchor(event, anchor)) {
         finish(null)
       }
     }

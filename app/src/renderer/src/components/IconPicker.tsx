@@ -199,7 +199,8 @@ export function IconPicker({ anchor, selected, color, onPick, onClose }: IconPic
       }
     }
     const onScroll = (event: Event) => {
-      if (scrollMovesAnchor(event, anchor)) {
+      // Сетка значков прокручивается внутри выбора — это его не закрывает.
+      if (!isInside(event.target) && scrollMovesAnchor(event, anchor)) {
         close()
       }
     }
