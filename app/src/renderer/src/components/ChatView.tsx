@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
-import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useConversation } from '../hooks/useConversation'
 import type { UserMessage } from '../../../shared/conversation'
+import type { Chat } from '../../../shared/models'
 import { LinkBaseDirectoryContext } from '../lib/linkTargets'
 import { Composer } from './Composer'
 import { Timeline } from './Timeline'
@@ -28,14 +28,24 @@ interface ScrollPosition {
 const scrollPositions = new Map<string, ScrollPosition>()
 
 interface ChatViewProps {
-  chatId: string
+  chat: Chat
+  /** Папка проекта чата: от неё считаются относительные пути в ссылках из ответов. */
+  projectPath: string
   visible: boolean
   focused: boolean
 }
 
-/** Пока тянут разделитель, рабочая область перерисовывается на каждое движение: чат — нет. */
-export const ChatView = memo(function ChatView({ chatId, visible, focused }: ChatViewProps) {
-  const { projects } = useProjectsContext()
+/**
+ * Чат получает только свои данные, а не весь список проектов: пока тянут разделитель, выбирают
+ * другой чат или пишет агент соседнего, рабочая область перерисовывается — этот чат нет.
+ */
+export const ChatView = memo(function ChatView({
+  chat,
+  projectPath,
+  visible,
+  focused
+}: ChatViewProps) {
+  const chatId = chat.id
   const conversation = useConversation(chatId, visible)
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnRef = useRef<HTMLDivElement>(null)
@@ -46,9 +56,6 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
   // и не должно затереть сохранённое.
   const restoringPosition = useRef(scrollPositions.has(chatId))
 
-  const project = projects.find(({ chats }) => chats.some(({ id }) => id === chatId))
-  const chat = project?.chats.find(({ id }) => id === chatId)
-  const rendered = Boolean(project && chat)
 
   /**
    * Следует ли лента за агентом, решает её положение, а не колесо или клики: так её не сбивают
@@ -110,7 +117,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
       scroller.scrollTop = saved.top
       lastScrollTop.current = scroller.scrollTop
     }
-  }, [chatId, visible, conversation.loading, rendered])
+  }, [chatId, visible, conversation.loading])
 
   useLayoutEffect(() => {
     if (visible) {
@@ -129,11 +136,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
     observer.observe(scroller)
     observer.observe(column)
     return () => observer.disconnect()
-  }, [rendered])
-
-  if (!project || !chat) {
-    return null
-  }
+  }, [])
 
   const started = conversation.items.length > 0
 
@@ -147,7 +150,7 @@ export const ChatView = memo(function ChatView({ chatId, visible, focused }: Cha
         <div ref={columnRef} className="chat-view__column">
           {started && (
             // Относительные пути в ссылках из ответов считаются от папки проекта.
-            <LinkBaseDirectoryContext.Provider value={project.path}>
+            <LinkBaseDirectoryContext.Provider value={projectPath}>
               <Timeline
                 chatId={chat.id}
                 items={conversation.items}
