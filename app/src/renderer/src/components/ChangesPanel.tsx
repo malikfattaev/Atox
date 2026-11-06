@@ -4,6 +4,7 @@ import type { FileChange, FileChangeKind, FileDiff } from '../../../shared/chang
 import { TERMINAL_WIDTH } from '../../../shared/settings'
 import { useProjectChanges } from '../hooks/useProjectChanges'
 import { useSettings } from '../hooks/SettingsContext'
+import { ipcErrorMessage } from '../lib/ipcError'
 import { PanelResizer } from './PanelResizer'
 
 const { atox } = window
@@ -96,6 +97,7 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
                 key={file.path}
                 projectId={projectId}
                 file={file}
+                listing={files}
                 expanded={expandedPaths.has(file.path)}
                 onToggle={() => toggle(file.path)}
                 onDiscard={() => void discard(file.path)}
@@ -120,13 +122,22 @@ export function ChangesPanel({ projectId }: ChangesPanelProps) {
 interface ChangedFileProps {
   projectId: string
   file: FileChange
+  /** Список, в котором пришёл файл: новый список — повод перечитать раскрытые изменения. */
+  listing: readonly FileChange[]
   expanded: boolean
   onToggle(): void
   onDiscard(): void
 }
 
-function ChangedFile({ projectId, file, expanded, onToggle, onDiscard }: ChangedFileProps) {
-  const diff = useFileDiff(projectId, file, expanded)
+function ChangedFile({
+  projectId,
+  file,
+  listing,
+  expanded,
+  onToggle,
+  onDiscard
+}: ChangedFileProps) {
+  const diff = useFileDiff(projectId, file.path, expanded, listing)
   const slash = file.path.lastIndexOf('/')
   const name = file.path.slice(slash + 1)
   const directory = slash >= 0 ? file.path.slice(0, slash) : ''
@@ -164,37 +175,64 @@ function ChangedFile({ projectId, file, expanded, onToggle, onDiscard }: Changed
           <Undo2 className="icon" />
         </button>
       </div>
-      {expanded && <DiffView diff={diff} />}
+      {expanded && <DiffView state={diff} />}
     </li>
   )
 }
 
-/** Изменения файла построчно, пока он раскрыт; перечитываются, когда файл меняется. */
-function useFileDiff(projectId: string, file: FileChange, expanded: boolean) {
-  const [diff, setDiff] = useState<FileDiff | null | undefined>(undefined)
-  // Без изменения счётчиков строк файл тот же: перечитывать diff незачем.
-  const version = `${file.kind}:${file.additions}:${file.deletions}`
+/** Изменения файла: загружаются, загружены (`null` — файл уже не изменён) или не загрузились. */
+type DiffState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; diff: FileDiff | null }
+  | { kind: 'failed'; message: string }
+
+const LOADING: DiffState = { kind: 'loading' }
+
+/**
+ * Изменения файла построчно, пока он раскрыт. Перечитываются с каждым новым списком
+ * изменений: одинаковые счётчики строк не значат, что не изменились сами строки.
+ * Пока идёт перечитывание, на экране остаются прежние.
+ */
+function useFileDiff(
+  projectId: string,
+  path: string,
+  expanded: boolean,
+  listing: readonly FileChange[]
+): DiffState {
+  const [state, setState] = useState<DiffState>(LOADING)
   useEffect(() => {
     if (!expanded) {
+      // Свёрнутый файл при следующем раскрытии покажет свежие изменения, а не прошлые.
+      setState(LOADING)
       return
     }
     let current = true
-    void atox.changes.diff(projectId, file.path).then((next) => {
-      if (current) {
-        setDiff(next)
-      }
-    })
+    atox.changes
+      .diff(projectId, path)
+      .then(
+        (diff): DiffState => ({ kind: 'loaded', diff }),
+        (error: unknown): DiffState => ({ kind: 'failed', message: ipcErrorMessage(error) })
+      )
+      .then((next) => {
+        if (current) {
+          setState(next)
+        }
+      })
     return () => {
       current = false
     }
-  }, [projectId, file.path, version, expanded])
-  return diff
+  }, [projectId, path, expanded, listing])
+  return state
 }
 
-function DiffView({ diff }: { diff: FileDiff | null | undefined }) {
-  if (diff === undefined) {
-    return null
+function DiffView({ state }: { state: DiffState }) {
+  if (state.kind === 'loading') {
+    return <p className="diff__note">Loading…</p>
   }
+  if (state.kind === 'failed') {
+    return <p className="diff__note">Could not load the changes. {state.message}</p>
+  }
+  const { diff } = state
   if (diff === null || (!diff.binary && diff.lines.length === 0)) {
     return <p className="diff__note">No changes in the content</p>
   }
