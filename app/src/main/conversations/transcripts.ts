@@ -1,14 +1,27 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isAgentId, type AgentId } from '../../shared/agents'
-import type { TimelineItem } from '../../shared/conversation'
+import type { TimelineItem, UserMessage } from '../../shared/conversation'
 import { JsonFileWriter, readVersionedJson } from '../jsonFile'
 
 const TRANSCRIPT_VERSION = 1
 
+/** Сообщение, которое ждёт, пока агент закончит отвечать на предыдущие. */
+export interface QueuedMessage {
+  /** Сообщение, каким его покажут в ленте, когда агент за него возьмётся. */
+  item: UserMessage
+  /** Текст для агента: с путями приложенных файлов. */
+  text: string
+  images: readonly string[]
+  /** Агент чата в момент отправки: его потом не меняет переключение, пока сообщение в очереди. */
+  agent: AgentId
+}
+
 /** Что нужно, чтобы показать разговор чата после перезапуска Atox и продолжить его. */
 export interface Transcript {
   items: TimelineItem[]
+  /** Сообщения, до которых агент не дошёл: после перезапуска они снова ждут в очереди. */
+  queue: QueuedMessage[]
   /** Разговор на стороне агента (сессия Claude, тред Codex); `null` — ещё не начат. */
   sessionId: string | null
   /** Агент, с которым идёт разговор на его стороне. */
@@ -43,6 +56,8 @@ export class TranscriptStore {
     const items = Array.isArray(data?.items) ? data.items : []
     return {
       items: items.map(settleItem),
+      // Файлы прежних версий очереди не хранили.
+      queue: Array.isArray(data?.queue) ? data.queue.filter(isQueuedMessage) : [],
       sessionId: typeof data?.sessionId === 'string' ? data.sessionId : null,
       sessionAgent: isAgentId(data?.sessionAgent) ? data.sessionAgent : null,
       lastAgent: isAgentId(data?.lastAgent) ? data.lastAgent : null
@@ -82,6 +97,20 @@ export class TranscriptStore {
   private path(chatId: string): string {
     return join(this.directory, `${chatId}.json`)
   }
+}
+
+/** Сообщение очереди из файла: повреждённое не должно уйти агенту обрывком. */
+function isQueuedMessage(value: unknown): value is QueuedMessage {
+  const message = value as Partial<QueuedMessage> | null
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    message.item?.kind === 'user' &&
+    typeof message.text === 'string' &&
+    Array.isArray(message.images) &&
+    message.images.every((path) => typeof path === 'string') &&
+    isAgentId(message.agent)
+  )
 }
 
 /**
