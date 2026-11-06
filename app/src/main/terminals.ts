@@ -10,6 +10,15 @@ import { resolveShell, sessionEnvironment } from './shellEnvironment'
 const OUTPUT_BUFFER_LIMIT = 512 * 1024
 
 /**
+ * Насколько дальше места обрезки искать начало escape-последовательности или строки.
+ * Программы в терминале пишут их постоянно — дальше искать незачем.
+ */
+const SAFE_START_SEARCH_LIMIT = 4096
+
+const ESCAPE = 0x1b
+const LINE_FEED = 0x0a
+
+/**
  * Сколько чанков, уже вытесненных из буфера, копить перед тем, как убрать их из массива:
  * убирать по одному — сдвигать весь массив на каждый чанк вывода. Массив переписывается,
  * только когда вытесненных не меньше половины, — так на чанк приходится постоянная работа.
@@ -46,8 +55,34 @@ class OutputBuffer {
 
   toString(): string {
     const output = this.chunks.slice(this.head).join('')
-    return output.length > this.limit ? output.slice(output.length - this.limit) : output
+    return output.length > this.limit
+      ? output.slice(safeStart(output, output.length - this.limit))
+      : output
   }
+}
+
+/**
+ * Где начать обрезанный вывод не раньше `cut`. Обрезка посреди escape-последовательности
+ * вывалила бы её остаток на экран текстом (у claude, vim, htop — мусор во весь экран),
+ * поэтому вывод начинается с ближайшей последовательности или новой строки.
+ */
+function safeStart(output: string, cut: number): number {
+  const searchEnd = Math.min(output.length, cut + SAFE_START_SEARCH_LIMIT)
+  for (let index = cut; index < searchEnd; index++) {
+    const code = output.charCodeAt(index)
+    if (code === ESCAPE) {
+      return index
+    }
+    if (code === LINE_FEED) {
+      return index + 1
+    }
+  }
+  // Рядом ни одной границы — режем как есть, но не посреди суррогатной пары.
+  return isLowSurrogate(output.charCodeAt(cut)) ? cut + 1 : cut
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff
 }
 
 interface Session {
