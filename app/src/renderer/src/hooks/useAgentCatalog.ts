@@ -1,47 +1,69 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import type { AgentId } from '../../../shared/agents'
 import { AGENT_LISTS_TTL_MS, type AgentCatalog } from '../../../shared/conversation'
 
 const { atox } = window
 
+/** Модели агента; `undefined` — список ещё загружается, `null` — агент не ответил. */
+type CatalogState = AgentCatalog | null | undefined
+
 /**
  * Списки моделей одни на всё окно: агента спрашивают не в каждом чате, а раз в
  * `AGENT_LISTS_TTL_MS` — чтобы новые модели появлялись без перезапуска.
  */
-const catalogs = new Map<AgentId, { catalog: Promise<AgentCatalog | null>; expiresAt: number }>()
+const catalogs = new Map<AgentId, CatalogState>()
+/** Когда получен каждый список: по этому времени он устаревает. */
+const loadedAt = new Map<AgentId, number>()
+/** Запросы, которые ещё идут: один на агента. */
+const requests = new Map<AgentId, Promise<AgentCatalog | null>>()
+const listeners = new Set<() => void>()
 
+function setCatalog(agent: AgentId, catalog: CatalogState): void {
+  catalogs.set(agent, catalog)
+  listeners.forEach((listener) => listener())
+}
+
+/**
+ * Загружает модели агента, если их нет или список устарел. Неудачный ответ не запоминается:
+ * агента могли установить или войти в него позже, и следующий вызов спросит снова.
+ */
 export function loadAgentCatalog(agent: AgentId): Promise<AgentCatalog | null> {
-  const cached = catalogs.get(agent)
-  let catalog = cached && cached.expiresAt > Date.now() ? cached.catalog : undefined
-  if (!catalog) {
-    catalog = atox.agents.catalog(agent).catch(() => null)
-    catalogs.set(agent, { catalog, expiresAt: Date.now() + AGENT_LISTS_TTL_MS })
-    // Неудачный ответ не запоминается: агента могли установить или войти в него позже.
-    void catalog.then((result) => {
-      if (!result) {
-        catalogs.delete(agent)
+  const loaded = catalogs.get(agent)
+  const fresh = Date.now() - (loadedAt.get(agent) ?? 0) < AGENT_LISTS_TTL_MS
+  if (loaded && fresh) {
+    return Promise.resolve(loaded)
+  }
+  let request = requests.get(agent)
+  if (!request) {
+    request = atox.agents.catalog(agent).catch(() => null)
+    requests.set(agent, request)
+    // Устаревший список остаётся на экране, пока не придёт новый.
+    if (!loaded) {
+      setCatalog(agent, undefined)
+    }
+    void request.then((result) => {
+      requests.delete(agent)
+      if (result) {
+        loadedAt.set(agent, Date.now())
+      } else {
+        loadedAt.delete(agent)
       }
+      setCatalog(agent, result ?? loaded ?? null)
     })
   }
-  return catalog
+  return request
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }
 
 /** Модели агента; `undefined` — список ещё загружается, `null` — агент не ответил. */
-export function useAgentCatalog(agent: AgentId): AgentCatalog | null | undefined {
-  const [catalog, setCatalog] = useState<AgentCatalog | null | undefined>(undefined)
-
+export function useAgentCatalog(agent: AgentId): CatalogState {
+  const catalog = useSyncExternalStore(subscribe, () => catalogs.get(agent))
   useEffect(() => {
-    let cancelled = false
-    setCatalog(undefined)
-    void loadAgentCatalog(agent).then((result) => {
-      if (!cancelled) {
-        setCatalog(result)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
+    void loadAgentCatalog(agent)
   }, [agent])
-
   return catalog
 }

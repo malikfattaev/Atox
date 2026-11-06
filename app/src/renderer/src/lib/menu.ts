@@ -61,6 +61,16 @@ export function getOpenMenu(): OpenMenu | null {
 }
 
 /**
+ * Меняет пункты открытого меню — например, когда догрузился список, который в нём показан.
+ * Меню, которое уже закрыли, не открывается снова.
+ */
+export function updateMenu<Action extends string>(id: number, items: MenuItem<Action>[]): void {
+  if (current?.id === id) {
+    publish({ ...current, items })
+  }
+}
+
+/**
  * Открывает меню и ждёт выбора: промис вернёт действие пункта или `null`, если меню закрыли.
  * Повторный вызов с тем же элементом, пока его меню открыто, закрывает меню, как у кнопки-переключателя.
  */
@@ -80,7 +90,8 @@ export function showMenu<Action extends string>(
       items,
       anchor,
       close: (action) => {
-        if (current === menu) {
+        // Пункты открытого меню могли заменить (`updateMenu`): меню то же, пока совпадает id.
+        if (current?.id === menu.id) {
           publish(null)
         }
         // Действия меню — всегда из его же пунктов, поэтому сужение типа безопасно.
