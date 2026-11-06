@@ -1,4 +1,5 @@
 import type { UserRequestKind } from '../../../shared/conversation'
+import type { ChimeTone } from './chime'
 
 /** `waiting` — агент ждёт ответа пользователя, `unread` — закончил, пока на чат не смотрели. */
 export type ChatActivityStatus = 'idle' | 'working' | 'waiting' | 'unread'
@@ -15,7 +16,8 @@ const REQUEST_MESSAGES: Record<UserRequestKind, string> = {
 export interface ChatActivityEnvironment {
   /** Пользователь сейчас видит этот чат: он выбран и окно в фокусе. */
   isChatInView(chatId: string): boolean
-  notify(chatId: string, message: string): void
+  /** Позвать пользователя к чату; `tone` — каким звуком, если звуки включены. */
+  notify(chatId: string, message: string, tone: ChimeTone): void
 }
 
 interface ChatState {
@@ -91,7 +93,7 @@ export class ChatActivityTracker {
     } else if (!this.backgroundChatIds.has(chatId) && !this.environment.isChatInView(chatId)) {
       state.unread = true
       if (Date.now() - state.workStartedAt >= NOTIFY_MIN_WORK_MS) {
-        this.environment.notify(chatId, 'Finished working')
+        this.environment.notify(chatId, 'Finished working', 'done')
       }
     }
     this.changed()
@@ -106,7 +108,7 @@ export class ChatActivityTracker {
     const started = waitingFor !== null && state.waitingFor === null
     state.waitingFor = waitingFor
     if (started && !this.environment.isChatInView(chatId)) {
-      this.environment.notify(chatId, REQUEST_MESSAGES[waitingFor])
+      this.environment.notify(chatId, REQUEST_MESSAGES[waitingFor], 'attention')
     }
     this.changed()
   }
