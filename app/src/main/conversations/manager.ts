@@ -554,6 +554,15 @@ export class ConversationManager {
     this.updateRunning(chatId, conversation)
     this.ensureSession(chatId, conversation, next.agent)
       .then((session) => {
+        // Пока агент запускался, разговор начали заново (`/clear`): сообщения больше нет, а
+        // сессия запущена для прежнего разговора и не нужна.
+        if (conversation.turn !== next) {
+          if (conversation.session === session) {
+            conversation.session = null
+            session.close()
+          }
+          return
+        }
         if (conversation.interruptedTurn === next) {
           this.finishTurn(chatId, conversation)
           return
@@ -561,7 +570,8 @@ export class ConversationManager {
         session.send(this.messageForAgent(conversation, next), next.images)
       })
       .catch((error) => {
-        if (conversation.disposed) {
+        // Ошибка запуска относится к сообщению, которого уже нет: показывать её незачем.
+        if (conversation.disposed || conversation.turn !== next) {
           return
         }
         this.emit(chatId, conversation, {
