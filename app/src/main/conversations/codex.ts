@@ -375,13 +375,13 @@ class CodexSession implements AgentSession {
       })
   }
 
-  interrupt(): void {
+  interrupt(): Promise<void> {
     const turnId = this.turnId
     if (!turnId) {
       this.interruptRequested = true
-      return
+      return Promise.resolve()
     }
-    void this.interruptTurn(turnId)
+    return this.interruptTurn(turnId)
   }
 
   answer(itemId: string, answer: RequestAnswer): void {
@@ -531,8 +531,7 @@ class CodexSession implements AgentSession {
           return
         }
         if (attempt >= INTERRUPT_ATTEMPTS) {
-          console.error('Failed to interrupt Codex', error)
-          return
+          throw error
         }
         await new Promise((resolve) => setTimeout(resolve, INTERRUPT_RETRY_MS))
       }
@@ -547,7 +546,9 @@ class CodexSession implements AgentSession {
     this.turnId = turnId
     if (this.interruptRequested) {
       this.interruptRequested = false
-      this.interrupt()
+      // Остановку уже просили раньше, и ждать её некому: зависший ход закроет запасной путь
+      // менеджера разговоров по таймауту.
+      this.interrupt().catch((error) => console.error('Failed to interrupt Codex', error))
     }
   }
 

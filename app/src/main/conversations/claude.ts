@@ -430,10 +430,10 @@ class ClaudeSession implements AgentSession {
       })
   }
 
-  interrupt(): void {
+  async interrupt(): Promise<void> {
     this.interrupted = true
     this.requests.cancelAll()
-    this.session.interrupt().catch((error) => console.error('Failed to interrupt Claude', error))
+    await this.session.interrupt()
   }
 
   answer(itemId: string, answer: RequestAnswer): void {
