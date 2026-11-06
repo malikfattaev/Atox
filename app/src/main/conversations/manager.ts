@@ -30,7 +30,7 @@ import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import { errorMessage } from './display'
 import { handoffMessage } from './handoff'
-import type { TranscriptStore } from './transcripts'
+import { settleItem, type TranscriptStore } from './transcripts'
 import type { AgentDriver, AgentLaunch, AgentSession } from './types'
 
 /**
@@ -560,8 +560,11 @@ export class ConversationManager {
     }
     conversation.turn = null
     conversation.interruptedTurn = null
-    const item = conversation.snapshot.items.find(({ id }) => id === turn.item.id)
+    const { items } = conversation.snapshot
+    const index = items.findIndex(({ id }) => id === turn.item.id)
+    const item = items[index]
     if (item?.kind === 'user') {
+      this.settleTurn(chatId, conversation, items.slice(index + 1))
       this.emit(chatId, conversation, {
         type: 'item',
         item: { ...item, finishedAt: Date.now() }
@@ -570,6 +573,23 @@ export class ConversationManager {
     this.persist(chatId, conversation, { immediately: true })
     this.restartIfIdle(conversation)
     this.pump(chatId, conversation)
+  }
+
+  /**
+   * Ход закончился — штатно, остановкой или падением агента, — а о части инструментов,
+   * картинок или сжатия агент так и не сообщил, чем они кончились: они уже не закончатся.
+   */
+  private settleTurn(
+    chatId: string,
+    conversation: Conversation,
+    answer: readonly TimelineItem[]
+  ): void {
+    for (const item of answer) {
+      const settled = settleItem(item)
+      if (settled !== item) {
+        this.emit(chatId, conversation, { type: 'item', item: settled })
+      }
+    }
   }
 
   /** Закрывает сессию со старыми настройками, если агент сейчас ничего не делает. */
