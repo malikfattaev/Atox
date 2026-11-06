@@ -10,6 +10,7 @@ export const PROJECT_ICON_GROUPS = [
   { id: 'education', name: 'Learning' },
   { id: 'travel', name: 'Places & Travel' },
   { id: 'food', name: 'Food & Drink' },
+  { id: 'sports', name: 'Sports & Health' },
   { id: 'science', name: 'Science & Nature' },
   { id: 'fun', name: 'Fun' }
 ] as const
@@ -378,6 +379,25 @@ export const PROJECT_ICONS = [
   { id: 'vegan', name: 'Vegan', group: 'food', keywords: 'plant based' },
   { id: 'utensils', name: 'Restaurant', group: 'food', keywords: 'utensils fork knife' },
   { id: 'chef-hat', name: 'Cooking', group: 'food', keywords: 'recipe chef kitchen' },
+
+  { id: 'dumbbell', name: 'Gym', group: 'sports', keywords: 'fitness workout' },
+  { id: 'weight', name: 'Weight', group: 'sports', keywords: 'scale' },
+  { id: 'volleyball', name: 'Volleyball', group: 'sports', keywords: 'ball sport' },
+  { id: 'goal', name: 'Goal', group: 'sports', keywords: 'football soccer' },
+  { id: 'medal', name: 'Medal', group: 'sports', keywords: 'winner' },
+  { id: 'footprints', name: 'Steps', group: 'sports', keywords: 'running walk' },
+  { id: 'person-standing', name: 'Person', group: 'sports', keywords: 'human body' },
+  { id: 'accessibility', name: 'Accessibility', group: 'sports', keywords: 'a11y' },
+  { id: 'waves', name: 'Swimming', group: 'sports', keywords: 'water sea' },
+  { id: 'heart-pulse', name: 'Health', group: 'sports', keywords: 'heart rate cardio' },
+  { id: 'stethoscope', name: 'Medical', group: 'sports', keywords: 'doctor' },
+  { id: 'pill', name: 'Pharmacy', group: 'sports', keywords: 'medicine' },
+  { id: 'syringe', name: 'Vaccine', group: 'sports', keywords: 'injection' },
+  { id: 'bandage', name: 'First Aid', group: 'sports', keywords: 'bandage' },
+  { id: 'cross', name: 'Cross', group: 'sports', keywords: 'plus medical' },
+  { id: 'thermometer', name: 'Temperature', group: 'sports', keywords: 'fever weather' },
+  { id: 'baby', name: 'Baby', group: 'sports', keywords: 'kids child' },
+  { id: 'crosshair', name: 'Aim', group: 'sports', keywords: 'target shooter' },
 
   { id: 'flask', name: 'Lab', group: 'science', keywords: 'experiment chemistry flask' },
   { id: 'atom', name: 'Physics', group: 'science', keywords: 'atom react' },
