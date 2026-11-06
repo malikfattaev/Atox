@@ -149,14 +149,25 @@ export const Timeline = memo(function Timeline({
         }
       })}
       {queued.map((item) => (
-        <UserMessageView key={item.id} item={item} queued />
+        <UserMessageView
+          key={item.id}
+          item={item}
+          onCancel={() => void window.atox.conversations.cancelQueued(chatId, item.id)}
+        />
       ))}
     </div>
   )
 })
 
-/** Сообщение пользователя; `queued` — ждёт, пока агент закончит текущий ответ. */
-function UserMessageView({ item, queued = false }: { item: UserItem; queued?: boolean }) {
+interface UserMessageViewProps {
+  item: UserItem
+  /** Есть у сообщения, которое ждёт в очереди: убирает его оттуда, пока агент его не взял. */
+  onCancel?: () => void
+}
+
+/** Сообщение пользователя; с `onCancel` — ждёт, пока агент закончит текущий ответ. */
+function UserMessageView({ item, onCancel }: UserMessageViewProps) {
+  const queued = onCancel !== undefined
   return (
     <div
       className="user-message"
@@ -167,7 +178,14 @@ function UserMessageView({ item, queued = false }: { item: UserItem; queued?: bo
         <MessageAttachments images={item.images ?? []} files={item.files ?? []} />
       )}
       {item.text && <div className="message message--user">{item.text}</div>}
-      {queued && <span className="user-message__queued">Queued</span>}
+      {queued && (
+        <span className="user-message__queued">
+          Queued ·{' '}
+          <button type="button" className="user-message__cancel" onClick={onCancel}>
+            Cancel
+          </button>
+        </span>
+      )}
     </div>
   )
 }

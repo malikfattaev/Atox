@@ -236,6 +236,20 @@ export class ConversationManager {
     )
   }
 
+  /** Убирает сообщение из очереди, пока агент его не взял: например, его отправили по ошибке. */
+  async cancelQueued(chatId: string, itemId: string): Promise<void> {
+    const conversation = await this.conversation(chatId)
+    const queue = conversation.queue.filter(({ item }) => item.id !== itemId)
+    if (queue.length === conversation.queue.length) {
+      return
+    }
+    conversation.queue = queue
+    if (queue.length === 0) {
+      conversation.queuePaused = false
+    }
+    this.emitQueue(chatId, conversation)
+  }
+
   /**
    * Агент не остановил ход сам: его сессия закрывается, ход заканчивается. Разговор не
    * теряется — следующее сообщение продолжит его в новой сессии.

@@ -133,8 +133,10 @@ export interface AtoxApi {
     commands(chatId: string): Promise<AgentCommand[]>
     /** Выполняет команду Atox (`/usage`, `/context`, `/clear`), не отправляя её агенту. */
     runCommand(chatId: string, command: ChatCommand): Promise<void>
-    /** Останавливает ответ агента и отменяет сообщения, ждущие очереди. */
+    /** Останавливает текущий ответ агента; сообщения в очереди уходят ему следом. */
     interrupt(chatId: string): Promise<void>
+    /** Убирает сообщение из очереди, пока агент его не взял. */
+    cancelQueued(chatId: string, itemId: string): Promise<void>
     /** Ответ на разрешение, вопросы или форму агента — элемент ленты `approval` или `question`. */
     answerRequest(chatId: string, itemId: string, answer: RequestAnswer): Promise<void>
     /** События ленты одного чата. */
@@ -286,6 +288,7 @@ export const IpcChannel = {
   ConversationsSummaries: 'conversations:summaries',
   ConversationsSend: 'conversations:send',
   ConversationsInterrupt: 'conversations:interrupt',
+  ConversationsCancelQueued: 'conversations:cancel-queued',
   ConversationsAnswerRequest: 'conversations:answer-request',
   ConversationsCommands: 'conversations:commands',
   ConversationsRunCommand: 'conversations:run-command',
