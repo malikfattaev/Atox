@@ -8,7 +8,7 @@ import {
   type FileChangeKind,
   type FileDiff
 } from '../shared/changes'
-import { errorMessage, runCommand } from './processes'
+import { errorMessage, runGit } from './processes'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Строки нового файла считаются, только пока он не больше этого: огромный файл — не код. */
@@ -111,12 +111,12 @@ export class WorkingTreeReader {
 
   private async scope(projectPath: string): Promise<Scope> {
     const env = await this.shellEnvironment.get()
-    const output = await runCommand('git', ['rev-parse', '--show-toplevel', '--show-prefix'], {
+    const output = await runGit(['rev-parse', '--show-toplevel', '--show-prefix'], {
       cwd: projectPath,
       env
     })
     const [root = '', prefix = ''] = output.split('\n')
-    const head = await runCommand('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], {
+    const head = await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], {
       cwd: root,
       env,
       successCodes: [0, 1]
@@ -126,7 +126,7 @@ export class WorkingTreeReader {
     const base = hasCommits
       ? 'HEAD'
       : (
-          await runCommand('git', ['hash-object', '-t', 'tree', '--stdin'], {
+          await runGit(['hash-object', '-t', 'tree', '--stdin'], {
             cwd: root,
             env,
             input: ''
@@ -196,7 +196,7 @@ export class WorkingTreeReader {
   }
 
   private async git(scope: Scope, args: string[], successCodes?: number[]): Promise<string> {
-    return runCommand('git', args, {
+    return runGit(args, {
       cwd: scope.root,
       env: await this.shellEnvironment.get(),
       ...(successCodes && { successCodes })

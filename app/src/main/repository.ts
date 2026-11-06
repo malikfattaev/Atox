@@ -16,7 +16,7 @@ import type {
   RepositoryResult,
   ReviewDecision
 } from '../shared/repository'
-import { CommandError, errorMessage, runCommand } from './processes'
+import { BACKGROUND_GIT_ENVIRONMENT, CommandError, errorMessage, runCommand } from './processes'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Сколько коммитов загружать за раз: дальше список подгружается при прокрутке. */
@@ -551,7 +551,11 @@ export class RepositoryReader {
     extraEnvironment: Record<string, string> = {},
     input?: string
   ): Promise<string> {
-    const env = { ...(await this.shell.get()), ...extraEnvironment }
+    const env = {
+      ...(await this.shell.get()),
+      ...(program === 'git' && BACKGROUND_GIT_ENVIRONMENT),
+      ...extraEnvironment
+    }
     return runCommand(program, args, { cwd, env, ...(input !== undefined && { input }) })
   }
 }
