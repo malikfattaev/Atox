@@ -33,6 +33,19 @@ interface WorkspaceView {
 
 const INITIAL_VIEW: WorkspaceView = { shownProjectIds: {}, layouts: {} }
 
+/**
+ * Сколько недавно открытых чатов держать смонтированными, кроме тех, что на экране. Возврат
+ * в них мгновенный; остальные выгружаются, чтобы окно не держало ленты всех чатов сессии.
+ */
+const MAX_MOUNTED_CHATS = 5
+
+/** Недавно открытые чаты, самые свежие в конце; чаты на экране остаются всегда. */
+function rememberOpenedChats(ids: string[], visible: readonly string[]): string[] {
+  const recent = [...ids.filter((id) => !visible.includes(id)), ...visible]
+  const next = recent.slice(-Math.max(MAX_MOUNTED_CHATS, visible.length))
+  return next.length === ids.length && next.every((id, index) => id === ids[index]) ? ids : next
+}
+
 /** Данные проектов и того, что открыто на экране. */
 export interface ProjectsData {
   /** Проекты всех пространств. */
@@ -48,7 +61,10 @@ export interface ProjectsData {
   activeChatId: string | null
   /** Чаты на экране слева направо; два — когда чаты открыты рядом. */
   visibleChatIds: string[]
-  /** Чаты, которые открывались в этой сессии: остаются смонтированными с черновиком и прокруткой. */
+  /**
+   * Недавно открытые чаты, самые свежие в конце: остаются смонтированными, и возврат в них
+   * мгновенный. Черновик и прокрутка выгруженных чатов хранятся отдельно и не теряются.
+   */
   openedChatIds: string[]
   /**
    * Чаты открытого пространства в порядке сайдбара — по ним работает переключение
@@ -214,11 +230,7 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
         shownProjectIds: { ...current.shownProjectIds, [project.spaceId]: projectId },
         layouts: { ...current.layouts, [projectId]: after }
       })
-      setOpenedChatIds((ids) =>
-        after.visibleChatIds.every((id) => ids.includes(id))
-          ? ids
-          : [...new Set([...ids, ...after.visibleChatIds])]
-      )
+      setOpenedChatIds((ids) => rememberOpenedChats(ids, after.visibleChatIds))
       // Чат из другого пространства (например, по клику на уведомление) открывает и его.
       selectSpace(project.spaceId)
 
