@@ -4,6 +4,9 @@ import type { ProjectColor } from '../../../shared/projectColors'
 
 const { atox } = window
 
+/** Пока пространства загружаются — один и тот же пустой список, чтобы не перерисовывать зря. */
+const NO_SPACES: Space[] = []
+
 export interface SpacesApi {
   spaces: Space[]
   /** `null` — пространства ещё загружаются. */
@@ -95,7 +98,7 @@ export function useSpaces(): SpacesApi {
   )
 
   return {
-    spaces: state?.spaces ?? [],
+    spaces: state?.spaces ?? NO_SPACES,
     activeSpaceId: state?.activeSpaceId ?? null,
     selectSpace,
     createSpace,

@@ -33,7 +33,8 @@ interface WorkspaceView {
 
 const INITIAL_VIEW: WorkspaceView = { shownProjectIds: {}, layouts: {} }
 
-export interface ProjectsState {
+/** Данные проектов и того, что открыто на экране. */
+export interface ProjectsData {
   /** Проекты всех пространств. */
   projects: Project[]
   /** Проекты и пространства ещё загружаются — пустой список пока ничего не значит. */
@@ -56,6 +57,10 @@ export interface ProjectsState {
   orderedChatIds: string[]
   /** Проект текущего чата, а если чат не выбран — первый проект открытого пространства. */
   currentProjectId: string | null
+}
+
+/** Действия с проектами; ссылки на них не меняются, поэтому подписка на них не перерисовывает. */
+export interface ProjectActions {
   selectSpace(spaceId: string): void
   /** Создаёт пространство, открывает его и возвращает его id. */
   createSpace(): Promise<string>
@@ -94,7 +99,9 @@ export interface ProjectsState {
   configureChat(chatId: string, configuration: ChatConfiguration): Promise<void>
 }
 
-export function useProjects(): ProjectsState {
+export type ProjectsState = ProjectsData & ProjectActions
+
+export function useProjects(): { state: ProjectsState; actions: ProjectActions } {
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoaded, setProjectsLoaded] = useState(false)
   const [view, setView] = useState<WorkspaceView>(INITIAL_VIEW)
@@ -137,7 +144,13 @@ export function useProjects(): ProjectsState {
 
   /** Применяет свежий список проектов и забывает чаты, которых в нём больше нет. */
   const applyProjects = useCallback(
-    (next: Project[]) => {
+    (received: Project[]) => {
+      // Из main каждый раз приходят новые объекты: неизменившиеся заменяем прежними, чтобы
+      // строки сайдбара и открытые чаты не перерисовывались из-за чужих изменений.
+      const next = reuseUnchanged(projectsRef.current, received)
+      if (next === projectsRef.current) {
+        return
+      }
       projectsRef.current = next
       setProjects(next)
       const existingChatIds = new Set(next.flatMap((project) => project.chats.map(({ id }) => id)))
@@ -447,43 +460,95 @@ export function useProjects(): ProjectsState {
     [applyProjects]
   )
 
-  return {
-    projects,
-    loading: !projectsLoaded || activeSpaceId === null,
-    spaces,
-    activeSpaceId,
-    spaceProjects,
-    activeChatId,
-    visibleChatIds,
-    openedChatIds,
-    orderedChatIds,
-    currentProjectId,
-    selectSpace,
-    createSpace,
-    renameSpace,
-    setSpaceColor,
-    removeSpace,
-    moveProjectToSpace,
-    selectChat,
-    openChatBeside,
-    closeChatPane,
-    addProject,
-    removeProject,
-    renameProject,
-    setProjectColor,
-    setProjectIcon,
-    setSplitPosition,
-    moveProject,
-    revealProject,
-    createChat,
-    removeChat,
-    archiveChat,
-    restoreChat,
-    removeArchivedChat,
-    renameChat,
-    moveChat,
-    configureChat
-  }
+  const loading = !projectsLoaded || activeSpaceId === null
+
+  const actions = useMemo<ProjectActions>(
+    () => ({
+      selectSpace,
+      createSpace,
+      renameSpace,
+      setSpaceColor,
+      removeSpace,
+      moveProjectToSpace,
+      selectChat,
+      openChatBeside,
+      closeChatPane,
+      addProject,
+      removeProject,
+      renameProject,
+      setProjectColor,
+      setProjectIcon,
+      setSplitPosition,
+      moveProject,
+      revealProject,
+      createChat,
+      removeChat,
+      archiveChat,
+      restoreChat,
+      removeArchivedChat,
+      renameChat,
+      moveChat,
+      configureChat
+    }),
+    [
+      selectSpace,
+      createSpace,
+      renameSpace,
+      setSpaceColor,
+      removeSpace,
+      moveProjectToSpace,
+      selectChat,
+      openChatBeside,
+      closeChatPane,
+      addProject,
+      removeProject,
+      renameProject,
+      setProjectColor,
+      setProjectIcon,
+      setSplitPosition,
+      moveProject,
+      revealProject,
+      createChat,
+      removeChat,
+      archiveChat,
+      restoreChat,
+      removeArchivedChat,
+      renameChat,
+      moveChat,
+      configureChat
+    ]
+  )
+
+  const state = useMemo<ProjectsState>(
+    () => ({
+      projects,
+      loading,
+      spaces,
+      activeSpaceId,
+      spaceProjects,
+      activeChatId,
+      visibleChatIds,
+      openedChatIds,
+      orderedChatIds,
+      currentProjectId,
+      ...actions
+    }),
+    [
+      projects,
+      loading,
+      spaces,
+      activeSpaceId,
+      spaceProjects,
+      activeChatId,
+      visibleChatIds,
+      openedChatIds,
+      orderedChatIds,
+      currentProjectId,
+      actions
+    ]
+  )
+
+  return { state, actions }
 }
 
 function findChatProjectId(projects: readonly Project[], chatId: string): string | undefined {
@@ -500,4 +565,57 @@ function findShownProjectId(
   return projects.some((project) => project.id === projectId && project.spaceId === spaceId)
     ? projectId!
     : null
+}
+
+/**
+ * Свежий список проектов, в котором неизменившиеся проекты и чаты — прежние объекты.
+ * Если не изменилось ничего, возвращается сам прежний список.
+ */
+function reuseUnchanged(previous: Project[], next: readonly Project[]): Project[] {
+  const previousById = new Map(previous.map((project) => [project.id, project]))
+  return reuseList(
+    previous,
+    next.map((project) => {
+      const old = previousById.get(project.id)
+      if (!old) {
+        return project
+      }
+      const candidate: Project = { ...project, chats: reuseList(old.chats, project.chats) }
+      if (project.archivedChats) {
+        candidate.archivedChats = reuseList(old.archivedChats ?? [], project.archivedChats)
+      }
+      return isSameData(old, candidate) ? old : candidate
+    })
+  )
+}
+
+/** Список, где элементы, равные прежним с тем же id, заменены прежними. */
+function reuseList<Item extends { id: string }>(previous: Item[], next: readonly Item[]): Item[] {
+  const previousById = new Map(previous.map((item) => [item.id, item]))
+  const items = next.map((item) => {
+    const old = previousById.get(item.id)
+    return old && isSameData(old, item) ? old : item
+  })
+  const unchanged =
+    items.length === previous.length && items.every((item, index) => item === previous[index])
+  return unchanged ? previous : items
+}
+
+/** Сравнивает данные из JSON по содержимому; одинаковые ссылки сравниваются сразу. */
+function isSameData(a: unknown, b: unknown): boolean {
+  if (a === b) {
+    return true
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
+    return false
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) {
+    return false
+  }
+  const aEntries = Object.entries(a)
+  const bRecord = b as Record<string, unknown>
+  return (
+    aEntries.length === Object.keys(b).length &&
+    aEntries.every(([key, value]) => key in bRecord && isSameData(value, bRecord[key]))
+  )
 }
