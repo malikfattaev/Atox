@@ -70,7 +70,8 @@ function normalize(settings: Settings): Settings {
     sidebarWidth: clampWidth(settings.sidebarWidth, SIDEBAR_WIDTH),
     terminalWidth: clampWidth(settings.terminalWidth, TERMINAL_WIDTH),
     shortcuts: normalizeShortcuts(settings.shortcuts),
-    shareUsageStats: settings.shareUsageStats !== false
+    shareUsageStats: settings.shareUsageStats !== false,
+    notificationSounds: settings.notificationSounds !== false
   }
 }
 

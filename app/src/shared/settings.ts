@@ -15,6 +15,8 @@ export interface Settings {
   shortcuts: ShortcutOverrides
   /** Отправлять анонимную статистику: установки и активные дни, без данных о проектах и чатах. */
   shareUsageStats: boolean
+  /** Короткий звук, когда агент закончил работу или ждёт пользователя. */
+  notificationSounds: boolean
 }
 
 /** Сайдбар по умолчанию самый узкий: его можно только расширить. */
@@ -44,7 +46,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarWidth: SIDEBAR_WIDTH.default,
   terminalWidth: TERMINAL_WIDTH.default,
   shortcuts: {},
-  shareUsageStats: true
+  shareUsageStats: true,
+  notificationSounds: true
 }
 
 /** Приводит ширину панели к целому числу пикселей в её пределах. */
