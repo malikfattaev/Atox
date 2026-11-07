@@ -119,21 +119,20 @@ kbd {
 /* Шапка */
 
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: rgba(11, 11, 12, 0.8);
-  border-bottom: 1px solid var(--color-border);
-  backdrop-filter: saturate(180%) blur(16px);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  padding-top: 16px;
 }
 
+/* Шапка — «таблетка»: скруглённая плашка, не прилипает к верху страницы. */
 .header__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   height: var(--header-height);
+  padding: 0 8px 0 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
 }
 
 .brand {
@@ -156,15 +155,27 @@ kbd {
 }
 
 .nav a {
-  padding: 6px 12px;
+  padding: 6px 14px;
   color: var(--color-muted);
-  border-radius: var(--radius-small);
+  border-radius: 999px;
 }
 
 .nav a:hover,
 .nav a[aria-current='page'] {
   color: var(--color-text);
   background: var(--color-hover);
+}
+
+.nav a.nav__cta,
+.nav a.nav__cta:hover {
+  margin-left: 4px;
+  padding: 10px 20px;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.nav a.nav__cta:hover {
+  background: var(--color-accent-hover);
 }
 
 .nav__icon {
@@ -530,7 +541,7 @@ kbd {
 }
 
 .prose [id] {
-  scroll-margin-top: calc(var(--header-height) + 24px);
+  scroll-margin-top: 24px;
 }
 
 .prose__updated {
@@ -550,7 +561,7 @@ kbd {
 
 .docs__nav {
   position: sticky;
-  top: calc(var(--header-height) + 24px);
+  top: 24px;
   align-self: start;
   display: flex;
   flex-direction: column;
@@ -701,6 +712,10 @@ td:last-child {
   /* На телефоне кнопка загрузки и так первая на главной — пункт меню уступает место. */
   .nav a[data-nav='download'] {
     display: none;
+  }
+
+  .header__inner {
+    padding-left: 16px;
   }
 
   .hero {
