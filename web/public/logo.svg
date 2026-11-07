@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="240 240 544 544">
+<g style="isolation:isolate">
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#ff6a3d" style="mix-blend-mode:screen"/>
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#2f7dff" transform="rotate(60 512 512)" style="mix-blend-mode:screen"/>
+<ellipse cx="512" cy="512" rx="116" ry="262" fill="#a24dff" transform="rotate(120 512 512)" style="mix-blend-mode:screen"/>
+</g>
+</svg>
