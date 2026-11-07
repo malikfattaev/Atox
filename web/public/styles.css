@@ -137,23 +137,14 @@ kbd {
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
   color: var(--color-text);
 }
 
 .brand:hover {
   color: var(--color-text);
-}
-
-.brand img {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
 }
 
 .nav {
@@ -487,36 +478,9 @@ kbd {
 
 .note {
   margin: 20px 0 0;
+  text-align: center;
   font-size: 13px;
   color: var(--color-faint);
-}
-
-.section--center .note {
-  text-align: center;
-}
-
-/* Вопросы и ответы */
-
-.faq {
-  max-width: var(--text-width);
-  margin: 32px auto 0;
-}
-
-.faq details {
-  border-bottom: 1px solid var(--color-border);
-}
-
-.faq summary {
-  padding: 16px 0;
-  text-align: left;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.faq details p {
-  text-align: left;
-  margin: 0 0 16px;
-  color: var(--color-muted);
 }
 
 /* Текстовые страницы */
