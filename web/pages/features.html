@@ -6,7 +6,7 @@
     <title>Atox | Features</title>
     <meta
       name="description"
-      content="What Atox does: any CLI agent in a real terminal, agents that delegate to each other, spaces, side-by-side chats and keyboard shortcuts."
+      content="What Atox does: Claude Code, Codex and other agents in one chat, agent teams, approvals, changes and git, a project terminal, plan limits, projects and spaces."
     />
     <meta name="theme-color" content="#0b0b0c" />
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -15,106 +15,130 @@
   </head>
   <body>
     <!-- header -->
-    <main class="page container">
-      <section class="intro">
+    <div class="container docs">
+      <nav class="docs__nav" aria-label="On this page">
+        <a href="#agents">Agents and models</a>
+        <a href="#teams">Agent teams</a>
+        <a href="#approvals">Approvals and questions</a>
+        <a href="#changes">Changes and git</a>
+        <a href="#terminal">Terminal</a>
+        <a href="#limits">Plan limits</a>
+        <a href="#projects">Projects and spaces</a>
+        <a href="#chats">Chats</a>
+        <a href="#integrations">Plugins, skills and MCP</a>
+        <a href="#keyboard">Keyboard</a>
+        <a href="#app">Light, fast, up to date</a>
+      </nav>
+
+      <main class="docs__content prose">
         <h1>Features</h1>
-        <p class="intro__lead">
-          Atox does one thing: it keeps your agents organized. Everything else stays the way your
-          terminal already works.
+        <p>
+          Atox keeps your coding agents organized. They work exactly the way they do in your
+          terminal, with their own tools and settings; Atox gives them a calm place to live.
         </p>
-      </section>
 
-      <section class="features">
-        <article class="feature">
-          <h2>Any agent, any moment</h2>
-          <p>
-            Claude Code, Codex and more in one chat. Switch the agent whenever you like — the new
-            one gets the conversation so far and picks up where the last one stopped.
-          </p>
-        </article>
+        <h2 id="agents">Agents and models</h2>
+        <p>
+          Claude Code, Codex and other agents work in one chat. Pick the agent, the model and the
+          effort right in the message box, and switch whenever you like: the new agent gets the
+          conversation so far and picks up where the last one stopped.
+        </p>
+        <p>
+          Use the subscription you already have, or get models from an
+          <a href="/pricing">Atox plan</a>.
+        </p>
 
-        <article class="feature">
-          <h2>Real terminals</h2>
-          <p>
-            Every chat is a login shell in your project folder, not a wrapper around the agent.
-            Colors, mouse, links and scrollback work exactly like in your terminal.
-          </p>
-        </article>
+        <h2 id="teams">Agent teams</h2>
+        <p>
+          An agent can hand a task to another one. Claude can ask Codex for a review, and the
+          answer comes back as a message in the same chat. Workers appear right under the chat
+          that started them, and the Agents page shows every running agent, with the ones that
+          wait for you first.
+        </p>
 
-        <article class="feature">
-          <h2>Agents team up</h2>
-          <p>
-            An agent can hand a task to another one — Claude can ask Codex for a review, and the
-            result comes back as a message in the same chat. No "press yes" prompts on the way.
-          </p>
-        </article>
+        <h2 id="approvals">Approvals and questions</h2>
+        <p>
+          When an agent needs permission to run a command or has a question, it shows a card in
+          the chat and waits. Answer in one click, pick an option or type your own, and the agent
+          carries on.
+        </p>
 
-        <article class="feature">
-          <h2>See every worker</h2>
-          <p>
-            Workers appear right under the chat that started them, with their agent's logo. The
-            parent chat shows one status for the whole team, so the sidebar stays calm.
-          </p>
-        </article>
+        <h2 id="changes">Changes and git</h2>
+        <ul>
+          <li>
+            <strong>Changes panel:</strong> every file changed since the last commit, with its
+            diff. Discard what you don't want.
+          </li>
+          <li>
+            <strong>Repository:</strong> commits, pull requests and issues of the project, right
+            next to your chats.
+          </li>
+        </ul>
+        <p>Atox runs git in the background without getting in the way of agents' own commits.</p>
 
-        <article class="feature">
-          <h2>Projects and spaces</h2>
-          <p>
-            A project is a folder, its chats live inside. Group projects into spaces — work,
-            side projects, clients — and jump between them with Ctrl+1–9.
-          </p>
-        </article>
+        <h2 id="terminal">Terminal</h2>
+        <p>
+          Every project has its own terminal in a panel next to the chat. Press <kbd>⌘</kbd>
+          <kbd>J</kbd> to show or hide it; it keeps running while hidden.
+        </p>
 
-        <article class="feature">
-          <h2>Side by side</h2>
-          <p>
-            ⌘-click (Ctrl-click on Linux) a chat to open it next to the current one and drag the
-            divider to resize.
-            Each project remembers its layout.
-          </p>
-        </article>
+        <h2 id="limits">Plan limits</h2>
+        <p>
+          How much of your Claude and Codex plans you have used stays in the sidebar, with the
+          time until each limit resets. No more surprises in the middle of a task.
+        </p>
 
-        <article class="feature">
-          <h2>Know when it's done</h2>
-          <p>
-            A chat pulses while its agent works and turns blue when it finishes. Long tasks send a
-            notification, so you can switch away and come back on time.
-          </p>
-        </article>
+        <h2 id="projects">Projects and spaces</h2>
+        <p>
+          A project is a folder, and its chats live inside it. Give each project a color and one
+          of 400+ icons, and group projects into spaces: work, side projects, clients.
+        </p>
+        <p>
+          <kbd>⌘</kbd>-click a chat to open it side by side with the current one, and drag the
+          divider to resize.
+        </p>
 
-        <article class="feature">
-          <h2>Keyboard first</h2>
-          <p>
-            New chat, next chat, find in terminal, font size, sidebar — all on shortcuts, and you
-            can change any of them in Settings.
-          </p>
-        </article>
+        <h2 id="chats">Chats</h2>
+        <ul>
+          <li>
+            <strong>Chats remember.</strong> Close Atox, come back, and every chat picks up where
+            it left off, including drafts.
+          </li>
+          <li>
+            <strong>Queue messages.</strong> Send the next message while the agent is still
+            working; it waits in line, and you can cancel it.
+          </li>
+          <li>
+            <strong>Know when it's done.</strong> A chat shows when its agent works, waits for
+            you or finishes, and long tasks can send a notification.
+          </li>
+          <li>
+            <strong>Archive, don't lose.</strong> Archived chats leave the sidebar but keep their
+            history, ready to restore.
+          </li>
+        </ul>
 
-        <article class="feature">
-          <h2>Mac and Linux</h2>
-          <p>
-            A native-feeling app on macOS and a single AppImage or Arch package on Linux, with
-            Linux-style shortcuts that leave Ctrl keys to your terminal.
-          </p>
-        </article>
+        <h2 id="integrations">Plugins, skills and MCP</h2>
+        <p>
+          See the plugins, skills and MCP servers your agents have in one place, without digging
+          through config files.
+        </p>
 
-        <article class="feature">
-          <h2>Lightweight</h2>
-          <p>
-            No indexing, no background services. An idle Atox stays under 1% CPU, and chats you
-            haven't opened don't render at all.
-          </p>
-        </article>
+        <h2 id="keyboard">Keyboard</h2>
+        <p>
+          New chat, next chat, terminal, sidebar and more are on shortcuts, and you can change any
+          of them in Settings. Type <kbd>/</kbd> in the message box to see the agent's commands.
+        </p>
 
-        <article class="feature">
-          <h2>Updates itself</h2>
-          <p>
-            When a new version is out, an Update button appears in the sidebar. One click, and
-            Atox restarts on the new version.
-          </p>
-        </article>
-      </section>
-    </main>
+        <h2 id="app">Light, fast, up to date</h2>
+        <ul>
+          <li>No indexing and no background services; an idle Atox barely uses the CPU.</li>
+          <li>A native-feeling app on macOS, and an AppImage or Arch package on Linux.</li>
+          <li>When a new version is out, Atox updates itself in one click.</li>
+          <li>Free and open source under the MIT license.</li>
+        </ul>
+      </main>
+    </div>
     <!-- footer -->
     <script src="/app.js" defer></script>
   </body>
