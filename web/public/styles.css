@@ -221,7 +221,8 @@ kbd {
 }
 
 .section__lead {
-  max-width: 600px;
+  max-width: 640px;
+  text-wrap: balance;
   margin: 12px 0 0;
   font-size: 17px;
   color: var(--color-muted);
@@ -361,6 +362,7 @@ kbd {
 
 .feature {
   padding: 22px;
+  text-align: left;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
