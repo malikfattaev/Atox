@@ -166,18 +166,6 @@ kbd {
   background: var(--color-hover);
 }
 
-.nav a.nav__cta,
-.nav a.nav__cta:hover {
-  margin-left: 4px;
-  padding: 10px 20px;
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-}
-
-.nav a.nav__cta:hover {
-  background: var(--color-accent-hover);
-}
-
 .nav__icon {
   display: flex;
 }
