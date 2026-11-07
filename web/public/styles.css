@@ -251,7 +251,8 @@ kbd {
 }
 
 .hero__lead {
-  max-width: 540px;
+  max-width: 640px;
+  text-wrap: balance;
   margin: 18px auto 0;
   font-size: clamp(17px, 2.2vw, 19px);
   line-height: 1.5;
