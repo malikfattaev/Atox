@@ -177,6 +177,7 @@ kbd {
 
 .footer {
   margin-top: auto;
+  border-top: 1px solid var(--color-border);
 }
 
 .footer__inner {
