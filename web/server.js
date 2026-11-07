@@ -49,17 +49,26 @@ const PAGES = {
   '/': { file: 'index.html', nav: 'home' },
   '/features': { file: 'features.html', nav: 'features' },
   '/about': { file: 'about.html', nav: 'about' },
-  '/download': { file: 'download.html', nav: 'download' }
+  '/download': { file: 'download.html', nav: 'download' },
+  '/pricing': { file: 'pricing.html', nav: 'pricing' },
+  '/terms': { file: 'terms.html', nav: null },
+  '/privacy': { file: 'privacy.html', nav: null },
+  '/refunds': { file: 'refunds.html', nav: null }
 }
 
 /** Старые адреса, которые переехали: ссылки на них не должны ломаться. */
 const MOVED_PAGES = {
-  '/docs': '/download'
+  '/docs': '/download',
+  '/refund': '/refunds',
+  '/refund-policy': '/refunds',
+  '/privacy-policy': '/privacy',
+  '/tos': '/terms'
 }
 const NOT_FOUND_PAGE = { file: '404.html', nav: null }
 
-/** Место в странице, куда вставляется общая шапка. */
+/** Места в странице, куда вставляются общие шапка и подвал. */
 const HEADER_SLOT = '<!-- header -->'
+const FOOTER_SLOT = '<!-- footer -->'
 
 /** Ссылки страницы на свои стили и скрипты: к ним добавляется версия файла. */
 const ASSET_REFERENCE = /(href|src)="(\/[^"?#]+\.(?:css|js))"/g
@@ -149,16 +158,17 @@ async function fetchManifest(url) {
   return { manifest: await response.json(), files: new URL('.', manifestUrl) }
 }
 
-/** Страница с общей шапкой; пункт меню текущей страницы отмечен для подсветки. */
+/** Страница с общими шапкой и подвалом; пункт меню текущей страницы отмечен для подсветки. */
 async function renderPage({ file, nav }) {
-  const [page, header] = await Promise.all([
+  const [page, header, footer] = await Promise.all([
     readFile(join(PAGES_DIR, file), 'utf-8'),
-    readFile(join(PARTIALS_DIR, 'header.html'), 'utf-8')
+    readFile(join(PARTIALS_DIR, 'header.html'), 'utf-8'),
+    readFile(join(PARTIALS_DIR, 'footer.html'), 'utf-8')
   ])
   const marked = nav
     ? header.replace(`data-nav="${nav}"`, `data-nav="${nav}" aria-current="page"`)
     : header
-  return versionAssets(page.replace(HEADER_SLOT, marked))
+  return versionAssets(page.replace(HEADER_SLOT, marked).replace(FOOTER_SLOT, footer))
 }
 
 /**
