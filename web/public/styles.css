@@ -385,8 +385,8 @@ kbd {
 
 .plans {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
   margin-top: 40px;
 }
 
@@ -394,7 +394,7 @@ kbd {
   display: flex;
   text-align: left;
   flex-direction: column;
-  padding: 22px;
+  padding: 20px 18px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
@@ -425,7 +425,7 @@ kbd {
 
 .plan__price {
   margin: 14px 0 0;
-  font-size: 36px;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.03em;
@@ -656,6 +656,12 @@ td:last-child {
 }
 
 /* Узкие экраны */
+
+@media (max-width: 1040px) {
+  .plans {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 
 @media (max-width: 960px) {
   .plans {
