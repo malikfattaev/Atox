@@ -249,27 +249,6 @@ kbd {
   text-align: center;
 }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding: 4px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-muted);
-  border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-}
-
-.badge::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  background: var(--color-success);
-  border-radius: 50%;
-}
-
 .hero h1 {
   max-width: 760px;
   margin: 0 auto;
@@ -286,23 +265,6 @@ kbd {
   font-size: clamp(17px, 2.2vw, 19px);
   line-height: 1.5;
   color: var(--color-muted);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding-top: 32px;
-}
-
-.actions__meta {
-  flex-basis: 100%;
-  margin: 6px 0 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-faint);
 }
 
 .shot {
@@ -438,6 +400,7 @@ kbd {
 
 .plan {
   display: flex;
+  text-align: left;
   flex-direction: column;
   padding: 22px;
   background: var(--color-surface);
@@ -553,30 +516,6 @@ kbd {
 .faq details p {
   text-align: left;
   margin: 0 0 16px;
-  color: var(--color-muted);
-}
-
-/* Призыв в конце страницы */
-
-.cta {
-  margin-top: 96px;
-  padding: 56px 24px;
-  text-align: center;
-  background: radial-gradient(ellipse at top, rgba(10, 132, 255, 0.14), transparent 70%),
-    var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-large);
-}
-
-.cta h2 {
-  margin: 0;
-  font-size: clamp(26px, 4vw, 34px);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
-.cta p {
-  margin: 10px 0 0;
   color: var(--color-muted);
 }
 
@@ -793,10 +732,6 @@ td:last-child {
 
   .hero {
     padding-top: 48px;
-  }
-
-  .actions .button {
-    width: 100%;
   }
 
   .features,
