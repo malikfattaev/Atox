@@ -184,16 +184,21 @@ kbd {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px 24px;
-  padding-block: 28px;
-  font-size: 13px;
+  gap: 16px 32px;
+  padding-block: 56px 72px;
+  font-size: 15px;
   color: var(--color-faint);
+}
+
+.footer .footer__brand,
+.footer .footer__brand:hover {
+  color: var(--color-text);
 }
 
 .footer nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 20px;
+  gap: 8px 28px;
 }
 
 .footer a {
