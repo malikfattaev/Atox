@@ -66,9 +66,13 @@ const MOVED_PAGES = {
 }
 const NOT_FOUND_PAGE = { file: '404.html', nav: null }
 
-/** Места в странице, куда вставляются общие шапка и подвал. */
-const HEADER_SLOT = '<!-- header -->'
-const FOOTER_SLOT = '<!-- footer -->'
+/** Общие куски страниц: метка в странице → файл, который встаёт на её место. */
+const PARTIALS = {
+  header: 'header.html',
+  footer: 'footer.html',
+  plans: 'plans.html'
+}
+const PARTIAL_SLOT = /<!-- (\w+) -->/g
 
 /** Ссылки страницы на свои стили и скрипты: к ним добавляется версия файла. */
 const ASSET_REFERENCE = /(href|src)="(\/[^"?#]+\.(?:css|js))"/g
@@ -158,17 +162,27 @@ async function fetchManifest(url) {
   return { manifest: await response.json(), files: new URL('.', manifestUrl) }
 }
 
-/** Страница с общими шапкой и подвалом; пункт меню текущей страницы отмечен для подсветки. */
+/** Страница с общими кусками; пункт меню текущей страницы отмечен для подсветки. */
 async function renderPage({ file, nav }) {
-  const [page, header, footer] = await Promise.all([
-    readFile(join(PAGES_DIR, file), 'utf-8'),
-    readFile(join(PARTIALS_DIR, 'header.html'), 'utf-8'),
-    readFile(join(PARTIALS_DIR, 'footer.html'), 'utf-8')
-  ])
-  const marked = nav
-    ? header.replace(`data-nav="${nav}"`, `data-nav="${nav}" aria-current="page"`)
-    : header
-  return versionAssets(page.replace(HEADER_SLOT, marked).replace(FOOTER_SLOT, footer))
+  const page = await readFile(join(PAGES_DIR, file), 'utf-8')
+  const names = [...new Set([...page.matchAll(PARTIAL_SLOT)].map(([, name]) => name))].filter(
+    (name) => Object.hasOwn(PARTIALS, name)
+  )
+  const partials = new Map(
+    await Promise.all(
+      names.map(async (name) => [name, await readFile(join(PARTIALS_DIR, PARTIALS[name]), 'utf-8')])
+    )
+  )
+  const html = page.replace(PARTIAL_SLOT, (slot, name) => {
+    const partial = partials.get(name)
+    if (partial === undefined) {
+      return slot
+    }
+    return name === 'header' && nav
+      ? partial.replace(`data-nav="${nav}"`, `data-nav="${nav}" aria-current="page"`)
+      : partial
+  })
+  return versionAssets(html)
 }
 
 /**
