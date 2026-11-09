@@ -13,13 +13,15 @@ import { ChatStatus } from './ChatStatus'
 /** Как часто обновлять время работы агентов на экране. */
 const CLOCK_TICK_MS = 1000
 
-type GroupId = 'waiting' | 'working' | 'finished'
+type GroupId = 'waiting' | 'working'
 
-/** Разделы обзора сверху вниз: сначала то, что ждёт пользователя. */
+/**
+ * Разделы обзора сверху вниз: сначала то, что ждёт пользователя. Закончившие агенты сюда не
+ * попадают: история чатов хранится, и их список только рос бы.
+ */
 const GROUPS: ReadonlyArray<{ id: GroupId; title: string }> = [
   { id: 'waiting', title: 'Needs you' },
-  { id: 'working', title: 'Working' },
-  { id: 'finished', title: 'Finished' }
+  { id: 'working', title: 'Working' }
 ]
 
 /** Что агент ждёт, если он не назвал запрос сам. */
@@ -101,8 +103,8 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
       <div className="agents__body">
         {summaries && groups.length === 0 && (
           <div className="agents__empty">
-            <p className="agents__empty-title">No agents yet</p>
-            <p className="agents__empty-hint">Chats you start show up here while Atox is open</p>
+            <p className="agents__empty-title">No agents working</p>
+            <p className="agents__empty-hint">Agents show up here while they work or wait for you</p>
           </div>
         )}
         {groups.map(({ id, title, entries: groupEntries }) => (
@@ -168,11 +170,11 @@ function AgentRow({
   )
 }
 
-function groupOf(summary: ConversationSummary): GroupId {
+function groupOf(summary: ConversationSummary): GroupId | undefined {
   if (summary.waitingFor) {
     return 'waiting'
   }
-  return summary.running ? 'working' : 'finished'
+  return summary.running ? 'working' : undefined
 }
 
 function latestActivity(summary: ConversationSummary): number {
