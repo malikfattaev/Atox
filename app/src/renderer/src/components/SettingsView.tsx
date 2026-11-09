@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Archive,
+  ChartNoAxesColumn,
   Plug,
   Puzzle,
   SlidersHorizontal,
@@ -19,14 +20,16 @@ import { AgentIntegrations } from './AgentIntegrations'
 import { ArchivedChats } from './ArchivedChats'
 import { ShortcutList } from './ShortcutList'
 import { UpdateSettings } from './UpdateSettings'
+import { UsageSettings } from './UsageSettings'
 
 const { atox } = window
 
-type SettingsSection = 'general' | IntegrationKind | 'archived'
+type SettingsSection = 'general' | 'usage' | IntegrationKind | 'archived'
 
 /** Разделы настроек: общие, то, чем пользуются агенты, — по одному списку на вид, и архив чатов. */
 const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: LucideIcon }> = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
+  { id: 'usage', label: 'Usage', icon: ChartNoAxesColumn },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'mcp', label: 'MCP', icon: Plug },
@@ -168,6 +171,8 @@ export function SettingsView({ onClose }: SettingsViewProps) {
             <ShortcutList />
           </div>
         </>
+      ) : section === 'usage' ? (
+        <UsageSettings />
       ) : section === 'archived' ? (
         <ArchivedChats />
       ) : (

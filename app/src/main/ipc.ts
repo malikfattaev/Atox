@@ -18,6 +18,7 @@ import { archivedChats, chatGroup } from '../shared/chats'
 import { isIntegrationKind } from '../shared/integrations'
 import type { Project } from '../shared/models'
 import type { PlanLimitsState } from '../shared/planLimits'
+import type { TokenSpendSummary } from '../shared/tokenSpend'
 import { isProjectColor } from '../shared/projectColors'
 import { isProjectIcon } from '../shared/projectIcons'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
@@ -33,6 +34,7 @@ import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
 import type { AppMenu } from './menu'
 import type { PlanLimitsMonitor } from './planLimits'
+import type { TokenSpendLedger } from './tokenSpend'
 import { openFileLink } from './fileLinks'
 import { readImage, saveImageAs } from './images'
 import { savePastedImage } from './pastedImages'
@@ -55,6 +57,7 @@ interface AppServices {
   updater: AppUpdater | null
   menu: AppMenu
   planLimits: PlanLimitsMonitor
+  tokenSpend: TokenSpendLedger
 }
 
 export function registerIpcHandlers({
@@ -68,7 +71,8 @@ export function registerIpcHandlers({
   agents,
   updater,
   menu,
-  planLimits
+  planLimits,
+  tokenSpend
 }: AppServices): void {
   const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
   trackProjectBranches()
@@ -480,6 +484,7 @@ export function registerIpcHandlers({
   })
 
   ipcMain.handle(IpcChannel.PlanLimitsGet, () => planLimits.get())
+  ipcMain.handle(IpcChannel.TokenSpendGet, () => tokenSpend.summary())
 
   ipcMain.on(IpcChannel.SettingsGet, (event) => {
     event.returnValue = settings.get()
@@ -571,6 +576,10 @@ export function broadcastTerminalExit(projectId: string): void {
 
 export function broadcastPlanLimits(state: PlanLimitsState): void {
   broadcast(IpcChannel.PlanLimitsChanged, state)
+}
+
+export function broadcastTokenSpend(summary: TokenSpendSummary): void {
+  broadcast(IpcChannel.TokenSpendChanged, summary)
 }
 
 export function broadcastConversationEvent(event: ConversationEvent): void {

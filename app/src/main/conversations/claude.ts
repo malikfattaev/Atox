@@ -726,6 +726,13 @@ class ClaudeSession implements AgentSession {
           this.updateCompaction({ status: 'failed' })
         }
         this.compaction = null
+        this.events.spent({
+          input: message.usage.input_tokens,
+          output: message.usage.output_tokens,
+          cached:
+            (message.usage.cache_read_input_tokens ?? 0) +
+            (message.usage.cache_creation_input_tokens ?? 0)
+        })
         this.events.turnFinished()
         void this.reportUsage()
         break

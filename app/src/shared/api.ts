@@ -16,6 +16,7 @@ import type {
 import type { IntegrationKind, IntegrationList } from './integrations'
 import type { Project, SpacesState, UserProfile } from './models'
 import type { PlanLimitsState } from './planLimits'
+import type { TokenSpendSummary } from './tokenSpend'
 import type {
   Commit,
   GitHubCounts,
@@ -239,6 +240,11 @@ export interface AtoxApi {
     get(): Promise<PlanLimitsState>
     subscribe(listener: (state: PlanLimitsState) => void): () => void
   }
+  tokenSpend: {
+    /** Сколько токенов потратили агенты: сегодня и за всё время. */
+    get(): Promise<TokenSpendSummary>
+    subscribe(listener: (summary: TokenSpendSummary) => void): () => void
+  }
   settings: {
     /**
      * Синхронно: раскладка (ширина сайдбара, терминала) нужна уже в первом кадре — иначе
@@ -323,6 +329,8 @@ export const IpcChannel = {
   AppCommand: 'app:command',
   PlanLimitsGet: 'plan-limits:get',
   PlanLimitsChanged: 'plan-limits:changed',
+  TokenSpendGet: 'token-spend:get',
+  TokenSpendChanged: 'token-spend:changed',
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',
   SettingsChanged: 'settings:changed',

@@ -4122,3 +4122,97 @@ ul {
 .usage-card__meter[data-warning='true'] {
   background-image: linear-gradient(var(--color-danger), var(--color-danger));
 }
+
+/* Страница Usage в настройках: по карточке на агента — лимиты и траты токенов. */
+.usage-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.usage-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--color-group);
+}
+
+.usage-agent__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usage-agent__icon {
+  width: 16px;
+  height: 16px;
+}
+
+.usage-agent__name {
+  margin: 0;
+  font-size: var(--font-size);
+  font-weight: 600;
+}
+
+.usage-agent__tokens {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.token-tile {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-hover);
+}
+
+.token-tile__title {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.token-tile__total {
+  margin-top: 4px;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-tile__unit {
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.token-tile__parts {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-small);
+}
+
+.token-tile__parts dt {
+  color: var(--color-text-muted);
+}
+
+.token-tile__parts dd {
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-page__note {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}

@@ -14,6 +14,7 @@ import {
   broadcastGitBranches,
   broadcastConversationEvent,
   broadcastPlanLimits,
+  broadcastTokenSpend,
   broadcastProjectsChanged,
   broadcastTerminalData,
   broadcastTerminalExit,
@@ -24,6 +25,7 @@ import { AppMenu } from './menu'
 import { installCli, installCodexRules, installSkills } from './orchestration/install'
 import { OrchestrationServer } from './orchestration/server'
 import { PlanLimitsMonitor } from './planLimits'
+import { TokenSpendLedger } from './tokenSpend'
 import { setupQuitHandling } from './quit'
 import { RepositoryReader } from './repository'
 import { SettingsStore } from './settings'
@@ -40,6 +42,7 @@ import { createMainWindow } from './window'
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
 const USAGE_STATS_FILE_NAME = 'usage-stats.json'
+const TOKEN_SPEND_FILE_NAME = 'token-spend.json'
 /** Каталог с лентами чатов: у каждого чата свой файл. */
 const TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
 
@@ -71,6 +74,8 @@ async function bootstrap(): Promise<void> {
   const userData = app.getPath('userData')
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
   const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
+  const tokenSpend = await TokenSpendLedger.load(join(userData, TOKEN_SPEND_FILE_NAME))
+  tokenSpend.onChange(broadcastTokenSpend)
   const transcripts = await TranscriptStore.open(join(userData, TRANSCRIPTS_DIRECTORY_NAME))
   const binDirectory = join(userData, 'bin')
   const cliPath = await installCli(
@@ -104,6 +109,7 @@ async function bootstrap(): Promise<void> {
     environment: agentEnvironment,
     onEvent: broadcastConversationEvent,
     onPlanLimits: (agent, limits) => planLimits.report(agent, limits),
+    onTokensSpent: (agent, counts) => tokenSpend.record(agent, counts),
     onProjectsChanged: () => broadcastProjectsChanged(store.list()),
     openLink: (url) => {
       if (URL.canParse(url) && EXTERNAL_LINK_PROTOCOLS.has(new URL(url).protocol)) {
@@ -167,7 +173,8 @@ async function bootstrap(): Promise<void> {
     updater,
     agents,
     menu,
-    planLimits
+    planLimits,
+    tokenSpend
   })
   // Ветку могли сменить или создать репозиторий в другом приложении, пока окно было не в фокусе.
   app.on('browser-window-focus', () => void branches.refreshOnFocus())
@@ -196,8 +203,8 @@ async function bootstrap(): Promise<void> {
     conversations,
     terminals,
     stores: usageStats
-      ? [store, settings, conversations, usageStats]
-      : [store, settings, conversations]
+      ? [store, settings, conversations, tokenSpend, usageStats]
+      : [store, settings, conversations, tokenSpend]
   })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())
