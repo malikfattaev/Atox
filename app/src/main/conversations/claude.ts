@@ -94,6 +94,40 @@ const ATOX_DELEGATION_PROMPT =
   '(`atox start`, then `atox send` to talk to them); ' +
   'built-in subagents are not available here.'
 
+/**
+ * Команды Claude Code, которые работают только в терминале: Agent SDK их не отдаёт, а сообщение
+ * `/login` или `/remote-control` модель восприняла бы как обычный текст. Atox выполняет их сам.
+ */
+const ATOX_COMMANDS: readonly AgentCommand[] = [
+  {
+    name: 'remote-control',
+    description: 'Continue this chat from the Claude app on your phone',
+    argumentHint: '[off]'
+  },
+  { name: 'login', description: 'Sign in to your Claude account in the browser' }
+]
+
+/**
+ * Методы Claude Code, которых нет в типах Agent SDK, но которыми пользуется сам терминал
+ * для `/remote-control` и `/login`.
+ */
+interface AccountControls {
+  enableRemoteControl?(enabled: boolean, name?: string): Promise<{ session_url?: string } | undefined>
+  claudeAuthenticate?(loginWithClaudeAi: boolean): Promise<{ automaticUrl?: string; manualUrl?: string }>
+  claudeOAuthWaitForCompletion?(): Promise<unknown>
+}
+
+type LocalCommand = { name: 'remote-control'; off: boolean } | { name: 'login' }
+
+/** Распознаёт сообщение, которое целиком является командой Atox: `/remote-control`, `/rc`, `/login`. */
+function parseLocalCommand(text: string): LocalCommand | null {
+  const [name, ...rest] = text.trim().split(/\s+/)
+  if (name === '/remote-control' || name === '/rc') {
+    return { name: 'remote-control', off: rest[0]?.toLowerCase() === 'off' }
+  }
+  return name === '/login' && rest.length === 0 ? { name: 'login' } : null
+}
+
 function launchOptions({ executable, env, cwd }: AgentLaunch): Options {
   return {
     cwd,
@@ -114,15 +148,16 @@ export const claudeDriver: AgentDriver = {
   },
 
   commands(launch) {
-    return withIdleSession(launch, async (session) =>
-      (await session.supportedCommands())
+    return withIdleSession(launch, async (session) => [
+      ...(await session.supportedCommands())
         .filter(({ name }) => !name.startsWith(INTERNAL_COMMAND_PREFIX))
         .map(({ name, description, argumentHint }): AgentCommand => ({
           name,
           description,
           ...(argumentHint && { argumentHint })
-        }))
-    )
+        })),
+      ...ATOX_COMMANDS
+    ])
   },
 
   plugins(launch) {
@@ -407,6 +442,11 @@ class ClaudeSession implements AgentSession {
   }
 
   send(text: string, images: readonly string[]): void {
+    const command = images.length === 0 ? parseLocalCommand(text) : null
+    if (command) {
+      void this.runLocalCommand(command)
+      return
+    }
     this.interrupted = false
     Object.assign(this.turnTokens, { finished: 0, message: 0, estimate: 0, reported: 0 })
     if (images.length === 0) {
@@ -429,6 +469,75 @@ class ClaudeSession implements AgentSession {
         this.reportError(`Could not attach the image. ${errorMessage(error)}`)
         this.events.turnFinished()
       })
+  }
+
+  /** Ссылка на этот разговор в приложении Claude, пока включён Remote Control. */
+  private remoteUrl: string | null = null
+
+  private showCommandOutput(text: string, id: string = randomUUID()): void {
+    this.events.item({ kind: 'assistant', id, text, commandOutput: true })
+  }
+
+  private async runLocalCommand(command: LocalCommand): Promise<void> {
+    try {
+      if (command.name === 'remote-control') {
+        await this.toggleRemoteControl(command.off)
+      } else {
+        await this.signIn()
+      }
+    } catch (error) {
+      this.reportError(errorMessage(error))
+    } finally {
+      this.events.turnFinished()
+    }
+  }
+
+  private async toggleRemoteControl(off: boolean): Promise<void> {
+    const controls = this.session as unknown as AccountControls
+    if (!controls.enableRemoteControl) {
+      throw new Error('This version of Claude Code has no Remote Control.')
+    }
+    if (off) {
+      await controls.enableRemoteControl(false)
+      this.remoteUrl = null
+      this.showCommandOutput('Remote Control is off.')
+      return
+    }
+    if (!this.remoteUrl) {
+      const response = await withTimeout(controls.enableRemoteControl(true))
+      if (!response?.session_url) {
+        throw new Error('Remote Control did not start. It needs a Claude subscription.')
+      }
+      this.remoteUrl = response.session_url
+    }
+    this.showCommandOutput(
+      `Remote Control is on. Open this chat in the Claude app on your phone or at ` +
+        `[${this.remoteUrl}](${this.remoteUrl}). Run \`/remote-control off\` to turn it off.`
+    )
+  }
+
+  /** Вход в аккаунт Claude: страница входа открывается в браузере, итог дописывается в ту же запись. */
+  private async signIn(): Promise<void> {
+    const controls = this.session as unknown as AccountControls
+    if (!controls.claudeAuthenticate || !controls.claudeOAuthWaitForCompletion) {
+      throw new Error('This version of Claude Code cannot sign in from here.')
+    }
+    const { automaticUrl } = await withTimeout(controls.claudeAuthenticate(true))
+    if (!automaticUrl) {
+      throw new Error('Claude Code did not give a sign-in link.')
+    }
+    const id = randomUUID()
+    this.options.openLink(automaticUrl)
+    this.showCommandOutput(
+      `Finish signing in to Claude in your browser. ` +
+        `If it did not open, use [this link](${automaticUrl}).`,
+      id
+    )
+    // Вход может занять минуты: чат уже свободен, а запись обновится, когда всё закончится.
+    void controls
+      .claudeOAuthWaitForCompletion()
+      .then(() => this.showCommandOutput('Signed in to Claude.', id))
+      .catch((error) => this.showCommandOutput(`Sign-in failed. ${errorMessage(error)}`, id))
   }
 
   async interrupt(): Promise<void> {
