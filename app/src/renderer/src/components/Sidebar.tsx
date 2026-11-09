@@ -14,6 +14,9 @@ import { SidebarButton } from './SidebarButton'
 import { SortableList } from './SortableList'
 import { SpacePicker } from './SpacePicker'
 
+/** Показаны ли лимиты подписки над профилем: по умолчанию скрыты, выбор помнится. */
+const LIMITS_SHOWN_KEY = 'atox.limitsShown'
+
 function containsChat(project: Project, chatId: string | null): boolean {
   return chatId !== null && project.chats.some(({ id }) => id === chatId)
 }
@@ -52,6 +55,12 @@ export function Sidebar({
   const branches = useGitBranches()
   // Пока тянут край, ширина живёт здесь; в настройки попадает только итоговая.
   const [draftWidth, setDraftWidth] = useState<number | null>(null)
+  const [limitsShown, setLimitsShown] = useState(() => localStorage.getItem(LIMITS_SHOWN_KEY) === '1')
+  const toggleLimits = () => {
+    const next = !limitsShown
+    localStorage.setItem(LIMITS_SHOWN_KEY, next ? '1' : '0')
+    setLimitsShown(next)
+  }
   const width = draftWidth ?? sidebarWidth
 
   return (
@@ -109,8 +118,12 @@ export function Sidebar({
         )}
       </section>
 
-      <PlanLimits />
-      <ProfileBar onOpenSettings={onOpenSettings} />
+      <div className="plan-limits-collapse" data-shown={limitsShown} inert={!limitsShown}>
+        <div className="plan-limits-collapse__inner">
+          <PlanLimits />
+        </div>
+      </div>
+      <ProfileBar onOpenSettings={onOpenSettings} limitsShown={limitsShown} onToggleLimits={toggleLimits} />
 
       <PanelResizer
         width={width}
