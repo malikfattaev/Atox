@@ -82,12 +82,35 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
     // Чат уже удалён, а сводка пришла раньше обновления списка.
     return []
   })
+  const isActive = (entry: AgentEntry) => groupOf(entry.summary) !== undefined
+  const entryIds = new Set(entries.map(({ chat }) => chat.id))
+  /** Работающие помощники чата: они показываются под ним, а не отдельными строками. */
+  const helpersOf = (chatId: string) =>
+    entries
+      .filter((entry) => entry.chat.parentChatId === chatId && isActive(entry))
+      .sort((a, b) => a.summary.startedAt - b.summary.startedAt)
+  // Главный чат, который ждёт своих помощников, сам не работает, но в обзоре он главный.
+  const rows = entries
+    .filter(
+      (entry) =>
+        !(entry.chat.parentChatId && entryIds.has(entry.chat.parentChatId)) &&
+        (isActive(entry) || helpersOf(entry.chat.id).length > 0)
+    )
+    .map((entry) => ({ entry, helpers: helpersOf(entry.chat.id) }))
+  const rowGroup = ({ entry, helpers }: (typeof rows)[number]): GroupId =>
+    groupOf(entry.summary) === 'waiting' || helpers.some(({ summary }) => summary.waitingFor)
+      ? 'waiting'
+      : 'working'
   const groups = GROUPS.map((group) => ({
     ...group,
-    entries: entries
-      .filter((entry) => groupOf(entry.summary) === group.id)
-      .sort((a, b) => latestActivity(b.summary) - latestActivity(a.summary))
-  })).filter(({ entries: groupEntries }) => groupEntries.length > 0)
+    rows: rows
+      .filter((row) => rowGroup(row) === group.id)
+      .sort(
+        (a, b) =>
+          Math.max(latestActivity(b.entry.summary), ...b.helpers.map((h) => latestActivity(h.summary))) -
+          Math.max(latestActivity(a.entry.summary), ...a.helpers.map((h) => latestActivity(h.summary)))
+      )
+  })).filter(({ rows: groupRows }) => groupRows.length > 0)
 
   return (
     <section className="agents" aria-labelledby="agents-title">
@@ -107,15 +130,21 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
             <p className="agents__empty-hint">Agents show up here while they work or wait for you</p>
           </div>
         )}
-        {groups.map(({ id, title, entries: groupEntries }) => (
+        {groups.map(({ id, title, rows: groupRows }) => (
           <section key={id} className="agents__group" aria-label={title}>
             <h2 className="agents__group-title">
               {title}
-              <span className="agents__group-count">{groupEntries.length}</span>
+              <span className="agents__group-count">{groupRows.length}</span>
             </h2>
             <ul className="agents__list">
-              {groupEntries.map((entry) => (
-                <AgentRow key={entry.chat.id} entry={entry} now={now} onOpen={onOpenChat} />
+              {groupRows.map(({ entry, helpers }) => (
+                <AgentRow
+                  key={entry.chat.id}
+                  entry={entry}
+                  helpers={helpers}
+                  now={now}
+                  onOpen={onOpenChat}
+                />
               ))}
             </ul>
           </section>
@@ -127,46 +156,76 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
 
 interface AgentRowProps {
   entry: AgentEntry
+  /** Работающие помощники этого чата — показываются под ним. */
+  helpers?: AgentEntry[]
   now: number
   onOpen(chatId: string): void
 }
 
-function AgentRow({
-  entry: { summary, chat, project, space, parent },
-  now,
-  onOpen
-}: AgentRowProps) {
-  const status = useChatActivity(chat.id)
-  const finishedAt = summary.running ? undefined : summary.finishedAt
-  const activity = describe(summary)
+function AgentRow({ entry, helpers = [], now, onOpen }: AgentRowProps) {
   return (
-    <li>
-      <button type="button" className="agent-row" onClick={() => onOpen(chat.id)}>
-        <ChatStatus status={status} />
-        <span className="agent-row__title">{chat.title}</span>
-        {finishedAt === undefined ? (
-          <span className="agent-row__time" title="Working for">
-            {formatDuration(now - summary.startedAt)}
-          </span>
-        ) : (
-          <time className="agent-row__time" title={formatFullDate(finishedAt)}>
-            {formatRelativeTime(finishedAt, now)}
-          </time>
-        )}
-        <span className="agent-row__detail" data-waiting={Boolean(summary.waitingFor)}>
-          <AgentIcon agent={chat.agent} className="agent-row__agent" />
-          <span className="agent-row__place">
-            {[space?.name, project.name, parent?.title].filter(Boolean).join(' | ')}
-          </span>
-          {activity && <span className="agent-row__activity">{activity}</span>}
-        </span>
-        {summary.turnTokens !== undefined && (
-          <span className="agent-row__tokens" title="Tokens written in this answer">
-            {formatTokens(summary.turnTokens)} tokens
-          </span>
-        )}
-      </button>
+    <li className="agent-group" data-has-helpers={helpers.length > 0}>
+      <AgentButton entry={entry} helpers={helpers} now={now} onOpen={onOpen} />
+      {helpers.length > 0 && (
+        <ul className="agent-group__helpers">
+          {helpers.map((helper) => (
+            <li key={helper.chat.id}>
+              <AgentButton entry={helper} helpers={[]} now={now} onOpen={onOpen} nested />
+            </li>
+          ))}
+        </ul>
+      )}
     </li>
+  )
+}
+
+function AgentButton({
+  entry: { summary, chat, project, space, parent },
+  helpers,
+  now,
+  onOpen,
+  nested
+}: Required<AgentRowProps> & { nested?: boolean }) {
+  const status = useChatActivity(chat.id)
+  // Чат, который ждёт помощников, показывается работающим, а не законченным.
+  const finishedAt = summary.running || helpers.length > 0 ? undefined : summary.finishedAt
+  const activity =
+    describe(summary) ??
+    (helpers.length > 0
+      ? `Waiting for ${helpers.length === 1 ? '1 agent' : `${helpers.length} agents`}`
+      : undefined)
+  const place = nested
+    ? [project.name]
+    : [space?.name, project.name, ...(parent ? [parent.title] : [])]
+  return (
+    <button
+      type="button"
+      className="agent-row"
+      data-nested={nested}
+      onClick={() => onOpen(chat.id)}
+    >
+      <ChatStatus status={status} />
+      <span className="agent-row__title">{chat.title}</span>
+      {finishedAt === undefined ? (
+        <span className="agent-row__time" title="Working for">
+          {formatDuration(now - summary.startedAt)}
+        </span>
+      ) : (
+        <time className="agent-row__time" title={formatFullDate(finishedAt)}>
+          {formatRelativeTime(finishedAt, now)}
+        </time>
+      )}
+      <span className="agent-row__detail" data-waiting={Boolean(summary.waitingFor)}>
+        <AgentIcon agent={chat.agent} className="agent-row__agent" />
+        {!nested && <span className="agent-row__place">{place.filter(Boolean).join(' | ')}</span>}
+        {activity && <span className="agent-row__activity">{activity}</span>}
+      </span>
+      {summary.turnTokens !== undefined && (
+        <span className="agent-row__tokens" title="Tokens written in this answer">
+          {formatTokens(summary.turnTokens)} tokens
+        </span>
+      )}
+    </button>
   )
 }
 

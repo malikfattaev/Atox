@@ -1067,6 +1067,50 @@ ul {
   text-align: left;
 }
 
+.agent-group[data-has-helpers='true'] {
+  margin-bottom: 4px;
+}
+
+/* Помощники — под главным чатом, с линией слева, как ветка в сайдбаре. */
+.agent-group__helpers {
+  position: relative;
+  margin: 0 0 0 calc(var(--agents-row-padding) + var(--status-dot-size) / 2);
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+
+.agent-group__helpers::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 14px;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.agent-group__helpers li {
+  position: relative;
+}
+
+.agent-group__helpers li::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 17px;
+  width: 12px;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.agent-row[data-nested='true'] {
+  padding-block: 6px;
+}
+
+.agent-row[data-nested='true'] .agent-row__activity::before {
+  content: none;
+}
+
 .agent-row:hover {
   background: var(--color-hover);
 }
