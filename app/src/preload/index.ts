@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppCommand } from '../shared/commands'
 import type { PlanLimitsState } from '../shared/planLimits'
+import type { TokenSpendSummary } from '../shared/tokenSpend'
 import type { Settings } from '../shared/settings'
 import type { ConversationEvent, UserRequestKind } from '../shared/conversation'
 import type { UpdateState } from '../shared/update'
@@ -221,6 +222,15 @@ const api: AtoxApi = {
         listener(state)
       ipcRenderer.on(IpcChannel.PlanLimitsChanged, handler)
       return () => ipcRenderer.removeListener(IpcChannel.PlanLimitsChanged, handler)
+    }
+  },
+  tokenSpend: {
+    get: () => ipcRenderer.invoke(IpcChannel.TokenSpendGet),
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, summary: TokenSpendSummary) =>
+        listener(summary)
+      ipcRenderer.on(IpcChannel.TokenSpendChanged, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.TokenSpendChanged, handler)
     }
   },
   settings: {

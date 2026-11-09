@@ -29,6 +29,7 @@ import type {
 } from '../../shared/integrations'
 import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
+import type { TokenCounts } from '../../shared/tokenSpend'
 import { errorMessage } from './display'
 import { handoffMessage } from './handoff'
 import { PromiseCache } from './promiseCache'
@@ -130,6 +131,8 @@ export interface ConversationServices {
   onEvent(event: ConversationEvent): void
   /** Сессия агента сообщила лимиты подписки — после очередного ответа. */
   onPlanLimits(agent: AgentId, limits: PlanLimit[]): void
+  /** Агент потратил токены на очередной запрос. */
+  onTokensSpent(agent: AgentId, counts: TokenCounts): void
   /** Список чатов изменился без участия окна — например, чат получил название. */
   onProjectsChanged(): void
   /** Открывает ссылку в браузере по просьбе агента, например для входа в аккаунт. */
@@ -780,6 +783,7 @@ export class ConversationManager {
             this.reportPlanLimits(agent, session)
           }
         },
+        spent: (counts) => this.services.onTokensSpent(agent, counts),
         usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
         tokens: (turnTokens) => this.emit(chatId, conversation, { type: 'tokens', turnTokens }),
         sessionStarted: (sessionId) => {

@@ -61,6 +61,9 @@ type ItemStatus = 'inProgress' | 'completed' | 'failed' | 'declined'
 
 interface TokenUsageBreakdown {
   totalTokens: number
+  inputTokens: number
+  /** Часть входа, взятая из кэша. */
+  cachedInputTokens: number
   outputTokens: number
 }
 
@@ -346,6 +349,8 @@ class CodexSession implements AgentSession {
    * Codex сообщает лишь итог треда и последний запрос, а запросов за ход бывает много.
    */
   private turnTokenBase: { turnId: string; outputTokens: number } | null = null
+  /** Сколько токенов треда уже учтено в тратах; `null` — тред ещё не сообщал о токенах. */
+  private spentTotal: TokenUsageBreakdown | null = null
   /** Номер части сводки, которую сейчас пишет каждое рассуждение. */
   private readonly summaryParts = new Map<string, number>()
 
@@ -685,6 +690,7 @@ class CodexSession implements AgentSession {
           this.turnTokenBase = { turnId, outputTokens: total.outputTokens - last.outputTokens }
         }
         this.events.tokens(total.outputTokens - this.turnTokenBase.outputTokens)
+        this.reportSpent(total, last)
         if (tokenUsage.modelContextWindow) {
           this.events.usage({
             context: {
@@ -701,6 +707,28 @@ class CodexSession implements AgentSession {
         break
       }
     }
+  }
+
+  /**
+   * Тред считает токены с самого начала, а в тратах нужны только новые: берём разницу с прошлым
+   * сообщением. Первое сообщение после возобновления треда не должно вернуть всю прежнюю историю,
+   * поэтому из него берётся лишь последний запрос.
+   */
+  private reportSpent(total: TokenUsageBreakdown, last: TokenUsageBreakdown): void {
+    const previous = this.spentTotal ?? {
+      totalTokens: 0,
+      inputTokens: total.inputTokens - last.inputTokens,
+      cachedInputTokens: total.cachedInputTokens - last.cachedInputTokens,
+      outputTokens: total.outputTokens - last.outputTokens
+    }
+    this.spentTotal = total
+    const cached = Math.max(0, total.cachedInputTokens - previous.cachedInputTokens)
+    this.events.spent({
+      // Вход в Codex считается вместе с кэшем, а здесь они раздельно.
+      input: Math.max(0, total.inputTokens - previous.inputTokens - cached),
+      output: Math.max(0, total.outputTokens - previous.outputTokens),
+      cached
+    })
   }
 
   /**

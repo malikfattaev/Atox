@@ -1,4 +1,5 @@
 import type { AgentId } from '../../shared/agents'
+import type { TokenCounts } from '../../shared/tokenSpend'
 import type {
   AgentCatalog,
   AgentCommand,
@@ -41,6 +42,8 @@ export interface SessionEvents {
   turnFinished(): void
   /** Сколько токенов агент написал с начала ответа на текущее сообщение. */
   tokens(turnTokens: number): void
+  /** Токены, которые агент только что потратил: учитываются в итогах по дням. */
+  spent(counts: TokenCounts): void
   /** Агент сообщил, насколько заполнен контекст и сколько осталось лимитов подписки. */
   usage(usage: ConversationUsage): void
   /** Агент сообщил идентификатор разговора, по которому его можно продолжить. */
