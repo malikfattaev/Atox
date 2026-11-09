@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   SIDEBAR_WIDTH,
   TERMINAL_WIDTH,
+  PROFILE_NAME_MAX_LENGTH,
   type Settings
 } from '../shared/settings'
 import {
@@ -71,7 +72,11 @@ function normalize(settings: Settings): Settings {
     terminalWidth: clampWidth(settings.terminalWidth, TERMINAL_WIDTH),
     shortcuts: normalizeShortcuts(settings.shortcuts),
     shareUsageStats: settings.shareUsageStats !== false,
-    playSounds: settings.playSounds === true
+    playSounds: settings.playSounds === true,
+    profileName:
+      typeof settings.profileName === 'string'
+        ? settings.profileName.slice(0, PROFILE_NAME_MAX_LENGTH)
+        : ''
   }
 }
 
