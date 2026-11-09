@@ -1,6 +1,7 @@
 import { CircleArrowDown, ChartNoAxesColumn, Settings } from 'lucide-react'
 import { useUpdateState } from '../hooks/useUpdateState'
 import type { UpdateState } from '../../../shared/update'
+import { useSettings } from '../hooks/SettingsContext'
 import { useUserProfile } from '../hooks/useUserProfile'
 
 interface ProfileBarProps {
@@ -12,7 +13,9 @@ interface ProfileBarProps {
 /** Таблетка внизу сайдбара: кто работает, обновление приложения и вход в настройки. */
 export function ProfileBar({ onOpenSettings, limitsShown, onToggleLimits }: ProfileBarProps) {
   const profile = useUserProfile()
-  const initial = profile?.name.charAt(0).toUpperCase()
+  const { profileName } = useSettings()
+  const name = profileName.trim() || profile?.name
+  const initial = name?.charAt(0).toUpperCase()
   const update = useUpdateState()
 
   return (
@@ -21,7 +24,7 @@ export function ProfileBar({ onOpenSettings, limitsShown, onToggleLimits }: Prof
         <span className="profile-card__avatar" aria-hidden>
           {initial}
         </span>
-        <span className="profile-card__name">{profile?.name}</span>
+        <span className="profile-card__name">{name}</span>
       </div>
       <div className="profile-card__actions">
         {update && <UpdateButton update={update} />}

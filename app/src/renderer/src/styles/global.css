@@ -1456,6 +1456,22 @@ ul {
   border-top: 1px solid var(--color-border);
 }
 
+.settings__text-input {
+  width: 200px;
+  height: var(--repository-control-height);
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--color-hover);
+  color: var(--color-text);
+  user-select: text;
+}
+
+.settings__text-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
 .settings__row--compact {
   padding-block: 10px;
 }

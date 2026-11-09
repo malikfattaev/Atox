@@ -11,6 +11,8 @@ import {
 import { isIntegrationKind, type IntegrationKind } from '../../../shared/integrations'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useSettings } from '../hooks/SettingsContext'
+import { useUserProfile } from '../hooks/useUserProfile'
+import { PROFILE_NAME_MAX_LENGTH } from '../../../shared/settings'
 import { useIntegrationLists } from '../hooks/useIntegrationLists'
 import { playChime } from '../lib/chime'
 import { AgentIntegrations } from './AgentIntegrations'
@@ -36,7 +38,8 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ onClose }: SettingsViewProps) {
-  const { shareUsageStats, playSounds } = useSettings()
+  const { shareUsageStats, playSounds, profileName } = useSettings()
+  const profile = useUserProfile()
   const { projects, currentProjectId } = useProjectsContext()
   const project = projects.find(({ id }) => id === currentProjectId) ?? null
   const integrations = useIntegrationLists(project?.id ?? null)
@@ -87,6 +90,28 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       {section === 'general' ? (
         <>
           <div className="settings__group">
+            <section className="settings__subgroup" aria-label="Profile">
+              <h3 className="settings__subgroup-title">Profile</h3>
+              <div className="settings__card">
+                <label className="settings__row">
+                  <span className="settings__label">
+                    <span>Name</span>
+                    <span className="settings__description">
+                      Shown in the sidebar. Leave empty to use your git or Mac name.
+                    </span>
+                  </span>
+                  <input
+                    type="text"
+                    className="settings__text-input"
+                    value={profileName}
+                    maxLength={PROFILE_NAME_MAX_LENGTH}
+                    placeholder={profile?.name}
+                    spellCheck={false}
+                    onChange={(event) => void atox.settings.update({ profileName: event.target.value })}
+                  />
+                </label>
+              </div>
+            </section>
             <UpdateSettings />
             <section className="settings__subgroup" aria-label="Notifications">
               <h3 className="settings__subgroup-title">Notifications</h3>
