@@ -803,6 +803,26 @@ ul {
  * Лимиты подписки агентов над профилем: строка на окно, знак агента — у его первого окна.
  * Все строки — одна сетка, поэтому колонки разных агентов выровнены.
  */
+.plan-limits-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  flex-shrink: 0;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--collapse-duration) var(--collapse-easing),
+    opacity var(--collapse-duration) var(--collapse-easing);
+}
+
+.plan-limits-collapse[data-shown='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.plan-limits-collapse__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .plan-limits {
   display: grid;
   grid-template-columns: 12px max-content 1fr 4ch 6ch;
@@ -900,6 +920,10 @@ ul {
   height: var(--avatar-size);
   border-radius: 50%;
   color: var(--color-text-muted);
+}
+
+.profile-card__action[aria-pressed='true'] {
+  color: var(--color-text);
 }
 
 .profile-card__action:hover {
