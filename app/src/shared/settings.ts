@@ -20,7 +20,12 @@ export interface Settings {
    * включат: внезапный звук пугает.
    */
   playSounds: boolean
+  /** Имя в профиле сайдбара, которое человек ввёл сам; пусто — имя берётся из git или macOS. */
+  profileName: string
 }
+
+/** Длиннее имя в таблетке профиля не помещается. */
+export const PROFILE_NAME_MAX_LENGTH = 40
 
 /** Сайдбар по умолчанию самый узкий: его можно только расширить. */
 export const SIDEBAR_WIDTH = {
@@ -50,7 +55,8 @@ export const DEFAULT_SETTINGS: Settings = {
   terminalWidth: TERMINAL_WIDTH.default,
   shortcuts: {},
   shareUsageStats: true,
-  playSounds: false
+  playSounds: false,
+  profileName: ''
 }
 
 /** Приводит ширину панели к целому числу пикселей в её пределах. */
