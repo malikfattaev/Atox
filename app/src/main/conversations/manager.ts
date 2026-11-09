@@ -132,6 +132,8 @@ export interface ConversationServices {
   onPlanLimits(agent: AgentId, limits: PlanLimit[]): void
   /** Список чатов изменился без участия окна — например, чат получил название. */
   onProjectsChanged(): void
+  /** Открывает ссылку в браузере по просьбе агента, например для входа в аккаунт. */
+  openLink(url: string): void
 }
 
 /**
@@ -743,6 +745,7 @@ export class ConversationManager {
     const session: AgentSession = driver.start(
       {
         ...launch,
+        openLink: (url) => this.services.openLink(url),
         ...(resumedId && { sessionId: resumedId }),
         selection: {
           ...(sameAgent && chat.model && { model: chat.model }),

@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os'
 import { basename, delimiter, join } from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, shell as electronShell } from 'electron'
 import { AgentDetector } from './agents'
 import { WorkingTreeReader } from './changes'
 import { claudeDriver } from './conversations/claude'
@@ -28,6 +28,7 @@ import { setupQuitHandling } from './quit'
 import { RepositoryReader } from './repository'
 import { SettingsStore } from './settings'
 import { ShellEnvironment } from './shellEnvironment'
+import { EXTERNAL_LINK_PROTOCOLS } from '../shared/links'
 import { ProjectStore } from './store'
 import { TerminalManager } from './terminals'
 import { checkForUpdatesFromMenu } from './updateCheck'
@@ -103,7 +104,12 @@ async function bootstrap(): Promise<void> {
     environment: agentEnvironment,
     onEvent: broadcastConversationEvent,
     onPlanLimits: (agent, limits) => planLimits.report(agent, limits),
-    onProjectsChanged: () => broadcastProjectsChanged(store.list())
+    onProjectsChanged: () => broadcastProjectsChanged(store.list()),
+    openLink: (url) => {
+      if (URL.canParse(url) && EXTERNAL_LINK_PROTOCOLS.has(new URL(url).protocol)) {
+        void electronShell.openExternal(url)
+      }
+    }
   })
   const planLimits = new PlanLimitsMonitor({
     installed: () => agents.list(),

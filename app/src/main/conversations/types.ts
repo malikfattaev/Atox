@@ -27,6 +27,8 @@ export interface SessionOptions extends AgentLaunch {
   sessionId?: string
   /** Модель и эффорт; нет — по умолчанию у агента. */
   selection?: Partial<ModelSelection>
+  /** Открывает ссылку в браузере: например, вход в аккаунт по команде `/login`. */
+  openLink(url: string): void
 }
 
 /** Что сессия сообщает о работе агента. */
