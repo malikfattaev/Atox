@@ -82,7 +82,7 @@ jobs:
       - if: matrix.platform == 'mac'
         run: |
           set -eu
-          VER=$(node -p "require('@anthropic-ai/claude-agent-sdk/package.json').version")
+          VER=$(node -e "console.log(JSON.parse(require('fs').readFileSync('node_modules/@anthropic-ai/claude-agent-sdk/package.json','utf8')).version)")
           npm install --no-save --no-package-lock --force \
             --os=darwin --cpu=arm64 "@anthropic-ai/claude-agent-sdk-darwin-arm64@$VER"
           npm install --no-save --no-package-lock --force \
