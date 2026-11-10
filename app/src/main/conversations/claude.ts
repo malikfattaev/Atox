@@ -404,6 +404,8 @@ function toCatalog(models: ModelInfo[]): AgentCatalog {
   return {
     agent: 'claude',
     defaultModel,
+    // Без аккаунта Claude Code отдаёт только общие названия: ни прежних моделей, ни версий.
+    ...(!listed.some(({ value }) => value.startsWith(PINNED_MODEL_PREFIX)) && { incomplete: true }),
     models: listed.map((model): AgentModel => ({
       id: model.value,
       name: model.displayName,

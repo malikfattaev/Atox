@@ -439,6 +439,12 @@ export class ConversationManager {
   async catalog(agent: AgentId): Promise<AgentCatalog | null> {
     // Неудачный запрос не запоминается: агента могли установить или войти в него позже.
     const catalog = this.catalogs.get(agent, () => this.loadCatalog(agent))
+    void catalog.then((loaded) => {
+      // Урезанный список ответ на сейчас, а не на следующие минуты.
+      if (loaded.incomplete) {
+        this.catalogs.delete(agent)
+      }
+    }, () => undefined)
     return catalog.catch((error) => {
       console.error(`Failed to list ${agent} models`, error)
       return null

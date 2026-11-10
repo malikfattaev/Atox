@@ -12,6 +12,11 @@ export class PromiseCache<Key, Value> {
 
   constructor(private readonly ttlMs: number) {}
 
+  /** Забывает ответ по ключу: следующий вопрос спросит заново. */
+  delete(key: Key): void {
+    this.entries.delete(key)
+  }
+
   /** Забывает все ответы: следующий вопрос спросит заново. */
   clear(): void {
     this.entries.clear()

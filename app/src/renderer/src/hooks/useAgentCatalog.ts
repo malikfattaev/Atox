@@ -1,6 +1,10 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { AgentId } from '../../../shared/agents'
-import { AGENT_LISTS_TTL_MS, type AgentCatalog } from '../../../shared/conversation'
+import {
+  AGENT_LISTS_TTL_MS,
+  INCOMPLETE_CATALOG_TTL_MS,
+  type AgentCatalog
+} from '../../../shared/conversation'
 
 const { atox } = window
 
@@ -29,7 +33,8 @@ function setCatalog(agent: AgentId, catalog: CatalogState): void {
  */
 export function loadAgentCatalog(agent: AgentId): Promise<AgentCatalog | null> {
   const loaded = catalogs.get(agent)
-  const fresh = Date.now() - (loadedAt.get(agent) ?? 0) < AGENT_LISTS_TTL_MS
+  const ttl = loaded?.incomplete ? INCOMPLETE_CATALOG_TTL_MS : AGENT_LISTS_TTL_MS
+  const fresh = Date.now() - (loadedAt.get(agent) ?? 0) < ttl
   if (loaded && fresh) {
     return Promise.resolve(loaded)
   }
