@@ -76,11 +76,35 @@ jobs:
       # На Linux node-pty собирается из исходников: готовых сборок под него в пакете нет.
       - run: npm ci
 
+      # Mac собирается на Intel-раннере, а бинарь claude под darwin-arm64 npm на Intel не ставит
+      # (optional dep под другую архитектуру). Доставляем оба руками, иначе arm64-сборка выйдет
+      # без бандла — именно так ломались релизы 0.2.108 и 0.2.109.
+      - if: matrix.platform == 'mac'
+        run: |
+          set -eu
+          VER=$(node -p "require('@anthropic-ai/claude-agent-sdk/package.json').version")
+          npm install --no-save --no-package-lock --force \
+            --os=darwin --cpu=arm64 "@anthropic-ai/claude-agent-sdk-darwin-arm64@$VER"
+          npm install --no-save --no-package-lock --force \
+            --os=darwin --cpu=x64 "@anthropic-ai/claude-agent-sdk-darwin-x64@$VER"
+          test -x node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude
+          test -x node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/claude
+
       - run: npm run typecheck
 
       - run: npx electron-vite build
 
       - run: npx electron-builder ${{ matrix.builder }} --publish never -c.extraMetadata.version="$VERSION"
+
+      # Если бандл claude не долетел до .app, релиз бесполезен — лимиты и список моделей падают
+      # как в 0.2.109. Проваливаем сборку, чтобы не публиковать такой релиз.
+      - if: matrix.platform == 'mac'
+        run: |
+          set -eu
+          test -x dist/mac-arm64/Atox.app/Contents/Resources/claude-cli/claude
+          test -x dist/mac/Atox.app/Contents/Resources/claude-cli/claude
+      - if: matrix.platform == 'linux'
+        run: test -x dist/linux-unpacked/resources/claude-cli/claude
 
       - name: Sign update manifest
         run: npm run release:manifest -- dist "$VERSION" ${{ matrix.platform }}
