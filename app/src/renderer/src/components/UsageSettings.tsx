@@ -129,7 +129,8 @@ function TokenTile({ title, counts }: { title: string; counts: TokenCounts | und
   return (
     <div className="token-tile">
       <span className="token-tile__title">{title}</span>
-      <span className="token-tile__total">{formatTokens(input + output)}</span>
+      {/* Кэш входит в итог: это токены, которые модель реально обработала, — как в счётчиках Claude Code. */}
+      <span className="token-tile__total">{formatTokens(input + output + cached)}</span>
       <span className="token-tile__unit">tokens</span>
       <dl className="token-tile__parts">
         <div>
