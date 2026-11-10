@@ -119,6 +119,9 @@ interface AccountControls {
   claudeOAuthWaitForCompletion?(): Promise<unknown>
 }
 
+/** Сколько ждать, пока человек пройдёт вход в браузере; потом процесс входа закрывается. */
+const SIGN_IN_TIMEOUT_MS = 10 * 60 * 1000
+
 type LocalCommand = { name: 'remote-control'; off: boolean } | { name: 'login' }
 
 /** Распознаёт сообщение, которое целиком является командой Atox: `/remote-control`, `/rc`, `/login`. */
@@ -544,31 +547,49 @@ class ClaudeSession implements AgentSession {
     )
   }
 
-  /** Вход в аккаунт Claude: страница входа открывается в браузере, итог дописывается в ту же запись. */
+  /**
+   * Вход в аккаунт Claude: страница входа открывается в браузере, итог дописывается в ту же запись.
+   *
+   * Браузер после «Authorize» возвращается на локальный адрес, который слушает сам процесс
+   * Claude Code, начавший вход. Поэтому вход идёт в отдельном процессе: процесс чата закрывается
+   * при смене модели или агента, и страница в браузере тогда падает — слушать больше некому.
+   */
   private async signIn(): Promise<void> {
-    const controls = this.session as unknown as AccountControls
-    if (!controls.claudeAuthenticate || !controls.claudeOAuthWaitForCompletion) {
-      throw new Error('This version of Claude Code cannot sign in from here.')
+    const input = new AsyncQueue<SDKUserMessage>()
+    const login = query({ prompt: input, options: launchOptions(this.options) })
+    const close = (): void => {
+      input.end()
+      login.close()
     }
-    const { automaticUrl } = await withTimeout(controls.claudeAuthenticate(true))
-    if (!automaticUrl) {
-      throw new Error('Claude Code did not give a sign-in link.')
+    try {
+      const controls = login as unknown as AccountControls
+      if (!controls.claudeAuthenticate || !controls.claudeOAuthWaitForCompletion) {
+        throw new Error('This version of Claude Code cannot sign in from here.')
+      }
+      const { automaticUrl, manualUrl } = await withTimeout(controls.claudeAuthenticate(true))
+      const url = automaticUrl ?? manualUrl
+      if (!url) {
+        throw new Error('Claude Code did not give a sign-in link.')
+      }
+      const id = randomUUID()
+      this.options.openLink(url)
+      this.showCommandOutput(
+        `Finish signing in to Claude in your browser. ` +
+          `If it did not open, use [this link](${url}).`,
+        id
+      )
+      // Вход может занять минуты: чат уже свободен, а запись обновится, когда всё закончится.
+      void withTimeout(controls.claudeOAuthWaitForCompletion(), SIGN_IN_TIMEOUT_MS)
+        .then(() => {
+          this.options.onAccountChanged()
+          this.showCommandOutput('Signed in to Claude.', id)
+        })
+        .catch((error) => this.showCommandOutput(`Sign-in failed. ${errorMessage(error)}`, id))
+        .finally(close)
+    } catch (error) {
+      close()
+      throw error
     }
-    const id = randomUUID()
-    this.options.openLink(automaticUrl)
-    this.showCommandOutput(
-      `Finish signing in to Claude in your browser. ` +
-        `If it did not open, use [this link](${automaticUrl}).`,
-      id
-    )
-    // Вход может занять минуты: чат уже свободен, а запись обновится, когда всё закончится.
-    void controls
-      .claudeOAuthWaitForCompletion()
-      .then(() => {
-        this.options.onAccountChanged()
-        this.showCommandOutput('Signed in to Claude.', id)
-      })
-      .catch((error) => this.showCommandOutput(`Sign-in failed. ${errorMessage(error)}`, id))
   }
 
   async interrupt(): Promise<void> {
