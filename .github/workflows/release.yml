@@ -77,18 +77,23 @@ jobs:
       - run: npm ci
 
       # Mac собирается на Intel-раннере, а бинарь claude под darwin-arm64 npm на Intel не ставит
-      # (optional dep под другую архитектуру). Доставляем оба руками, иначе arm64-сборка выйдет
-      # без бандла — именно так ломались релизы 0.2.108 и 0.2.109.
+      # (optional dep под другую архитектуру). Раскладываем оба тарбола руками — без второго
+      # npm install, который перетирает первый. Без этого релизы 0.2.108 и 0.2.109 вышли без
+      # бандла, и подписка Claude не отображалась.
       - if: matrix.platform == 'mac'
         run: |
           set -eu
           VER=$(node -e "console.log(JSON.parse(require('fs').readFileSync('node_modules/@anthropic-ai/claude-agent-sdk/package.json','utf8')).version)")
-          npm install --no-save --no-package-lock --force \
-            --os=darwin --cpu=arm64 "@anthropic-ai/claude-agent-sdk-darwin-arm64@$VER"
-          npm install --no-save --no-package-lock --force \
-            --os=darwin --cpu=x64 "@anthropic-ai/claude-agent-sdk-darwin-x64@$VER"
-          test -x node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude
-          test -x node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/claude
+          for ARCH in arm64 x64; do
+            PKG="@anthropic-ai/claude-agent-sdk-darwin-$ARCH"
+            DIR="node_modules/@anthropic-ai/claude-agent-sdk-darwin-$ARCH"
+            TGZ=$(npm pack "$PKG@$VER" --pack-destination /tmp --silent)
+            rm -rf "$DIR"
+            mkdir -p "$DIR"
+            tar -xzf "/tmp/$TGZ" --strip-components=1 -C "$DIR"
+            chmod +x "$DIR/claude"
+            test -x "$DIR/claude"
+          done
 
       - run: npm run typecheck
 
