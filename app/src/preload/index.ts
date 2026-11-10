@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { AgentId } from '../shared/agents'
 import type { AppCommand } from '../shared/commands'
 import type { PlanLimitsState } from '../shared/planLimits'
 import type { TokenSpendSummary } from '../shared/tokenSpend'
@@ -122,6 +123,11 @@ const api: AtoxApi = {
   agents: {
     available: () => ipcRenderer.invoke(IpcChannel.AgentsAvailable),
     catalog: (agent) => ipcRenderer.invoke(IpcChannel.AgentsCatalog, agent),
+    subscribeListsStale: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, agent: AgentId) => listener(agent)
+      ipcRenderer.on(IpcChannel.AgentsListsStale, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.AgentsListsStale, handler)
+    },
     integrations: (agent, kind, projectId) =>
       ipcRenderer.invoke(IpcChannel.AgentsIntegrations, agent, kind, projectId)
   },

@@ -575,6 +575,10 @@ export function broadcastTerminalExit(projectId: string): void {
   broadcast(IpcChannel.TerminalsExit, projectId)
 }
 
+export function broadcastAgentListsStale(agent: AgentId): void {
+  broadcast(IpcChannel.AgentsListsStale, agent)
+}
+
 export function broadcastPlanLimits(state: PlanLimitsState): void {
   broadcast(IpcChannel.PlanLimitsChanged, state)
 }

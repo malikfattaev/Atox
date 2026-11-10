@@ -54,6 +54,14 @@ export function loadAgentCatalog(agent: AgentId): Promise<AgentCatalog | null> {
   return request
 }
 
+// Вход в другой аккаунт меняет модели: старый список забывается и загружается заново.
+atox.agents.subscribeListsStale((agent) => {
+  loadedAt.delete(agent)
+  if (catalogs.has(agent)) {
+    void loadAgentCatalog(agent)
+  }
+})
+
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
