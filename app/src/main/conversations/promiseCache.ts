@@ -12,9 +12,12 @@ export class PromiseCache<Key, Value> {
 
   constructor(private readonly ttlMs: number) {}
 
-  /** Забывает ответ по ключу: следующий вопрос спросит заново. */
-  delete(key: Key): void {
-    this.entries.delete(key)
+  /** Ответ по ключу устареет не позже чем через `ttlMs`. */
+  expireWithin(key: Key, ttlMs: number): void {
+    const entry = this.entries.get(key)
+    if (entry) {
+      entry.expiresAt = Math.min(entry.expiresAt, Date.now() + ttlMs)
+    }
   }
 
   /** Забывает все ответы: следующий вопрос спросит заново. */

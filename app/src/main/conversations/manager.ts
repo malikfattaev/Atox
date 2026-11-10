@@ -5,6 +5,7 @@ import { findAgent, type AgentId } from '../../shared/agents'
 import type { MessageAttachments } from '../../shared/attachments'
 import {
   AGENT_LISTS_TTL_MS,
+  INCOMPLETE_CATALOG_TTL_MS,
   applyConversationEvent,
   pendingRequest,
   summarizeConversation,
@@ -439,12 +440,14 @@ export class ConversationManager {
   async catalog(agent: AgentId): Promise<AgentCatalog | null> {
     // Неудачный запрос не запоминается: агента могли установить или войти в него позже.
     const catalog = this.catalogs.get(agent, () => this.loadCatalog(agent))
-    void catalog.then((loaded) => {
-      // Урезанный список ответ на сейчас, а не на следующие минуты.
-      if (loaded.incomplete) {
-        this.catalogs.delete(agent)
-      }
-    }, () => undefined)
+    void catalog.then(
+      (loaded) => {
+        if (loaded.incomplete) {
+          this.catalogs.expireWithin(agent, INCOMPLETE_CATALOG_TTL_MS)
+        }
+      },
+      () => undefined
+    )
     return catalog.catch((error) => {
       console.error(`Failed to list ${agent} models`, error)
       return null
@@ -686,6 +689,20 @@ export class ConversationManager {
     }
   }
 
+  /**
+   * Запущенные процессы агента помнят прежний аккаунт: вход прошёл в отдельном процессе.
+   * Свободные сессии закрываются сразу, занятые — как только закончат ответ; следующее
+   * сообщение продолжит разговор в новой сессии уже под новым аккаунтом.
+   */
+  private restartSessions(agent: AgentId): void {
+    for (const conversation of this.loaded.values()) {
+      if (conversation.session && conversation.sessionAgent === agent) {
+        conversation.stale = true
+        this.restartIfIdle(conversation)
+      }
+    }
+  }
+
   /** Закрывает сессию со старыми настройками, если агент сейчас ничего не делает. */
   private restartIfIdle(conversation: Conversation): void {
     if (conversation.stale && !conversation.turn) {
@@ -764,6 +781,7 @@ export class ConversationManager {
           // и его нельзя держать в памяти после входа.
           this.catalogs.clear()
           this.commandLists.clear()
+          this.restartSessions(agent)
           this.services.onAgentListsStale(agent)
           this.services.onAccountChanged(agent)
         },
