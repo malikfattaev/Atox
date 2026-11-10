@@ -137,6 +137,8 @@ export interface ConversationServices {
   onProjectsChanged(): void
   /** Открывает ссылку в браузере по просьбе агента, например для входа в аккаунт. */
   openLink(url: string): void
+  /** Агент только что сменил аккаунт: обновлённые лимиты нужно показать сразу. */
+  onAccountChanged(agent: AgentId): void
 }
 
 /**
@@ -749,6 +751,7 @@ export class ConversationManager {
       {
         ...launch,
         openLink: (url) => this.services.openLink(url),
+        onAccountChanged: () => this.services.onAccountChanged(agent),
         ...(resumedId && { sessionId: resumedId }),
         selection: {
           ...(sameAgent && chat.model && { model: chat.model }),

@@ -484,6 +484,7 @@ export function registerIpcHandlers({
   })
 
   ipcMain.handle(IpcChannel.PlanLimitsGet, () => planLimits.get())
+  ipcMain.handle(IpcChannel.PlanLimitsRefresh, () => planLimits.refreshAll())
   ipcMain.handle(IpcChannel.TokenSpendGet, () => tokenSpend.summary())
 
   ipcMain.on(IpcChannel.SettingsGet, (event) => {

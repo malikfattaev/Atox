@@ -239,6 +239,8 @@ export interface AtoxApi {
     /** Последние известные лимиты подписки агентов. */
     get(): Promise<PlanLimitsState>
     subscribe(listener: (state: PlanLimitsState) => void): () => void
+    /** Принудительно перечитать лимиты у всех агентов — например, после смены аккаунта. */
+    refresh(): Promise<void>
   }
   tokenSpend: {
     /** Сколько токенов потратили агенты: сегодня и за всё время. */
@@ -328,6 +330,7 @@ export const IpcChannel = {
   SystemBadgeCount: 'system:badge-count',
   AppCommand: 'app:command',
   PlanLimitsGet: 'plan-limits:get',
+  PlanLimitsRefresh: 'plan-limits:refresh',
   PlanLimitsChanged: 'plan-limits:changed',
   TokenSpendGet: 'token-spend:get',
   TokenSpendChanged: 'token-spend:changed',

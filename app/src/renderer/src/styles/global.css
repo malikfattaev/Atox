@@ -4216,3 +4216,29 @@ ul {
   font-size: var(--font-size-small);
   color: var(--color-text-muted);
 }
+
+.usage-page__header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings__button--secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-hover);
+  border: 1px solid var(--color-border);
+}
+
+.settings__button--secondary .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.usage-page__spin {
+  animation: usage-page__spin 0.8s linear infinite;
+}
+
+@keyframes usage-page__spin {
+  to { transform: rotate(360deg); }
+}

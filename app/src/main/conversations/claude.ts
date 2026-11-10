@@ -536,7 +536,10 @@ class ClaudeSession implements AgentSession {
     // Вход может занять минуты: чат уже свободен, а запись обновится, когда всё закончится.
     void controls
       .claudeOAuthWaitForCompletion()
-      .then(() => this.showCommandOutput('Signed in to Claude.', id))
+      .then(() => {
+        this.options.onAccountChanged()
+        this.showCommandOutput('Signed in to Claude.', id)
+      })
       .catch((error) => this.showCommandOutput(`Sign-in failed. ${errorMessage(error)}`, id))
   }
 
