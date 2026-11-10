@@ -79,6 +79,12 @@
         "out/**/*",
         "!node_modules/node-pty/build/**",
         "!node_modules/node-pty/prebuilds/win32-*/**"
+      ],
+      "extraResources": [
+        {
+          "from": "node_modules/@anthropic-ai/claude-agent-sdk-darwin-${arch}/claude",
+          "to": "claude-cli/claude"
+        }
       ]
     },
     "linux": {
@@ -98,6 +104,12 @@
         "!node_modules/node-pty/build/Release/.deps/**",
         "!node_modules/node-pty/build/**/*.{mk,Makefile,gypi}",
         "!node_modules/node-pty/build/{Makefile,config.gypi,node_gyp_bins}"
+      ],
+      "extraResources": [
+        {
+          "from": "node_modules/@anthropic-ai/claude-agent-sdk-linux-${arch}/claude",
+          "to": "claude-cli/claude"
+        }
       ]
     },
     "pacman": {
