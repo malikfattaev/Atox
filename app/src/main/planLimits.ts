@@ -19,6 +19,12 @@ const REFRESH_INTERVAL_MS = 10 * 60 * 1000
  */
 const RETRY_INTERVAL_MS = 60 * 1000
 
+/**
+ * Сколько раз подряд пробовать часто. Пустой ответ бывает и постоянным — агент работает по
+ * ключу API или не установлен вход, — и запускать его процесс каждую минуту вечно незачем.
+ */
+const FAST_RETRIES = 5
+
 /** Лимиты свежее этого не перечитываются: ни по таймеру, ни при возвращении в окно. */
 const FRESH_MS = 2 * 60 * 1000
 
@@ -45,8 +51,12 @@ export interface PlanLimitsSources {
  */
 export class PlanLimitsMonitor {
   private readonly reading = new Set<AgentId>()
-  /** Агенты, чей прошлый ответ был пустой или с ошибкой: их перечитываем чаще. */
-  private readonly failed = new Set<AgentId>()
+  /** Сколько раз подряд агент ответил пусто или ошибкой: первые разы его перечитываем чаще. */
+  private readonly misses = new Map<AgentId, number>()
+  /** Когда агента спрашивали в последний раз — удачно или нет. */
+  private readonly attemptedAt = new Map<AgentId, number>()
+  /** Последняя записанная в лог ошибка агента: одна и та же беда не пишется каждую минуту. */
+  private readonly loggedErrors = new Map<AgentId, string>()
   private timer: ReturnType<typeof setTimeout> | null = null
 
   private constructor(
@@ -89,9 +99,10 @@ export class PlanLimitsMonitor {
   report(agent: AgentId, limits: PlanLimit[]): void {
     this.state = { ...this.state, [agent]: { limits, updatedAt: Date.now() } }
     if (limits.length === 0) {
-      this.failed.add(agent)
+      this.miss(agent)
     } else {
-      this.failed.delete(agent)
+      this.misses.delete(agent)
+      this.loggedErrors.delete(agent)
     }
     this.file.write({ version: STATE_VERSION, state: this.state } satisfies PlanLimitsFile)
     this.sources.onChange(this.state)
@@ -106,6 +117,8 @@ export class PlanLimitsMonitor {
   /** Перечитывает лимиты, даже если они ещё свежие — после `/login` или кнопки «Refresh». */
   async refreshAll(): Promise<void> {
     const agents = await this.sources.installed().catch(() => [])
+    // Аккаунт мог смениться: частые попытки начинаются заново.
+    this.misses.clear()
     await Promise.all(
       agents.filter((agent) => !this.reading.has(agent)).map((agent) => this.read(agent))
     )
@@ -121,7 +134,8 @@ export class PlanLimitsMonitor {
         if (this.timer) {
           // Если какие-то агенты не ответили лимитами, перечитываем их чаще — вход в аккаунт
           // мог ещё не завершиться.
-          this.schedule(this.failed.size > 0 ? RETRY_INTERVAL_MS : REFRESH_INTERVAL_MS)
+          const retrying = [...this.misses.keys()].some((agent) => this.retriesSoon(agent))
+          this.schedule(retrying ? RETRY_INTERVAL_MS : REFRESH_INTERVAL_MS)
         }
       })
     }, delay)
@@ -131,23 +145,36 @@ export class PlanLimitsMonitor {
     if (this.reading.has(agent)) {
       return false
     }
-    const known = this.state[agent]
-    if (!known) {
-      return true
-    }
+    // Неудачная попытка тоже считается: иначе агента, который не отвечает, спрашивали бы
+    // при каждом возвращении в окно.
+    const last = Math.max(this.state[agent]?.updatedAt ?? 0, this.attemptedAt.get(agent) ?? 0)
     // Пустой ответ устаревает быстрее: агент только что мог войти в аккаунт.
-    const fresh = this.failed.has(agent) ? RETRY_INTERVAL_MS : FRESH_MS
-    return Date.now() - known.updatedAt >= fresh
+    const fresh = this.retriesSoon(agent) ? RETRY_INTERVAL_MS : FRESH_MS
+    return Date.now() - last >= fresh
+  }
+
+  private miss(agent: AgentId): void {
+    this.misses.set(agent, (this.misses.get(agent) ?? 0) + 1)
+  }
+
+  private retriesSoon(agent: AgentId): boolean {
+    const misses = this.misses.get(agent) ?? 0
+    return misses > 0 && misses <= FAST_RETRIES
   }
 
   private async read(agent: AgentId): Promise<void> {
     this.reading.add(agent)
+    this.attemptedAt.set(agent, Date.now())
     try {
       this.report(agent, await this.sources.read(agent))
     } catch (error) {
       // Агент не вошёл в аккаунт или недоступен: индикатор показывает последние известные лимиты.
-      this.failed.add(agent)
-      await this.log(`Failed to read ${agent} plan limits: ${errorText(error)}`)
+      this.miss(agent)
+      const text = errorText(error)
+      if (this.loggedErrors.get(agent) !== text) {
+        this.loggedErrors.set(agent, text)
+        await this.log(`Failed to read ${agent} plan limits: ${text}`)
+      }
     } finally {
       this.reading.delete(agent)
     }
