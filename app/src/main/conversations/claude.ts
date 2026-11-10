@@ -140,6 +140,18 @@ function launchOptions({ executable, env, cwd }: AgentLaunch): Options {
   }
 }
 
+/**
+ * Для служебных запросов (лимиты, контекст, списки моделей и команд) используется Claude Code,
+ * который SDK приносит с собой. Установленный пользователем `claude` отвечает за чаты, но может
+ * быть старее SDK и не понимать новые служебные запросы — например, `get_usage`, из которого
+ * берутся лимиты подписки.
+ */
+function serviceLaunchOptions(launch: AgentLaunch): Options {
+  const { pathToClaudeCodeExecutable, ...rest } = launchOptions(launch)
+  void pathToClaudeCodeExecutable
+  return rest
+}
+
 export const claudeDriver: AgentDriver = {
   agent: 'claude',
 
@@ -347,7 +359,7 @@ async function withIdleSession<T>(
   const input = new AsyncQueue<SDKUserMessage>()
   const session = query({
     prompt: input,
-    options: { ...launchOptions(launch), ...(sessionId && { resume: sessionId }) }
+    options: { ...serviceLaunchOptions(launch), ...(sessionId && { resume: sessionId }) }
   })
   try {
     return await withTimeout(read(session))
