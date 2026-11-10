@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os'
 import { basename, delimiter, join } from 'node:path'
-import { app, BrowserWindow, shell as electronShell } from 'electron'
+import { app, BrowserWindow, nativeTheme, shell as electronShell } from 'electron'
 import { AgentDetector } from './agents'
 import { WorkingTreeReader } from './changes'
 import { claudeDriver } from './conversations/claude'
@@ -77,6 +77,11 @@ async function bootstrap(): Promise<void> {
   const userData = app.getPath('userData')
   const store = await ProjectStore.load(join(userData, STORE_FILE_NAME))
   const settings = await SettingsStore.load(join(userData, SETTINGS_FILE_NAME))
+  // Тема окна: `prefers-color-scheme` в окне и системный vibrancy следуют за ней.
+  nativeTheme.themeSource = settings.get().theme
+  settings.onChange(({ theme }) => {
+    nativeTheme.themeSource = theme
+  })
   const tokenSpend = await TokenSpendLedger.load(join(userData, TOKEN_SPEND_FILE_NAME))
   tokenSpend.onChange(broadcastTokenSpend)
   const transcripts = await TranscriptStore.open(join(userData, TRANSCRIPTS_DIRECTORY_NAME))

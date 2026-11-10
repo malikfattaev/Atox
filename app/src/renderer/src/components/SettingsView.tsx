@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import {
   Archive,
   ChartNoAxesColumn,
+  Monitor,
+  Moon,
   Plug,
   Puzzle,
   SlidersHorizontal,
   Sparkles,
+  Sun,
   X,
   type LucideIcon
 } from 'lucide-react'
@@ -13,7 +16,7 @@ import { isIntegrationKind, type IntegrationKind } from '../../../shared/integra
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { useUserProfile } from '../hooks/useUserProfile'
-import { PROFILE_NAME_MAX_LENGTH } from '../../../shared/settings'
+import { ACCENTS, PROFILE_NAME_MAX_LENGTH, type ThemeMode } from '../../../shared/settings'
 import { useIntegrationLists } from '../hooks/useIntegrationLists'
 import { playChime } from '../lib/chime'
 import { AgentIntegrations } from './AgentIntegrations'
@@ -36,12 +39,18 @@ const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: Lucide
   { id: 'mcp', label: 'MCP', icon: Plug }
 ]
 
+const THEME_OPTIONS: ReadonlyArray<{ id: ThemeMode; label: string; icon: LucideIcon }> = [
+  { id: 'system', label: 'System', icon: Monitor },
+  { id: 'light', label: 'Light', icon: Sun },
+  { id: 'dark', label: 'Dark', icon: Moon }
+]
+
 interface SettingsViewProps {
   onClose(): void
 }
 
 export function SettingsView({ onClose }: SettingsViewProps) {
-  const { shareUsageStats, playSounds, profileName } = useSettings()
+  const { shareUsageStats, playSounds, profileName, theme, accent } = useSettings()
   const profile = useUserProfile()
   const { projects, currentProjectId } = useProjectsContext()
   const project = projects.find(({ id }) => id === currentProjectId) ?? null
@@ -111,6 +120,52 @@ export function SettingsView({ onClose }: SettingsViewProps) {
                   onChange={(event) => void atox.settings.update({ profileName: event.target.value })}
                 />
               </label>
+              <div className="settings__row">
+                <span className="settings__label">
+                  <span>Appearance</span>
+                  <span className="settings__description">
+                    Follow the system or always use a light or dark window.
+                  </span>
+                </span>
+                <div className="segmented" role="radiogroup" aria-label="Appearance">
+                  {THEME_OPTIONS.map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={theme === id}
+                      className="segmented__item"
+                      onClick={() => void atox.settings.update({ theme: id })}
+                    >
+                      <Icon className="segmented__icon" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="settings__row">
+                <span className="settings__label">
+                  <span>Accent color</span>
+                  <span className="settings__description">
+                    Used for selections, switches and buttons.
+                  </span>
+                </span>
+                <div className="accent-swatches" role="radiogroup" aria-label="Accent color">
+                  {ACCENTS.map(({ id, name }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={accent === id}
+                      aria-label={name}
+                      title={name}
+                      data-accent={id}
+                      className="accent-swatch"
+                      onClick={() => void atox.settings.update({ accent: id })}
+                    />
+                  ))}
+                </div>
+              </div>
               <UpdateSettings />
               <label className="settings__row">
                 <span className="settings__label">

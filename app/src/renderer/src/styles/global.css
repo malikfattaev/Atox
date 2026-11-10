@@ -240,6 +240,45 @@
   }
 }
 
+/*
+ * Акцентные цвета, выбираемые в настройках: `light-dark()` берёт первый оттенок в светлой теме,
+ * второй — в тёмной. Пастельные, но светлая версия темнее: на ней читается белый текст кнопок,
+ * а на светлой версии тёмной темы — тёмный. Синий — системный, он задан выше.
+ */
+:root[data-accent='periwinkle'],
+.accent-swatch[data-accent='periwinkle'] {
+  --accent-pick: light-dark(#6f78e0, #9aa2f7);
+}
+:root[data-accent='lavender'],
+.accent-swatch[data-accent='lavender'] {
+  --accent-pick: light-dark(#9468d8, #bb9cf5);
+}
+:root[data-accent='rose'],
+.accent-swatch[data-accent='rose'] {
+  --accent-pick: light-dark(#d4608a, #f29cbb);
+}
+:root[data-accent='peach'],
+.accent-swatch[data-accent='peach'] {
+  --accent-pick: light-dark(#d9703f, #f5a77f);
+}
+:root[data-accent='sage'],
+.accent-swatch[data-accent='sage'] {
+  --accent-pick: light-dark(#4f9a79, #86cfaa);
+}
+:root[data-accent='mint'],
+.accent-swatch[data-accent='mint'] {
+  --accent-pick: light-dark(#3f9aa6, #78cdd6);
+}
+.accent-swatch[data-accent='blue'] {
+  --accent-pick: light-dark(#007aff, #0a84ff);
+}
+
+:root[data-accent]:not([data-accent='blue']) {
+  --color-accent: var(--accent-pick);
+  --color-on-accent: light-dark(#ffffff, #17171c);
+  --color-selection: color-mix(in srgb, var(--accent-pick) 28%, transparent);
+}
+
 *,
 *::before,
 *::after {
@@ -4241,4 +4280,30 @@ ul {
 
 @keyframes usage-page__spin {
   to { transform: rotate(360deg); }
+}
+
+.accent-swatches {
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.accent-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-pick);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.12s ease;
+}
+
+.accent-swatch[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--color-surface),
+    0 0 0 4px var(--accent-pick);
+}
+
+.accent-swatch:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 3px;
 }

@@ -1,7 +1,10 @@
 import { AGENTS, DEFAULT_AGENT_ID, isAgentId } from '../shared/agents'
 import {
   clampWidth,
+  DEFAULT_ACCENT,
   DEFAULT_SETTINGS,
+  isAccentId,
+  isThemeMode,
   SIDEBAR_WIDTH,
   TERMINAL_WIDTH,
   PROFILE_NAME_MAX_LENGTH,
@@ -76,7 +79,9 @@ function normalize(settings: Settings): Settings {
     profileName:
       typeof settings.profileName === 'string'
         ? settings.profileName.slice(0, PROFILE_NAME_MAX_LENGTH)
-        : ''
+        : '',
+    theme: isThemeMode(settings.theme) ? settings.theme : 'system',
+    accent: isAccentId(settings.accent) ? settings.accent : DEFAULT_ACCENT
   }
 }
 
