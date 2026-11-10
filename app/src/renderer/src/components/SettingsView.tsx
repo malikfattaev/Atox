@@ -93,78 +93,65 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       {section === 'general' ? (
         <>
           <div className="settings__group">
-            <section className="settings__subgroup" aria-label="Profile">
-              <h3 className="settings__subgroup-title">Profile</h3>
-              <div className="settings__card">
-                <label className="settings__row">
-                  <span className="settings__label">
-                    <span>Name</span>
-                    <span className="settings__description">
-                      Shown in the sidebar. Leave empty to use your git or Mac name.
-                    </span>
+            <div className="settings__card">
+              <label className="settings__row">
+                <span className="settings__label">
+                  <span>Name</span>
+                  <span className="settings__description">
+                    Shown in the sidebar. Leave empty to use your git or Mac name.
                   </span>
-                  <input
-                    type="text"
-                    className="settings__text-input"
-                    value={profileName}
-                    maxLength={PROFILE_NAME_MAX_LENGTH}
-                    placeholder={profile?.name}
-                    spellCheck={false}
-                    onChange={(event) => void atox.settings.update({ profileName: event.target.value })}
-                  />
-                </label>
-              </div>
-            </section>
-            <UpdateSettings />
-            <section className="settings__subgroup" aria-label="Notifications">
-              <h3 className="settings__subgroup-title">Notifications</h3>
-              <div className="settings__card">
-                <label className="settings__row">
-                  <span className="settings__label">
-                    <span>Play sounds</span>
-                    <span className="settings__description">
-                      A soft chime when an agent finishes or needs you.
-                    </span>
+                </span>
+                <input
+                  type="text"
+                  className="settings__text-input"
+                  value={profileName}
+                  maxLength={PROFILE_NAME_MAX_LENGTH}
+                  placeholder={profile?.name}
+                  spellCheck={false}
+                  onChange={(event) => void atox.settings.update({ profileName: event.target.value })}
+                />
+              </label>
+              <UpdateSettings />
+              <label className="settings__row">
+                <span className="settings__label">
+                  <span>Play sounds</span>
+                  <span className="settings__description">
+                    A soft chime when an agent finishes or needs you.
                   </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className="switch"
-                    checked={playSounds}
-                    onChange={(event) => {
-                      const enabled = event.target.checked
-                      // Включённый звук сразу проигрывается: так слышно, каким он будет.
-                      if (enabled) {
-                        playChime('done')
-                      }
-                      void atox.settings.update({ playSounds: enabled })
-                    }}
-                  />
-                </label>
-              </div>
-            </section>
-            <section className="settings__subgroup" aria-label="Privacy">
-              <h3 className="settings__subgroup-title">Privacy</h3>
-              <div className="settings__card">
-                <label className="settings__row">
-                  <span className="settings__label">
-                    <span>Share anonymous usage stats</span>
-                    <span className="settings__description">
-                      Only app version and OS, once a day. No projects, chats or personal data.
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className="switch"
-                    checked={shareUsageStats}
-                    onChange={(event) =>
-                      void atox.settings.update({ shareUsageStats: event.target.checked })
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="switch"
+                  checked={playSounds}
+                  onChange={(event) => {
+                    const enabled = event.target.checked
+                    // Включённый звук сразу проигрывается: так слышно, каким он будет.
+                    if (enabled) {
+                      playChime('done')
                     }
-                  />
-                </label>
-              </div>
-            </section>
+                    void atox.settings.update({ playSounds: enabled })
+                  }}
+                />
+              </label>
+              <label className="settings__row">
+                <span className="settings__label">
+                  <span>Share anonymous usage stats</span>
+                  <span className="settings__description">
+                    Only app version and OS, once a day. No projects, chats or personal data.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="switch"
+                  checked={shareUsageStats}
+                  onChange={(event) =>
+                    void atox.settings.update({ shareUsageStats: event.target.checked })
+                  }
+                />
+              </label>
+            </div>
           </div>
 
           <div className="settings__group">
