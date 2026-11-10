@@ -43,6 +43,8 @@ const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
 const USAGE_STATS_FILE_NAME = 'usage-stats.json'
 const TOKEN_SPEND_FILE_NAME = 'token-spend.json'
+const PLAN_LIMITS_FILE_NAME = 'plan-limits.json'
+const PLAN_LIMITS_LOG_NAME = 'plan-limits.log'
 /** Каталог с лентами чатов: у каждого чата свой файл. */
 const TRANSCRIPTS_DIRECTORY_NAME = 'conversations'
 
@@ -115,13 +117,18 @@ async function bootstrap(): Promise<void> {
       if (URL.canParse(url) && EXTERNAL_LINK_PROTOCOLS.has(new URL(url).protocol)) {
         void electronShell.openExternal(url)
       }
-    }
+    },
+    onAccountChanged: () => void planLimits.refreshAll()
   })
-  const planLimits = new PlanLimitsMonitor({
-    installed: () => agents.list(),
-    read: (agent) => conversations.planLimits(agent),
-    onChange: broadcastPlanLimits
-  })
+  const planLimits = await PlanLimitsMonitor.load(
+    {
+      installed: () => agents.list(),
+      read: (agent) => conversations.planLimits(agent),
+      onChange: broadcastPlanLimits
+    },
+    join(userData, PLAN_LIMITS_FILE_NAME),
+    join(userData, PLAN_LIMITS_LOG_NAME)
+  )
   const terminals = new TerminalManager(app.getName(), {
     onData: broadcastTerminalData,
     onExit: broadcastTerminalExit
@@ -203,8 +210,8 @@ async function bootstrap(): Promise<void> {
     conversations,
     terminals,
     stores: usageStats
-      ? [store, settings, conversations, tokenSpend, usageStats]
-      : [store, settings, conversations, tokenSpend]
+      ? [store, settings, conversations, tokenSpend, planLimits, usageStats]
+      : [store, settings, conversations, tokenSpend, planLimits]
   })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())

@@ -30,6 +30,8 @@ export interface SessionOptions extends AgentLaunch {
   selection?: Partial<ModelSelection>
   /** Открывает ссылку в браузере: например, вход в аккаунт по команде `/login`. */
   openLink(url: string): void
+  /** Агент только что вошёл в аккаунт: лимиты подписки нужно перечитать. */
+  onAccountChanged(): void
 }
 
 /** Что сессия сообщает о работе агента. */

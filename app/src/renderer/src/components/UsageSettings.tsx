@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { AGENTS, type AgentId } from '../../../shared/agents'
 import type { PlanLimit } from '../../../shared/conversation'
 import type { TokenCounts } from '../../../shared/tokenSpend'
@@ -8,6 +9,8 @@ import { formatTokens } from '../lib/conversationText'
 import { formatReset } from '../lib/planLimits'
 import { AgentIcon } from './AgentIcon'
 import { Meter } from './UsageCards'
+
+const { atox } = window
 
 const MINUTE_MS = 60 * 1000
 
@@ -23,6 +26,7 @@ function formatSince(day: string): string {
 export function UsageSettings() {
   const limits = usePlanLimits()
   const spend = useTokenSpend()
+  const [refreshing, setRefreshing] = useState(false)
   // Отсчёт до сброса обновляется раз в минуту, как и в сайдбаре.
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
@@ -30,8 +34,29 @@ export function UsageSettings() {
     return () => clearInterval(timer)
   }, [])
 
+  const refresh = async () => {
+    setRefreshing(true)
+    try {
+      await atox.planLimits.refresh()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   return (
     <div className="settings__group usage-page">
+      <div className="usage-page__header">
+        <button
+          type="button"
+          className="settings__button settings__button--secondary"
+          onClick={refresh}
+          disabled={refreshing}
+          title="Re-read plan limits — use this after signing into a different account."
+        >
+          <RefreshCw className={`icon${refreshing ? ' usage-page__spin' : ''}`} />
+          Refresh limits
+        </button>
+      </div>
       {AGENTS.map(({ id, name }) => (
         <AgentUsage
           key={id}

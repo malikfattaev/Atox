@@ -222,7 +222,8 @@ const api: AtoxApi = {
         listener(state)
       ipcRenderer.on(IpcChannel.PlanLimitsChanged, handler)
       return () => ipcRenderer.removeListener(IpcChannel.PlanLimitsChanged, handler)
-    }
+    },
+    refresh: () => ipcRenderer.invoke(IpcChannel.PlanLimitsRefresh)
   },
   tokenSpend: {
     get: () => ipcRenderer.invoke(IpcChannel.TokenSpendGet),
