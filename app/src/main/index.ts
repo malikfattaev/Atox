@@ -13,6 +13,7 @@ import { handleImageProtocol, registerImageScheme } from './imageProtocol'
 import {
   broadcastGitBranches,
   broadcastConversationEvent,
+  broadcastAgentListsStale,
   broadcastPlanLimits,
   broadcastTokenSpend,
   broadcastProjectsChanged,
@@ -118,6 +119,7 @@ async function bootstrap(): Promise<void> {
         void electronShell.openExternal(url)
       }
     },
+    onAgentListsStale: broadcastAgentListsStale,
     onAccountChanged: () => void planLimits.refreshAll()
   })
   const planLimits = await PlanLimitsMonitor.load(

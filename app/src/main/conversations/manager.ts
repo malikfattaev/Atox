@@ -139,6 +139,8 @@ export interface ConversationServices {
   openLink(url: string): void
   /** Агент только что сменил аккаунт: обновлённые лимиты нужно показать сразу. */
   onAccountChanged(agent: AgentId): void
+  /** Списки моделей и команд агента устарели: окну нужно спросить их заново. */
+  onAgentListsStale(agent: AgentId): void
 }
 
 /**
@@ -751,7 +753,14 @@ export class ConversationManager {
       {
         ...launch,
         openLink: (url) => this.services.openLink(url),
-        onAccountChanged: () => this.services.onAccountChanged(agent),
+        onAccountChanged: () => {
+          // Модели и команды зависят от аккаунта: до входа Claude Code отдаёт урезанный список,
+          // и его нельзя держать в памяти после входа.
+          this.catalogs.clear()
+          this.commandLists.clear()
+          this.services.onAgentListsStale(agent)
+          this.services.onAccountChanged(agent)
+        },
         ...(resumedId && { sessionId: resumedId }),
         selection: {
           ...(sameAgent && chat.model && { model: chat.model }),

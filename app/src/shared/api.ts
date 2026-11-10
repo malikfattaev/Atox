@@ -88,6 +88,8 @@ export interface AtoxApi {
     available(): Promise<AgentId[]>
     /** Модели агента; `null` — агент не установлен или не ответил. */
     catalog(agent: AgentId): Promise<AgentCatalog | null>
+    /** Списки моделей агента устарели — например, после входа в другой аккаунт. */
+    subscribeListsStale(listener: (agent: AgentId) => void): () => void
     /**
      * Плагины, скиллы или серверы MCP агента — вместе с проектными у `projectId`. Ответ бывает
      * долгим: агент запускается, а серверы MCP успевают подключиться.
@@ -332,6 +334,7 @@ export const IpcChannel = {
   PlanLimitsGet: 'plan-limits:get',
   PlanLimitsRefresh: 'plan-limits:refresh',
   PlanLimitsChanged: 'plan-limits:changed',
+  AgentsListsStale: 'agents:lists-stale',
   TokenSpendGet: 'token-spend:get',
   TokenSpendChanged: 'token-spend:changed',
   SettingsGet: 'settings:get',

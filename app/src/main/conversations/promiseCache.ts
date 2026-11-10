@@ -12,6 +12,11 @@ export class PromiseCache<Key, Value> {
 
   constructor(private readonly ttlMs: number) {}
 
+  /** Забывает все ответы: следующий вопрос спросит заново. */
+  clear(): void {
+    this.entries.clear()
+  }
+
   get(key: Key, load: () => Promise<Value>): Promise<Value> {
     const cached = this.entries.get(key)
     if (cached && cached.expiresAt > Date.now()) {
