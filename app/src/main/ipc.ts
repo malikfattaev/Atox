@@ -28,7 +28,7 @@ import { findAgent, isAgentId, type AgentId } from '../shared/agents'
 import type { AgentDetector } from './agents'
 import type { WorkingTreeReader } from './changes'
 import type { ConversationManager } from './conversations/manager'
-import { confirm, describeWorkingAgents } from './dialogs'
+import { confirm, describeWorkingAgents, inform } from './dialogs'
 import type { GitBranchTracker } from './gitBranches'
 import type { SettingsStore } from './settings'
 import type { ProjectStore } from './store'
@@ -93,6 +93,19 @@ export function registerIpcHandlers({
     const [path] = result.filePaths
     if (result.canceled || !path) {
       return null
+    }
+    const existing = store.list().find((project) => project.path === path)
+    if (existing) {
+      // Папка уже добавлена: без объяснения казалось бы, что кнопка ничего не сделала.
+      const space = store.findSpace(existing.spaceId)
+      await inform(window ?? null, {
+        type: 'info',
+        message: `“${existing.name}” is already in Atox`,
+        detail: space
+          ? `This folder is already a project in the “${space.name}” space, so it was not added again.`
+          : 'This folder is already a project, so it was not added again.'
+      })
+      return { projects: store.list(), projectId: existing.id }
     }
     const project = store.addProject(path, spaceId)
     trackProjectBranches()
