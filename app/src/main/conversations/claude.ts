@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { extname } from 'node:path'
+import { extname, join } from 'node:path'
+import { app } from 'electron'
 import {
   query,
   type CanUseTool,
@@ -128,11 +130,37 @@ function parseLocalCommand(text: string): LocalCommand | null {
   return name === '/login' && rest.length === 0 ? { name: 'login' } : null
 }
 
-function launchOptions({ executable, env, cwd }: AgentLaunch): Options {
+/**
+ * Claude Code, который Atox принёс с собой: он той же версии, что и SDK, и понимает служебные
+ * запросы вроде лимитов подписки (`get_usage`). У пользователя может стоять более старая версия,
+ * где этих запросов ещё нет, — тогда лимитов не видно и список моделей урезан. `null` — бандл
+ * не нашёлся: это бывает на платформах, для которых SDK не кладёт native-бинарь.
+ */
+function bundledClaudeExecutable(): string | null {
+  const platform = `${process.platform}-${process.arch}`
+  if (app.isPackaged) {
+    const packaged = join(process.resourcesPath, 'claude-cli', 'claude')
+    return existsSync(packaged) ? packaged : null
+  }
+  try {
+    // В разработке берём бинарь прямо из `node_modules` — так же, как electron-builder в сборке.
+    return require.resolve(`@anthropic-ai/claude-agent-sdk-${platform}/claude`)
+  } catch {
+    return null
+  }
+}
+
+/** Путь к Claude Code, который используется для сессий Atox: сначала наш бандл, потом системный. */
+function claudeExecutablePath(launch: AgentLaunch): string {
+  return bundledClaudeExecutable() ?? launch.executable
+}
+
+function launchOptions(launch: AgentLaunch): Options {
+  const { env, cwd } = launch
   return {
     cwd,
     env,
-    pathToClaudeCodeExecutable: executable,
+    pathToClaudeCodeExecutable: claudeExecutablePath(launch),
     // Те же настройки, CLAUDE.md, навыки и хуки, что у Claude Code в терминале.
     settingSources: ['user', 'project', 'local'],
     systemPrompt: { type: 'preset', preset: 'claude_code', append: ATOX_DELEGATION_PROMPT },
