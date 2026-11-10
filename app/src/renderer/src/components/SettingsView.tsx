@@ -26,11 +26,11 @@ const { atox } = window
 
 type SettingsSection = 'general' | 'usage' | IntegrationKind | 'archived'
 
-/** Разделы настроек: общие, архив чатов, расход токенов и то, чем пользуются агенты, — по одному списку на вид. */
+/** Разделы настроек: общие, расход токенов, архив чатов и то, чем пользуются агенты, — по одному списку на вид. */
 const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: LucideIcon }> = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
-  { id: 'archived', label: 'Archive', icon: Archive },
   { id: 'usage', label: 'Usage', icon: ChartNoAxesColumn },
+  { id: 'archived', label: 'Archive', icon: Archive },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'mcp', label: 'MCP', icon: Plug }
