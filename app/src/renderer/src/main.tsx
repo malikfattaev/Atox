@@ -13,6 +13,12 @@ if (!container) {
 
 // Оформление окна различается: на macOS — прозрачный сайдбар и кнопки окна в нём.
 document.documentElement.dataset['platform'] = IS_MAC ? 'mac' : 'linux'
+// Акцентный цвет задаётся до первой отрисовки, чтобы не мигать синим.
+const applyAccent = ({ accent }: { accent: string }) => {
+  document.documentElement.dataset['accent'] = accent
+}
+applyAccent(window.atox.settings.get())
+window.atox.settings.subscribe(applyAccent)
 trackWindowFocus()
 
 createRoot(container).render(

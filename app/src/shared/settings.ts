@@ -2,6 +2,35 @@ import { DEFAULT_AGENT_ID, type AgentId } from './agents'
 import type { ModelSelection } from './conversation'
 import type { ShortcutOverrides } from './shortcuts'
 
+/** Тема окна: следовать системной или всегда светлая или тёмная. */
+export const THEME_MODES = ['system', 'light', 'dark'] as const
+export type ThemeMode = (typeof THEME_MODES)[number]
+
+/**
+ * Акцентные цвета интерфейса. Сами цвета — в стилях (`--color-accent` по `data-accent`): у каждого
+ * два оттенка, для светлой и тёмной темы. `blue` — системный синий, как было до выбора цвета.
+ */
+export const ACCENTS = [
+  { id: 'blue', name: 'Blue' },
+  { id: 'periwinkle', name: 'Periwinkle' },
+  { id: 'lavender', name: 'Lavender' },
+  { id: 'rose', name: 'Rose' },
+  { id: 'peach', name: 'Peach' },
+  { id: 'sage', name: 'Sage' },
+  { id: 'mint', name: 'Mint' }
+] as const
+export type AccentId = (typeof ACCENTS)[number]['id']
+
+export const DEFAULT_ACCENT: AccentId = 'blue'
+
+export function isAccentId(value: unknown): value is AccentId {
+  return ACCENTS.some(({ id }) => id === value)
+}
+
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return THEME_MODES.some((mode) => mode === value)
+}
+
 export interface Settings {
   /** Агент нового чата по ⌘N; меняется на последний выбранный. */
   defaultAgent: AgentId
@@ -22,6 +51,10 @@ export interface Settings {
   playSounds: boolean
   /** Имя в профиле сайдбара, которое человек ввёл сам; пусто — имя берётся из git или macOS. */
   profileName: string
+  /** Тема окна. */
+  theme: ThemeMode
+  /** Акцентный цвет: выделения, переключатели, кнопки. */
+  accent: AccentId
 }
 
 /** Длиннее имя в таблетке профиля не помещается. */
@@ -56,7 +89,9 @@ export const DEFAULT_SETTINGS: Settings = {
   shortcuts: {},
   shareUsageStats: true,
   playSounds: false,
-  profileName: ''
+  profileName: '',
+  theme: 'system',
+  accent: DEFAULT_ACCENT
 }
 
 /** Приводит ширину панели к целому числу пикселей в её пределах. */
