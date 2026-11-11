@@ -143,26 +143,28 @@
   --font-size: 14px;
   --font-size-small: 12px;
 
-  --color-surface: #ffffff;
+  /* Светлая тема приглушённая: чисто белый фон на большом экране режет глаза. */
+  --color-surface: #f3f2f7;
   /* Фон окна там, где нет системного vibrancy (Linux); его же ставит main до отрисовки. */
-  --color-window: #f2f2f4;
-  --color-text: #1d1d1f;
-  --color-text-muted: #86868b;
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-hover: rgba(0, 0, 0, 0.05);
-  --color-active: rgba(0, 0, 0, 0.08);
+  --color-window: #e7e6ee;
+  --color-text: #2a2935;
+  --color-text-muted: #777586;
+  --color-border: rgba(50, 40, 100, 0.1);
+  --color-hover: rgba(50, 40, 100, 0.06);
+  --color-active: rgba(50, 40, 100, 0.09);
   --color-selection: rgba(0, 122, 255, 0.25);
   --color-accent: #007aff;
+  --color-accent-text: var(--color-accent);
   --color-on-accent: #ffffff;
-  --color-popover: rgba(246, 246, 246, 0.86);
+  --color-popover: rgba(243, 242, 248, 0.86);
   --color-popover-border: rgba(0, 0, 0, 0.12);
   --shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.18);
   --shadow-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.16),
     0 2px 6px rgba(0, 0, 0, 0.08);
-  --color-menu: #ffffff;
+  --color-menu: #f8f7fb;
   --color-menu-border: rgba(0, 0, 0, 0.1);
   --color-menu-highlight: rgba(0, 0, 0, 0.06);
-  --color-profile-card: rgba(255, 255, 255, 0.72);
+  --color-profile-card: rgba(250, 249, 253, 0.7);
   --color-profile-card-border: rgba(0, 0, 0, 0.06);
   --shadow-profile-card: 0 2px 10px rgba(0, 0, 0, 0.06);
   /* Подсветка поиска в терминале: xterm принимает только цвета в формате #RRGGBB. */
@@ -186,7 +188,7 @@
   /* Фон добавленных и удалённых строк diff. */
   --color-diff-added: rgba(26, 127, 55, 0.1);
   --color-diff-removed: rgba(207, 34, 46, 0.1);
-  --color-segment-selected: #ffffff;
+  --color-segment-selected: #fafafd;
   --shadow-segment-selected: 0 1px 2px rgba(0, 0, 0, 0.12);
 
   color-scheme: light dark;
@@ -241,42 +243,45 @@
 }
 
 /*
- * Акцентные цвета, выбираемые в настройках: `light-dark()` берёт первый оттенок в светлой теме,
- * второй — в тёмной. Пастельные, но светлая версия темнее: на ней читается белый текст кнопок,
- * а на светлой версии тёмной темы — тёмный. Синий — системный, он задан выше.
+ * Акцентные цвета, выбираемые в настройках. `light-dark()` берёт первый оттенок в светлой теме,
+ * второй — в тёмной. Заливки пастельные, поэтому текст на них тёмный; а там, где акцент сам
+ * текст или рамка (`--color-accent-text`), в светлой теме он темнее, иначе не читается.
+ * Значения выше `:root` — запасные, пока окно не прочитало настройку.
  */
+:root[data-accent='blue'],
+.accent-swatch[data-accent='blue'] {
+  --accent-pick: light-dark(#9fbff6, #8db6f7);
+}
 :root[data-accent='periwinkle'],
 .accent-swatch[data-accent='periwinkle'] {
-  --accent-pick: light-dark(#6f78e0, #9aa2f7);
+  --accent-pick: light-dark(#a3acf3, #9aa2f7);
 }
 :root[data-accent='lavender'],
 .accent-swatch[data-accent='lavender'] {
-  --accent-pick: light-dark(#9468d8, #bb9cf5);
+  --accent-pick: light-dark(#bda5ee, #bb9cf5);
 }
 :root[data-accent='rose'],
 .accent-swatch[data-accent='rose'] {
-  --accent-pick: light-dark(#d4608a, #f29cbb);
+  --accent-pick: light-dark(#f0a6bd, #f29cbb);
 }
 :root[data-accent='peach'],
 .accent-swatch[data-accent='peach'] {
-  --accent-pick: light-dark(#d9703f, #f5a77f);
+  --accent-pick: light-dark(#f3b08e, #f5a77f);
 }
 :root[data-accent='sage'],
 .accent-swatch[data-accent='sage'] {
-  --accent-pick: light-dark(#4f9a79, #86cfaa);
+  --accent-pick: light-dark(#98d0b1, #86cfaa);
 }
 :root[data-accent='mint'],
 .accent-swatch[data-accent='mint'] {
-  --accent-pick: light-dark(#3f9aa6, #78cdd6);
-}
-.accent-swatch[data-accent='blue'] {
-  --accent-pick: light-dark(#007aff, #0a84ff);
+  --accent-pick: light-dark(#8fd0d6, #78cdd6);
 }
 
-:root[data-accent]:not([data-accent='blue']) {
+:root[data-accent] {
   --color-accent: var(--accent-pick);
-  --color-on-accent: light-dark(#ffffff, #17171c);
-  --color-selection: color-mix(in srgb, var(--accent-pick) 28%, transparent);
+  --color-accent-text: light-dark(color-mix(in srgb, var(--accent-pick) 50%, #26243a), var(--accent-pick));
+  --color-on-accent: #26243a;
+  --color-selection: color-mix(in srgb, var(--accent-pick) 38%, transparent);
 }
 
 *,
@@ -555,7 +560,7 @@ ul {
   font: inherit;
   color: var(--color-text);
   background: var(--color-surface);
-  border: 1px solid var(--color-accent);
+  border: 1px solid var(--color-accent-text);
   border-radius: calc(var(--radius) - 2px);
   outline: none;
   user-select: text;
@@ -975,7 +980,7 @@ ul {
  */
 .update-button,
 .update-button:hover {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* Пока новая версия скачивается, на месте кнопки — кольцо, которое заполняется. */
@@ -1373,7 +1378,7 @@ ul {
 }
 
 .changed-file__kind[data-kind='renamed'] {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* Отмена появляется при наведении на месте буквы вида изменения. */
@@ -1552,7 +1557,7 @@ ul {
 
 .settings__text-input:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-text);
 }
 
 .settings__row--compact {
@@ -1823,7 +1828,8 @@ ul {
   width: calc(var(--switch-height) - 2 * var(--switch-knob-inset));
   height: calc(var(--switch-height) - 2 * var(--switch-knob-inset));
   border-radius: 50%;
-  background: var(--color-on-accent);
+  /* Ручка всегда белая: на пастельной заливке тёмная выглядит чужой. */
+  background: #ffffff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   transition: transform 0.15s ease;
 }
@@ -1868,7 +1874,7 @@ ul {
 .shortcut-keys--editable[data-recording='true'] {
   letter-spacing: normal;
   color: var(--color-text);
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-text);
   outline: none;
 }
 
@@ -2083,7 +2089,7 @@ ul {
 }
 
 .repository__search input:focus {
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-text);
 }
 
 .repository__search input::-webkit-search-cancel-button {
@@ -2122,7 +2128,7 @@ ul {
 .repository__more-button {
   padding: 0;
   font: inherit;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   background: none;
   border: 0;
   cursor: pointer;
@@ -2294,8 +2300,8 @@ ul {
 }
 
 .repo-badge--accent {
-  color: var(--color-accent);
-  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  color: var(--color-accent-text);
+  border-color: color-mix(in srgb, var(--color-accent-text) 40%, transparent);
 }
 
 .repo-badge[data-review='approved'] {
@@ -3157,7 +3163,7 @@ ul {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   overflow-wrap: anywhere;
 }
 
@@ -3239,7 +3245,7 @@ ul {
 
 .question__input:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: var(--color-accent-text);
 }
 
 /* Ответ агента */
@@ -3300,7 +3306,7 @@ ul {
 }
 
 .markdown a {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: none;
 }
 

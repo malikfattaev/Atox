@@ -8,7 +8,7 @@ export type ThemeMode = (typeof THEME_MODES)[number]
 
 /**
  * Акцентные цвета интерфейса. Сами цвета — в стилях (`--color-accent` по `data-accent`): у каждого
- * два оттенка, для светлой и тёмной темы. `blue` — системный синий, как было до выбора цвета.
+ * два оттенка, для светлой и тёмной темы. `blue` — выбран по умолчанию.
  */
 export const ACCENTS = [
   { id: 'blue', name: 'Blue' },
