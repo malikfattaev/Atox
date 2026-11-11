@@ -11,7 +11,7 @@ const WINDOW_SIZE = {
 } as const
 
 /** Фон окна на Linux до первой отрисовки — цвет сайдбара (`--color-window` в стилях). */
-const LINUX_BACKGROUND = { light: '#f2f2f4', dark: '#28282a' } as const
+const LINUX_BACKGROUND = { light: '#e7e6ee', dark: '#28282a' } as const
 
 /**
  * На macOS кнопки окна встроены в сайдбар, а под ним виден системный vibrancy. На Linux окно
