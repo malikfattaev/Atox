@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bot, FolderPlus, GitPullRequest, SquarePen } from 'lucide-react'
+import { Bot, FolderPlus, GitPullRequest, SquareKanban, SquarePen } from 'lucide-react'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
 import { useSettings } from '../hooks/SettingsContext'
@@ -26,18 +26,23 @@ interface SidebarProps {
   repositoryOpen: boolean
   /** Открыт обзор агентов. */
   agentsOpen: boolean
+  /** Открыта доска задач. */
+  boardOpen: boolean
   onOpenSettings(): void
   onToggleRepository(): void
   onToggleAgents(): void
+  onToggleBoard(): void
   onOpenRepository(projectId: string): void
 }
 
 export function Sidebar({
   repositoryOpen,
   agentsOpen,
+  boardOpen,
   onOpenSettings,
   onToggleRepository,
   onToggleAgents,
+  onToggleBoard,
   onOpenRepository
 }: SidebarProps) {
   const {
@@ -83,6 +88,7 @@ export function Sidebar({
           onClick={onToggleRepository}
         />
         <SidebarButton icon={Bot} label="Agents" active={agentsOpen} onClick={onToggleAgents} />
+        <SidebarButton icon={SquareKanban} label="Board" active={boardOpen} onClick={onToggleBoard} />
       </nav>
 
       <div className="sidebar__spaces">

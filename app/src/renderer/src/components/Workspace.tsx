@@ -5,6 +5,7 @@ import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useGitBranches } from '../hooks/useGitBranches'
 import type { TerminalPanelState } from '../hooks/useTerminalPanel'
 import { AgentsView } from './AgentsView'
+import { BoardView } from './BoardView'
 import { ChangesPanel } from './ChangesPanel'
 import { ChatView } from './ChatView'
 import { RepositoryView, type RepositorySection } from './RepositoryView'
@@ -19,6 +20,7 @@ import { WorkspaceToolbar } from './WorkspaceToolbar'
 export type WorkspacePage =
   | { kind: 'settings' }
   | { kind: 'agents' }
+  | { kind: 'board' }
   | { kind: 'repository'; projectId: string }
 
 interface WorkspaceProps {
@@ -69,7 +71,10 @@ export function Workspace({
   const repositoryProject =
     page?.kind === 'repository' ? projects.find(({ id }) => id === page.projectId) : undefined
   const pageOpen =
-    page?.kind === 'settings' || page?.kind === 'agents' || Boolean(repositoryProject)
+    page?.kind === 'settings' ||
+    page?.kind === 'agents' ||
+    page?.kind === 'board' ||
+    Boolean(repositoryProject)
   const isSplit = !pageOpen && visibleChatIds.length > 1
   // Терминалы убранных проектов main-процесс уже остановил.
   const terminalProjectIds = terminals.attachedProjectIds.filter((id) =>
@@ -187,6 +192,7 @@ export function Workspace({
       />
       {page?.kind === 'settings' && <SettingsView onClose={onClosePage} />}
       {page?.kind === 'agents' && <AgentsView onOpenChat={onOpenChat} onClose={onClosePage} />}
+      {page?.kind === 'board' && <BoardView onOpenChat={onOpenChat} onClose={onClosePage} />}
       {repositoryProject && (
         <RepositoryView
           // У каждого проекта свои фильтры и данные: при смене проекта страница начинается заново.

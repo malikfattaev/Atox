@@ -39,6 +39,10 @@ function Layout() {
     () => setPage((current) => (current?.kind === 'agents' ? null : { kind: 'agents' })),
     []
   )
+  const toggleBoard = useCallback(
+    () => setPage((current) => (current?.kind === 'board' ? null : { kind: 'board' })),
+    []
+  )
   // Выбранный в обзоре чат мог уже быть активным — тогда страница сама не закроется.
   const openChat = useCallback(
     (chatId: string) => {
@@ -104,9 +108,11 @@ function Layout() {
         <Sidebar
           repositoryOpen={page?.kind === 'repository'}
           agentsOpen={page?.kind === 'agents'}
+          boardOpen={page?.kind === 'board'}
           onOpenSettings={openSettings}
           onToggleRepository={toggleRepository}
           onToggleAgents={toggleAgents}
+          onToggleBoard={toggleBoard}
           onOpenRepository={openRepository}
         />
       )}
