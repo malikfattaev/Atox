@@ -47,6 +47,7 @@ const ISSUE_FIELDS = `
   state
   updatedAt
   author { login }
+  assignees(first: 10) { nodes { login } }
   labels(first: 10) { nodes { name color } }
   repository { nameWithOwner owner { login avatarUrl } }
 `
@@ -91,6 +92,7 @@ interface IssueNode {
   state: 'OPEN' | 'CLOSED'
   updatedAt: string
   author: { login: string } | null
+  assignees: { nodes: { login: string }[] }
   labels: { nodes: { name: string; color: string }[] }
   repository: { nameWithOwner: string; owner: { login: string; avatarUrl: string } }
 }
@@ -107,6 +109,7 @@ export interface GitHubIssue {
   state: 'open' | 'closed'
   labels: BoardLabel[]
   author: string | null
+  assignees: string[]
   updatedAt: number
 }
 
@@ -261,6 +264,7 @@ function toIssue(node: IssueNode): GitHubIssue {
     state: node.state === 'OPEN' ? 'open' : 'closed',
     labels: node.labels.nodes.map(({ name, color }) => ({ name, color: `#${color}` })),
     author: node.author?.login ?? null,
+    assignees: node.assignees.nodes.map(({ login }) => login),
     updatedAt: Date.parse(node.updatedAt)
   }
 }
