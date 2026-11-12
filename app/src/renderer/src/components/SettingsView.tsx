@@ -39,8 +39,8 @@ const SECTIONS: ReadonlyArray<{
 }> = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
   { id: 'usage', label: 'Usage', icon: ChartNoAxesColumn },
-  { id: 'github', label: 'GitHub', icon: GitHubMark },
   { id: 'archived', label: 'Archive', icon: Archive },
+  { id: 'github', label: 'GitHub', icon: GitHubMark },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'mcp', label: 'MCP', icon: Plug }
