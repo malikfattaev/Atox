@@ -196,7 +196,7 @@ async function bootstrap(): Promise<void> {
   )
   board = await BoardService.load(
     {
-      github: new BoardGitHub(shell, githubAccounts),
+      github: new BoardGitHub(githubAccounts),
       worktrees: new BoardWorktrees(shell),
       accounts: githubAccounts,
       store,
