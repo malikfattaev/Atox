@@ -63,8 +63,6 @@ export class BoardService {
   private error: string | null = null
   /** Задачи, агентов которых сейчас готовят: клонируют репозиторий, создают worktree. */
   private readonly starting = new Set<string>()
-  /** Последнее состояние, отправленное окну: то же самое ещё раз не отправляется. */
-  private sentState = ''
 
   private constructor(
     private readonly services: BoardServices,
@@ -475,12 +473,7 @@ export class BoardService {
   }
 
   private changed(): void {
-    const state = this.state()
-    const serialized = JSON.stringify(state)
-    if (serialized !== this.sentState) {
-      this.sentState = serialized
-      this.services.onChange(state)
-    }
+    this.services.onChange(this.state())
   }
 
   flush(): Promise<void> {
