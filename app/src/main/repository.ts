@@ -23,6 +23,7 @@ import {
   isNotRepositoryError,
   runCommand
 } from './processes'
+import type { GitHubAccounts } from './githubAccounts'
 import type { ShellEnvironment } from './shellEnvironment'
 
 /** Сколько коммитов загружать за раз: дальше список подгружается при прокрутке. */
@@ -144,16 +145,6 @@ const GATEWAY_ERROR = /\bHTTP 50[234]\b/
 /** Паузы перед повторами запроса к GitHub после ответа шлюза. */
 const GITHUB_RETRY_DELAYS_MS = [1_000, 3_000]
 
-/** Хост GitHub, токен которого gh берёт из `GH_TOKEN`. */
-const GITHUB_HOST = 'github.com'
-
-/** Учётная запись из `gh auth status --json hosts`. */
-interface GitHubAccount {
-  login: string
-  active: boolean
-  state: string
-}
-
 /** Автор удалённой учётной записи GitHub — вместо него GitHub отдаёт `null`. */
 const GHOST_AUTHOR = 'ghost'
 
@@ -212,7 +203,10 @@ export class RepositoryReader {
   /** Токен учётной записи gh, у которой есть доступ к репозиторию папки, если это не активная. */
   private readonly accessTokens = new Map<string, string>()
 
-  constructor(private readonly shell: ShellEnvironment) {}
+  constructor(
+    private readonly shell: ShellEnvironment,
+    private readonly accounts: GitHubAccounts
+  ) {}
 
   /** Коммиты текущей ветки — не меньше `loaded`, чтобы обновление не укоротило список. */
   async commits(path: string, loaded = 0): Promise<RepositoryResult<Listing<Commit>>> {
@@ -316,36 +310,14 @@ export class RepositoryReader {
     if (gitToken) {
       yield gitToken
     }
-    for (const account of await this.githubAccounts(path)) {
+    for (const account of await this.accounts.list()) {
       if (skipActive && account.active) {
         continue
       }
-      const token = await this.run(
-        'gh',
-        ['auth', 'token', '--hostname', GITHUB_HOST, '--user', account.login],
-        path
-      ).then(
-        (output) => output.trim(),
-        () => ''
-      )
+      const token = await this.accounts.token(account.login)
       if (token) {
         yield token
       }
-    }
-  }
-
-  /** Учётные записи github.com, в которые выполнен вход в gh; пусто, если gh их не сообщил. */
-  private async githubAccounts(path: string): Promise<GitHubAccount[]> {
-    try {
-      const output = await this.run(
-        'gh',
-        ['auth', 'status', '--hostname', GITHUB_HOST, '--json', 'hosts'],
-        path
-      )
-      const { hosts } = JSON.parse(output) as { hosts?: Record<string, GitHubAccount[]> }
-      return (hosts?.[GITHUB_HOST] ?? []).filter((account) => account.state === 'success')
-    } catch {
-      return []
     }
   }
 
