@@ -309,9 +309,15 @@ export class ProjectStore {
 
   /**
    * Создаёт чат помощника, которого запустил агент чата `parentChatId`: в той же папке,
-   * сразу под ним и его прежними помощниками. `title` — название, которое дал агент.
+   * сразу под ним и его прежними помощниками. `title` — название, которое дал агент,
+   * `selection` — модель и эффорт помощника.
    */
-  createWorkerChat(parentChatId: string, agent: AgentId, title?: string): ChatLocation {
+  createWorkerChat(
+    parentChatId: string,
+    agent: AgentId,
+    title?: string,
+    selection: Partial<ModelSelection> = {}
+  ): ChatLocation {
     const location = this.findChat(parentChatId)
     if (!location) {
       throw new Error(`Chat ${parentChatId} not found`)
@@ -320,6 +326,7 @@ export class ProjectStore {
     const trimmed = title?.trim()
     const chat: Chat = {
       ...newChat(project, agent),
+      ...selection,
       ...(trimmed && { title: trimmed, hasCustomTitle: true }),
       parentChatId
     }

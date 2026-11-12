@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
-import { findAgent, isAgentId } from '../../shared/agents'
+import { findAgent, isAgentId, type AgentId } from '../../shared/agents'
+import type { AgentCatalog, ModelSelection } from '../../shared/conversation'
 import type { Chat } from '../../shared/models'
 import {
   OrchestrationEnv,
@@ -37,6 +38,8 @@ interface OrchestrationServices {
   socketPath: string
   /** Путь к команде `atox`, которую получают агенты. */
   cliPath: string
+  /** Модель и эффорт, с которыми пользователь начинает новые чаты агента. */
+  modelSelection(agent: AgentId): Partial<ModelSelection>
   /** Список чатов изменился без участия окна — например, агент запустил помощника. */
   onProjectsChanged(): void
 }
@@ -161,18 +164,28 @@ export class OrchestrationServer {
       return installed.map((id) => ({ id, name: findAgent(id)?.name ?? id }))
     },
 
-    start: async (caller, { agent, task, title }) => {
+    models: async (_caller, { agent }) => {
+      const { defaultModel, models } = await this.catalog(await this.installedAgent(agent))
+      return {
+        defaultModel,
+        models: models.map(({ id, name, efforts, defaultEffort }) => ({
+          id,
+          name,
+          efforts,
+          ...(defaultEffort && { defaultEffort })
+        }))
+      }
+    },
+
+    start: async (caller, { agent, task, title, model, effort }) => {
       if (caller.chat.parentChatId) {
         throw new CommandError('A worker cannot start workers of its own.')
       }
       if (!task?.trim()) {
         throw new CommandError('The task is empty.')
       }
-      const installed = await this.services.agents.list()
-      if (!isAgentId(agent) || !installed.includes(agent)) {
-        const available = installed.join(', ') || 'none'
-        throw new CommandError(`Agent "${agent}" is not installed. Available agents: ${available}.`)
-      }
+      const agentId = await this.installedAgent(agent)
+      const selection = await this.workerSelection(agentId, model, effort)
       // Подсчёт и создание идут без ожидания между ними: параллельные команды не обойдут лимит.
       const active = this.workersOf(caller).filter(
         (chat) =>
@@ -184,7 +197,12 @@ export class OrchestrationServer {
           `You already have ${active.length} workers in progress. Wait for their reports before starting more.`
         )
       }
-      const { chat } = this.services.store.createWorkerChat(caller.chat.id, agent, title)
+      const { chat } = this.services.store.createWorkerChat(
+        caller.chat.id,
+        agentId,
+        title,
+        selection
+      )
       this.startingChatIds.add(chat.id)
       try {
         // Задание — первое сообщение помощнику: он сразу начинает работать. Чат без своего
@@ -199,7 +217,12 @@ export class OrchestrationServer {
         this.startingChatIds.delete(chat.id)
       }
       this.services.onProjectsChanged()
-      return { chatId: chat.id, title: chat.title }
+      return {
+        chatId: chat.id,
+        title: chat.title,
+        ...(chat.model && { model: chat.model }),
+        ...(chat.effort && { effort: chat.effort })
+      }
     },
 
     send: async (caller, { to, message }) => {
@@ -272,10 +295,67 @@ export class OrchestrationServer {
         chatId: chat.id,
         title: chat.title,
         agent: chat.agent,
+        ...(chat.model && { model: chat.model }),
+        ...(chat.effort && { effort: chat.effort }),
         running: this.services.conversations.isRunning(chat.id),
         reported: this.reportedChatIds.has(chat.id),
         startedAt: chat.createdAt
       }))
+  }
+
+  private async installedAgent(agent: string): Promise<AgentId> {
+    const installed = await this.services.agents.list()
+    if (!isAgentId(agent) || !installed.includes(agent)) {
+      const available = installed.join(', ') || 'none'
+      throw new CommandError(`Agent "${agent}" is not installed. Available agents: ${available}.`)
+    }
+    return agent
+  }
+
+  private async catalog(agent: AgentId): Promise<AgentCatalog> {
+    const catalog = await this.services.conversations.catalog(agent)
+    if (!catalog) {
+      throw new CommandError(
+        `Could not get the models of ${findAgent(agent)?.name ?? agent}. Make sure you are signed in to it.`
+      )
+    }
+    return catalog
+  }
+
+  /**
+   * Модель и эффорт помощника. Без явных значений — те, с которыми пользователь начинает
+   * новые чаты. Названная модель или эффорт проверяются по списку агента: опечатка должна
+   * вернуться агенту ошибкой, а не сломать помощника на первом сообщении.
+   */
+  private async workerSelection(
+    agent: AgentId,
+    model: string | undefined,
+    effort: string | undefined
+  ): Promise<Partial<ModelSelection>> {
+    const remembered = this.services.modelSelection(agent)
+    if (!model && !effort) {
+      return remembered
+    }
+    const catalog = await this.catalog(agent)
+    const listCommand = `atox models ${agent}`
+    const modelId = model ?? remembered.model ?? catalog.defaultModel
+    const chosen = catalog.models.find(
+      ({ id, name }) => id === modelId || name.toLowerCase() === modelId.toLowerCase()
+    )
+    if (!chosen) {
+      throw new CommandError(`Model "${modelId}" is not available. See: ${listCommand}`)
+    }
+    // Эффорт, запомненный для другой модели, к выбранной может не подойти.
+    const effortLevel = effort ?? (model ? undefined : remembered.effort)
+    if (effortLevel && !chosen.efforts.includes(effortLevel)) {
+      const supported = chosen.efforts.join(', ')
+      throw new CommandError(
+        supported
+          ? `Model "${chosen.id}" does not support effort "${effortLevel}". Supported: ${supported}.`
+          : `Model "${chosen.id}" has no effort levels.`
+      )
+    }
+    return { model: chosen.id, ...(effortLevel && { effort: effortLevel }) }
   }
 
   private workersOf({ project, chat }: ChatLocation): Chat[] {
