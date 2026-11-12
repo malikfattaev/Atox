@@ -49,6 +49,8 @@ export interface BoardIssue {
   state: 'open' | 'closed'
   labels: BoardLabel[]
   author: string | null
+  /** Логины тех, на кого назначена задача. */
+  assignees: string[]
   updatedAt: number
   column: BoardColumn
   /** Чат агента, который работает или работал над задачей. */

@@ -27,6 +27,7 @@ import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { useBoard } from '../hooks/useBoard'
 import { showMenu, type MenuItem } from '../lib/menu'
+import { githubAvatarUrl } from '../lib/github'
 import { formatRelativeTime } from '../lib/relativeTime'
 import { BoardRepositoryPicker } from './BoardRepositoryPicker'
 import { ChatStatus } from './ChatStatus'
@@ -34,6 +35,9 @@ import { GitHubMark } from './GitHubMark'
 
 /** Сдвиг курсора, после которого нажатие на карточку — перетаскивание, а не клик. */
 const DRAG_ACTIVATION_DISTANCE_PX = 6
+
+/** Сколько аватаров исполнителей помещается на карточке. */
+const MAX_ASSIGNEE_AVATARS = 3
 
 /** Как часто обновлять «synced 2 min ago» в шапке. */
 const CLOCK_TICK_MS = 30_000
@@ -49,6 +53,15 @@ const COLUMN_INFO: Record<BoardColumn, { title: string; hint: string }> = {
 /** Пункт меню фильтра «все». */
 const ALL = '*'
 
+/** Кому назначена задача: кому угодно, одной из учётных записей пользователя или никому. */
+type AssigneeFilter = 'anyone' | 'me' | 'unassigned'
+
+const ASSIGNEE_LABELS: Record<AssigneeFilter, string> = {
+  anyone: 'Anyone',
+  me: 'Me',
+  unassigned: 'Unassigned'
+}
+
 interface BoardViewProps {
   onOpenChat(chatId: string): void
   onClose(): void
@@ -62,11 +75,20 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
   const [query, setQuery] = useState('')
   const [owner, setOwner] = useState<string>(ALL)
   const [repository, setRepository] = useState<string>(ALL)
+  const [assignee, setAssignee] = useState<AssigneeFilter>('anyone')
+  /** Логины учётных записей `gh` пользователя — «мои» задачи назначены на одну из них. */
+  const [myLogins, setMyLogins] = useState<ReadonlySet<string>>(new Set())
   const [dragged, setDragged] = useState<BoardIssue | null>(null)
   const now = useClock()
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
   )
+
+  useEffect(() => {
+    void window.atox.github
+      .accounts()
+      .then((accounts) => setMyLogins(new Set(accounts.map(({ login }) => login.toLowerCase()))))
+  }, [])
 
   useEffect(() => {
     // Esc, который уже обработало поле или окно выбора репозиториев, страницу не закрывает.
@@ -94,12 +116,13 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
       (issue) =>
         (owner === ALL || issue.owner === owner) &&
         (repository === ALL || issue.repository === repository) &&
+        matchesAssignee(issue, assignee, myLogins) &&
         (!needle ||
           issue.title.toLowerCase().includes(needle) ||
           `#${issue.number}`.includes(needle) ||
           issue.repository.toLowerCase().includes(needle))
     )
-  }, [issues, owner, repository, query])
+  }, [issues, owner, repository, assignee, myLogins, query])
   const working = issues.filter((issue) => issue.column === 'progress').length
 
   const chooseOwner = async (anchor: Element) => {
@@ -128,6 +151,20 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
     )
     if (choice !== null) {
       setRepository(choice)
+    }
+  }
+
+  const chooseAssignee = async (anchor: Element) => {
+    const choice = await showMenu<AssigneeFilter>(
+      (Object.keys(ASSIGNEE_LABELS) as AssigneeFilter[]).map((id) => ({
+        action: id,
+        label: id === 'me' ? 'Assigned to me' : ASSIGNEE_LABELS[id],
+        checked: assignee === id
+      })),
+      anchor
+    )
+    if (choice !== null) {
+      setAssignee(choice)
     }
   }
 
@@ -228,6 +265,11 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
               label="Repository"
               value={repository === ALL ? 'All' : repository.split('/')[1]!}
               onClick={(event) => void chooseRepository(event.currentTarget)}
+            />
+            <FilterButton
+              label="Assignee"
+              value={ASSIGNEE_LABELS[assignee]}
+              onClick={(event) => void chooseAssignee(event.currentTarget)}
             />
           </div>
 
@@ -403,6 +445,13 @@ function CardContent({
         <span className="board-card__repository">{issue.repository.split('/')[1]}</span>
         <span className="board-card__number">#{issue.number}</span>
         {issue.state === 'closed' && <span className="board-card__closed">Closed</span>}
+        {issue.assignees.length > 0 && (
+          <span className="board-card__assignees" title={issue.assignees.join(', ')}>
+            {issue.assignees.slice(0, MAX_ASSIGNEE_AVATARS).map((login) => (
+              <img key={login} className="board-card__assignee" src={githubAvatarUrl(login)} alt="" />
+            ))}
+          </span>
+        )}
       </div>
       <p className="board-card__title">{issue.title}</p>
       {issue.labels.length > 0 && (
@@ -480,6 +529,21 @@ function AgentStatus({ chatId, column }: { chatId: string; column: BoardColumn }
       </span>
     </div>
   )
+}
+
+function matchesAssignee(
+  issue: BoardIssue,
+  filter: AssigneeFilter,
+  myLogins: ReadonlySet<string>
+): boolean {
+  switch (filter) {
+    case 'anyone':
+      return true
+    case 'unassigned':
+      return issue.assignees.length === 0
+    case 'me':
+      return issue.assignees.some((login) => myLogins.has(login.toLowerCase()))
+  }
 }
 
 function describeSync(state: ReturnType<typeof useBoard>['state'], now: number): string {
