@@ -21,18 +21,25 @@ import { useIntegrationLists } from '../hooks/useIntegrationLists'
 import { playChime } from '../lib/chime'
 import { AgentIntegrations } from './AgentIntegrations'
 import { ArchivedChats } from './ArchivedChats'
+import { GitHubMark } from './GitHubMark'
+import { GitHubSettings } from './GitHubSettings'
 import { ShortcutList } from './ShortcutList'
 import { UpdateSettings } from './UpdateSettings'
 import { UsageSettings } from './UsageSettings'
 
 const { atox } = window
 
-type SettingsSection = 'general' | 'usage' | IntegrationKind | 'archived'
+type SettingsSection = 'general' | 'usage' | 'github' | IntegrationKind | 'archived'
 
 /** Разделы настроек: общие, расход токенов, архив чатов и то, чем пользуются агенты, — по одному списку на вид. */
-const SECTIONS: ReadonlyArray<{ id: SettingsSection; label: string; icon: LucideIcon }> = [
+const SECTIONS: ReadonlyArray<{
+  id: SettingsSection
+  label: string
+  icon: LucideIcon | typeof GitHubMark
+}> = [
   { id: 'general', label: 'General', icon: SlidersHorizontal },
   { id: 'usage', label: 'Usage', icon: ChartNoAxesColumn },
+  { id: 'github', label: 'GitHub', icon: GitHubMark },
   { id: 'archived', label: 'Archive', icon: Archive },
   { id: 'plugins', label: 'Plugins', icon: Puzzle },
   { id: 'skills', label: 'Skills', icon: Sparkles },
@@ -215,6 +222,8 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </>
       ) : section === 'usage' ? (
         <UsageSettings />
+      ) : section === 'github' ? (
+        <GitHubSettings />
       ) : section === 'archived' ? (
         <ArchivedChats />
       ) : (
