@@ -111,12 +111,21 @@ export class BoardService {
     return this.refresh()
   }
 
-  move(issueId: string, column: BoardColumn): BoardState {
+  move(issueId: string, target: BoardColumn): BoardState {
     const issue = this.issues.find(({ id }) => id === issueId)
     if (!issue) {
       throw new Error('The task is no longer on the board.')
     }
-    const card: Card = this.cards.get(issueId) ?? { column, account: this.accountOf(issue) }
+    const card: Card = this.cards.get(issueId) ?? { column: target, account: this.accountOf(issue) }
+    const agentRunning =
+      card.chatId !== undefined && this.services.conversations.isRunning(card.chatId)
+    // «В работу» без работающего агента — значит запустить его: задача встаёт в очередь
+    // и уходит агенту сразу, если есть свободное место.
+    const column = target === 'progress' && !agentRunning ? 'queue' : target
+    // Задачу вернули в бэклог — её агента останавливают; чат и worktree остаются.
+    if (column === 'backlog' && agentRunning && card.chatId) {
+      void this.services.conversations.interrupt(card.chatId)
+    }
     card.column = column
     delete card.error
     if (column === 'queue') {
@@ -224,6 +233,10 @@ export class BoardService {
       }
       const worktree = await worktrees.create(project.path, issue.repository, issue.number, token)
       const body = await github.issueBody(card.account, issue.id)
+      // Пока готовили worktree, задачу могли убрать из очереди — агента тогда не запускают.
+      if (card.column !== 'queue') {
+        return
+      }
       const chat = store.createTaskChat(project.id, agent, agentModels[agent] ?? {}, {
         title: `#${issue.number} ${issue.title}`,
         worktree: worktree.path,
