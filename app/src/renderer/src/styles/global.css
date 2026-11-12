@@ -5086,3 +5086,113 @@ ul {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+/* Фоновые задачи агента над полем ввода */
+
+.background-tasks {
+  margin-bottom: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) + 4px);
+  background: var(--color-group);
+  font-size: 13px;
+  user-select: none;
+}
+
+.background-tasks__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--color-text-muted);
+}
+
+.background-tasks__header:hover {
+  color: var(--color-text);
+}
+
+.background-tasks__spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--color-accent-text);
+  animation: spin 1.4s linear infinite;
+}
+
+.background-tasks__title {
+  flex: 1;
+  font-weight: 500;
+}
+
+.background-tasks__chevron {
+  width: 14px;
+  height: 14px;
+  transition: rotate var(--collapse-duration) var(--collapse-easing);
+}
+
+.background-tasks[data-expanded='false'] .background-tasks__chevron {
+  rotate: -90deg;
+}
+
+.background-tasks__list {
+  margin: 0;
+  padding: 0 12px 8px;
+  list-style: none;
+}
+
+.background-tasks__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 0;
+}
+
+.background-tasks__item + .background-tasks__item {
+  border-top: 1px solid var(--color-border);
+}
+
+.background-tasks__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.background-tasks__kind {
+  flex-shrink: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.background-tasks__description {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-card__assignees {
+  display: flex;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.board-card__assignee {
+  width: var(--board-avatar-size);
+  height: var(--board-avatar-size);
+  border: 2px solid var(--board-card-background);
+  border-radius: 50%;
+  background: var(--color-active);
+  box-sizing: content-box;
+}
+
+.board-card__assignee + .board-card__assignee {
+  margin-left: -6px;
+}
+
+/* «Закрыто» стоит справа, а исполнители — сразу за ним. */
+.board-card__closed + .board-card__assignees {
+  margin-left: 0;
+}

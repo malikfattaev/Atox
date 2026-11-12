@@ -3,6 +3,7 @@ import { useConversation } from '../hooks/useConversation'
 import type { UserMessage } from '../../../shared/conversation'
 import type { Chat } from '../../../shared/models'
 import { LinkBaseDirectoryContext } from '../lib/linkTargets'
+import { BackgroundTasks } from './BackgroundTasks'
 import { Composer } from './Composer'
 import { Timeline } from './Timeline'
 
@@ -164,6 +165,9 @@ export const ChatView = memo(function ChatView({
         </div>
       </div>
       <div className="chat-view__composer">
+        {conversation.backgroundTasks && (
+          <BackgroundTasks tasks={conversation.backgroundTasks} />
+        )}
         <Composer
           chat={chat}
           running={conversation.running}
