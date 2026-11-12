@@ -273,8 +273,11 @@ export class BoardService {
     const card = this.cards.get(issue.id)
     return {
       ...issue,
-      // Пока агента готовят, задача уже не ждёт в очереди.
-      column: this.starting.has(issue.id) ? 'progress' : (card?.column ?? 'backlog'),
+      // Пока агента готовят, задача уже не ждёт в очереди — если её оттуда не убрали.
+      column:
+        this.starting.has(issue.id) && card?.column === 'queue'
+          ? 'progress'
+          : (card?.column ?? 'backlog'),
       ...(card?.chatId && { chatId: card.chatId }),
       ...(card?.error && { error: card.error })
     }
