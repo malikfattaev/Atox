@@ -11,6 +11,7 @@ import { installDesktopEntry } from './desktopEntry'
 import { GitBranchTracker } from './gitBranches'
 import { handleImageProtocol, registerImageScheme } from './imageProtocol'
 import {
+  broadcastBoard,
   broadcastGitBranches,
   broadcastConversationEvent,
   broadcastAgentListsStale,
@@ -28,6 +29,10 @@ import { OrchestrationServer } from './orchestration/server'
 import { PlanLimitsMonitor } from './planLimits'
 import { TokenSpendLedger } from './tokenSpend'
 import { setupQuitHandling } from './quit'
+import { BoardGitHub } from './board/github'
+import { BoardService } from './board/service'
+import { BoardWorktrees } from './board/worktrees'
+import { GitHubAccounts } from './githubAccounts'
 import { RepositoryReader } from './repository'
 import { SettingsStore } from './settings'
 import { ShellEnvironment } from './shellEnvironment'
@@ -42,6 +47,7 @@ import { createMainWindow } from './window'
 
 const STORE_FILE_NAME = 'projects.json'
 const SETTINGS_FILE_NAME = 'settings.json'
+const BOARD_FILE_NAME = 'board.json'
 const USAGE_STATS_FILE_NAME = 'usage-stats.json'
 const TOKEN_SPEND_FILE_NAME = 'token-spend.json'
 const PLAN_LIMITS_FILE_NAME = 'plan-limits.json'
@@ -94,11 +100,19 @@ async function bootstrap(): Promise<void> {
   const shell = new ShellEnvironment()
   const agents = new AgentDetector(shell)
   // Агенты получают окружение оболочки входа пользователя, а команду `atox` находят по PATH.
+  const githubAccounts = new GitHubAccounts(shell)
+  // Доска загружается после разговоров, но узнаёт от них, когда агент задачи закончил ход.
+  let board: BoardService | undefined
   const agentEnvironment = async (chatId?: string): Promise<Record<string, string>> => {
     const environment = await shell.get()
+    // Агент задачи с доски ходит на GitHub под учётной записью, через которую видна задача, —
+    // `gh` и git берут её токен из `GH_TOKEN`, не трогая активную учётную запись пользователя.
+    const account = chatId ? store.findChat(chatId)?.chat.githubAccount : undefined
+    const token = account ? await githubAccounts.token(account) : null
     return {
       ...environment,
       PATH: [binDirectory, environment['PATH']].filter(Boolean).join(delimiter),
+      ...(token && { GH_TOKEN: token }),
       ...(chatId && orchestration.environment(chatId))
     }
   }
@@ -115,7 +129,10 @@ async function bootstrap(): Promise<void> {
     },
     transcripts,
     environment: agentEnvironment,
-    onEvent: broadcastConversationEvent,
+    onEvent: (event) => {
+      broadcastConversationEvent(event)
+      board?.onConversationEvent(event)
+    },
     onPlanLimits: (agent, limits) => planLimits.report(agent, limits),
     onTokensSpent: (agent, counts) => tokenSpend.record(agent, counts),
     onProjectsChanged: () => broadcastProjectsChanged(store.list()),
@@ -177,13 +194,30 @@ async function bootstrap(): Promise<void> {
     settings,
     updater ? () => void checkForUpdatesFromMenu(updater) : undefined
   )
+  board = await BoardService.load(
+    {
+      github: new BoardGitHub(shell, githubAccounts),
+      worktrees: new BoardWorktrees(shell),
+      accounts: githubAccounts,
+      store,
+      settings,
+      conversations,
+      agents,
+      onChange: broadcastBoard,
+      onProjectsChanged: () => broadcastProjectsChanged(store.list())
+    },
+    join(userData, BOARD_FILE_NAME)
+  )
+  settings.onChange(() => board?.onSettingsChanged())
   registerIpcHandlers({
     store,
     settings,
     conversations,
     terminals,
     branches,
-    repository: new RepositoryReader(shell),
+    repository: new RepositoryReader(shell, githubAccounts),
+    githubAccounts,
+    board,
     workingTree: new WorkingTreeReader(shell),
     updater,
     agents,
@@ -218,8 +252,8 @@ async function bootstrap(): Promise<void> {
     conversations,
     terminals,
     stores: usageStats
-      ? [store, settings, conversations, tokenSpend, planLimits, usageStats]
-      : [store, settings, conversations, tokenSpend, planLimits]
+      ? [store, settings, conversations, board, tokenSpend, planLimits, usageStats]
+      : [store, settings, conversations, board, tokenSpend, planLimits]
   })
   if (updater) {
     quitHandling.onQuitCancelled(() => updater.cancelRelaunch())

@@ -1,7 +1,9 @@
 import type { AgentId } from './agents'
 import type { MessageAttachments, PickedFile } from './attachments'
+import type { AvailableRepository, BoardColumn, BoardRepository, BoardState } from './board'
 import type { ChangesResult, FileDiff } from './changes'
 import type { AppCommand } from './commands'
+import type { GitHubAccount } from './github'
 import type {
   AgentCatalog,
   AgentCommand,
@@ -261,6 +263,21 @@ export interface AtoxApi {
   commands: {
     subscribe(listener: (command: AppCommand) => void): () => void
   }
+  github: {
+    /** Учётные записи github.com, в которые выполнен вход в `gh`. */
+    accounts(): Promise<GitHubAccount[]>
+  }
+  board: {
+    get(): Promise<BoardState>
+    /** Перечитывает задачи с GitHub. */
+    refresh(): Promise<BoardState>
+    subscribe(listener: (state: BoardState) => void): () => void
+    /** Репозитории всех учётных записей `gh`, которые можно добавить на доску. */
+    availableRepositories(): Promise<AvailableRepository[]>
+    setRepositories(repositories: BoardRepository[]): Promise<BoardState>
+    /** Переносит задачу в колонку; в очереди она уйдёт агенту, как только будет место. */
+    move(issueId: string, column: BoardColumn): Promise<BoardState>
+  }
 }
 
 export const IpcChannel = {
@@ -340,5 +357,12 @@ export const IpcChannel = {
   SettingsGet: 'settings:get',
   SettingsUpdate: 'settings:update',
   SettingsChanged: 'settings:changed',
-  ShortcutsRecording: 'shortcuts:recording'
+  ShortcutsRecording: 'shortcuts:recording',
+  GitHubAccounts: 'github:accounts',
+  BoardGet: 'board:get',
+  BoardRefresh: 'board:refresh',
+  BoardChanged: 'board:changed',
+  BoardAvailableRepositories: 'board:available-repositories',
+  BoardSetRepositories: 'board:set-repositories',
+  BoardMove: 'board:move'
 } as const
