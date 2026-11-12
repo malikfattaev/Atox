@@ -22,6 +22,8 @@ export class GitHubAccounts {
       return (hosts?.[GITHUB_HOST] ?? [])
         .filter(({ state }) => state === 'success')
         .map(({ login, active }) => ({ login, active }))
+        // `gh` ставит активную первой; постоянный порядок не даёт строкам прыгать при переключении.
+        .sort((left, right) => left.login.localeCompare(right.login, undefined, { sensitivity: 'base' }))
     } catch {
       return []
     }
@@ -35,6 +37,14 @@ export class GitHubAccounts {
     } catch {
       return null
     }
+  }
+
+  /** Делает учётную запись активной: под ней `gh` и git работают по умолчанию везде. */
+  async activate(login: string): Promise<void> {
+    if (!(await this.list()).some((account) => account.login === login)) {
+      throw new Error(`${login} is not signed in to gh`)
+    }
+    await this.gh(['auth', 'switch', '--hostname', GITHUB_HOST, '--user', login])
   }
 
   private async gh(args: string[]): Promise<string> {

@@ -258,7 +258,8 @@ const api: AtoxApi = {
     }
   },
   github: {
-    accounts: () => ipcRenderer.invoke(IpcChannel.GitHubAccounts)
+    accounts: () => ipcRenderer.invoke(IpcChannel.GitHubAccounts),
+    activate: (login) => ipcRenderer.invoke(IpcChannel.GitHubActivate, login)
   },
   board: {
     get: () => ipcRenderer.invoke(IpcChannel.BoardGet),

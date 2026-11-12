@@ -266,6 +266,8 @@ export interface AtoxApi {
   github: {
     /** Учётные записи github.com, в которые выполнен вход в `gh`. */
     accounts(): Promise<GitHubAccount[]>
+    /** Делает учётную запись активной в `gh` и возвращает обновлённый список. */
+    activate(login: string): Promise<GitHubAccount[]>
   }
   board: {
     get(): Promise<BoardState>
@@ -359,6 +361,7 @@ export const IpcChannel = {
   SettingsChanged: 'settings:changed',
   ShortcutsRecording: 'shortcuts:recording',
   GitHubAccounts: 'github:accounts',
+  GitHubActivate: 'github:activate',
   BoardGet: 'board:get',
   BoardRefresh: 'board:refresh',
   BoardChanged: 'board:changed',

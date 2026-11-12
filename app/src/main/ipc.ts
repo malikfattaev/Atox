@@ -503,6 +503,13 @@ export function registerIpcHandlers({
   settings.onChange((next) => broadcast(IpcChannel.SettingsChanged, next))
 
   ipcMain.handle(IpcChannel.GitHubAccounts, () => githubAccounts.list())
+  ipcMain.handle(IpcChannel.GitHubActivate, async (_event, login: unknown) => {
+    if (typeof login !== 'string') {
+      throw new Error('Invalid GitHub account')
+    }
+    await githubAccounts.activate(login)
+    return githubAccounts.list()
+  })
 
   ipcMain.handle(IpcChannel.BoardGet, () => board.state())
   ipcMain.handle(IpcChannel.BoardRefresh, () => board.refresh())
