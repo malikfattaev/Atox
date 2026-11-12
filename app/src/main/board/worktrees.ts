@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Project } from '../../shared/models'
@@ -13,6 +13,9 @@ import type { ShellEnvironment } from '../shellEnvironment'
 const ATOX_HOME = join(homedir(), 'Atox')
 const CLONES_DIRECTORY = join(ATOX_HOME, 'repositories')
 const WORKTREES_DIRECTORY = join(ATOX_HOME, 'worktrees')
+
+/** Папка, в которую идёт клонирование, пока оно не закончилось. */
+const PARTIAL_CLONE_SUFFIX = '.cloning'
 
 /** Ветка задачи: по ней видно, что её завёл агент доски и к какому issue она. */
 const BRANCH_PREFIX = 'atox/issue-'
@@ -51,7 +54,12 @@ export class BoardWorktrees {
     const path = join(CLONES_DIRECTORY, ...fullName.split('/'))
     if (!existsSync(join(path, '.git'))) {
       await mkdir(dirname(path), { recursive: true })
-      await this.run('gh', ['repo', 'clone', fullName, path], homedir(), token)
+      // Клон собирается рядом и встаёт на место, только когда готов: оборванное клонирование
+      // (Atox закрыли посреди) не оставит битую копию, которую потом приняли бы за целую.
+      const partial = `${path}${PARTIAL_CLONE_SUFFIX}`
+      await rm(partial, { recursive: true, force: true })
+      await this.run('gh', ['repo', 'clone', fullName, partial], homedir(), token)
+      await rename(partial, path)
     }
     this.remotes.set(path, fullName)
     return path
