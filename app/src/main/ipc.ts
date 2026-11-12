@@ -21,6 +21,7 @@ import type { PlanLimitsState } from '../shared/planLimits'
 import type { TokenSpendSummary } from '../shared/tokenSpend'
 import { isProjectColor } from '../shared/projectColors'
 import { isProjectIcon } from '../shared/projectIcons'
+import { isBoardColumn, type BoardState } from '../shared/board'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
 import type { UpdateState } from '../shared/update'
@@ -39,6 +40,8 @@ import { openFileLink } from './fileLinks'
 import { readImage, saveImageAs } from './images'
 import { savePastedImage } from './pastedImages'
 import { pickFiles } from './pickedFiles'
+import type { BoardService } from './board/service'
+import type { GitHubAccounts } from './githubAccounts'
 import type { RepositoryReader } from './repository'
 import { getUserProfile } from './system'
 import type { TerminalManager } from './terminals'
@@ -58,6 +61,8 @@ interface AppServices {
   menu: AppMenu
   planLimits: PlanLimitsMonitor
   tokenSpend: TokenSpendLedger
+  githubAccounts: GitHubAccounts
+  board: BoardService
 }
 
 export function registerIpcHandlers({
@@ -72,7 +77,9 @@ export function registerIpcHandlers({
   updater,
   menu,
   planLimits,
-  tokenSpend
+  tokenSpend,
+  githubAccounts,
+  board
 }: AppServices): void {
   const trackProjectBranches = () => void branches.track(store.list().map(({ path }) => path))
   trackProjectBranches()
@@ -495,6 +502,21 @@ export function registerIpcHandlers({
   )
   settings.onChange((next) => broadcast(IpcChannel.SettingsChanged, next))
 
+  ipcMain.handle(IpcChannel.GitHubAccounts, () => githubAccounts.list())
+
+  ipcMain.handle(IpcChannel.BoardGet, () => board.state())
+  ipcMain.handle(IpcChannel.BoardRefresh, () => board.refresh())
+  ipcMain.handle(IpcChannel.BoardAvailableRepositories, () => board.availableRepositories())
+  ipcMain.handle(IpcChannel.BoardSetRepositories, (_event, repositories: unknown) =>
+    board.setRepositories(Array.isArray(repositories) ? repositories : [])
+  )
+  ipcMain.handle(IpcChannel.BoardMove, (_event, issueId: unknown, column: unknown) => {
+    if (typeof issueId !== 'string' || !isBoardColumn(column)) {
+      throw new Error('Invalid board move')
+    }
+    return board.move(issueId, column)
+  })
+
   ipcMain.on(IpcChannel.ShortcutsRecording, (_event, recording: boolean) =>
     menu.setRecordingShortcut(recording === true)
   )
@@ -531,6 +553,10 @@ export function broadcastUpdateState(state: UpdateState): void {
 
 export function broadcastProjectsChanged(projects: Project[]): void {
   broadcast(IpcChannel.ProjectsChanged, projects)
+}
+
+export function broadcastBoard(state: BoardState): void {
+  broadcast(IpcChannel.BoardChanged, state)
 }
 
 export function broadcastGitBranches(branches: GitBranches): void {

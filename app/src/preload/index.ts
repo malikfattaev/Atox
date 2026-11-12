@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AgentId } from '../shared/agents'
 import type { AppCommand } from '../shared/commands'
+import type { BoardState } from '../shared/board'
 import type { PlanLimitsState } from '../shared/planLimits'
 import type { TokenSpendSummary } from '../shared/tokenSpend'
 import type { Settings } from '../shared/settings'
@@ -255,6 +256,22 @@ const api: AtoxApi = {
       ipcRenderer.on(IpcChannel.AppCommand, handler)
       return () => ipcRenderer.removeListener(IpcChannel.AppCommand, handler)
     }
+  },
+  github: {
+    accounts: () => ipcRenderer.invoke(IpcChannel.GitHubAccounts)
+  },
+  board: {
+    get: () => ipcRenderer.invoke(IpcChannel.BoardGet),
+    refresh: () => ipcRenderer.invoke(IpcChannel.BoardRefresh),
+    subscribe: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: BoardState) => listener(state)
+      ipcRenderer.on(IpcChannel.BoardChanged, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.BoardChanged, handler)
+    },
+    availableRepositories: () => ipcRenderer.invoke(IpcChannel.BoardAvailableRepositories),
+    setRepositories: (repositories) =>
+      ipcRenderer.invoke(IpcChannel.BoardSetRepositories, repositories),
+    move: (issueId, column) => ipcRenderer.invoke(IpcChannel.BoardMove, issueId, column)
   }
 }
 
