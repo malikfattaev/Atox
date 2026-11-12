@@ -1,11 +1,26 @@
-import { homedir } from 'node:os'
+import { net } from 'electron'
 import type { AvailableRepository, BoardLabel, BoardRepository } from '../../shared/board'
 import type { GitHubAccounts } from '../githubAccounts'
-import { runCommand } from '../processes'
-import type { ShellEnvironment } from '../shellEnvironment'
+
+const GRAPHQL_URL = 'https://api.github.com/graphql'
 
 /** Больше GitHub за один запрос не отдаёт. */
 const PAGE_SIZE = 100
+
+/**
+ * Репозиториев за запрос: каждый ещё и считает свои открытые issue, и сотня таких
+ * в большой организации может не уложиться во время запроса.
+ */
+const REPOSITORIES_PAGE_SIZE = 50
+
+/** Сколько ждать ответа GitHub. */
+const REQUEST_TIMEOUT_MS = 60_000
+
+/**
+ * Сколько помнить токен учётной записи: синхронизация — это десятки запросов, и спрашивать
+ * токен у `gh` перед каждым незачем. Выход из `gh` доска заметит через минуту.
+ */
+const TOKEN_TTL_MS = 60_000
 
 /**
  * Сколько открытых issue одного репозитория читать. В репозитории с тысячами задач доска
@@ -19,7 +34,7 @@ const NODES_BATCH_SIZE = 100
 const REPOSITORIES_QUERY = `query($cursor: String) {
   viewer {
     repositories(
-      first: ${PAGE_SIZE}
+      first: ${REPOSITORIES_PAGE_SIZE}
       after: $cursor
       affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]
       ownerAffiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]
@@ -117,10 +132,9 @@ type Variables = Record<string, string | string[] | null>
 
 /** Запросы доски к GitHub под учётными записями `gh`. */
 export class BoardGitHub {
-  constructor(
-    private readonly shell: ShellEnvironment,
-    private readonly accounts: GitHubAccounts
-  ) {}
+  private readonly tokens = new Map<string, { token: string; expiresAt: number }>()
+
+  constructor(private readonly accounts: GitHubAccounts) {}
 
   /**
    * Репозитории всех учётных записей, у которых включены issue. Репозиторий, доступный
@@ -227,28 +241,42 @@ export class BoardGitHub {
   }
 
   private async query<Data>(account: string, query: string, variables: Variables): Promise<Data> {
+    const token = await this.token(account)
+    const response = await net.fetch(GRAPHQL_URL, {
+      method: 'POST',
+      headers: { Authorization: `bearer ${token}`, 'Content-Type': 'application/json' },
+      credentials: 'omit',
+      body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    })
+    if (response.status === 401) {
+      // Токен отозван или сменился: в следующий раз его спросят у `gh` заново.
+      this.tokens.delete(account)
+    }
+    const body = (await response.json().catch(() => null)) as {
+      data?: Data | null
+      errors?: { message: string }[]
+      message?: string
+    } | null
+    if (!response.ok || !body?.data) {
+      throw new Error(
+        body?.errors?.[0]?.message ?? body?.message ?? `GitHub responded with HTTP ${response.status}`
+      )
+    }
+    return body.data
+  }
+
+  private async token(account: string): Promise<string> {
+    const cached = this.tokens.get(account)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.token
+    }
     const token = await this.accounts.token(account)
     if (!token) {
       throw new Error(`GitHub account ${account} is not signed in to gh`)
     }
-    const args = ['api', 'graphql', '-f', `query=${query}`]
-    for (const [name, value] of Object.entries(variables)) {
-      if (Array.isArray(value)) {
-        // Список — повторяющимся полем `name[]`.
-        args.push(...value.flatMap((item) => ['-f', `${name}[]=${item}`]))
-      } else if (value !== null) {
-        args.push('-f', `${name}=${value}`)
-      }
-    }
-    const output = await runCommand('gh', args, {
-      cwd: homedir(),
-      env: { ...(await this.shell.get()), GH_TOKEN: token }
-    })
-    const response = JSON.parse(output) as { data?: Data; errors?: { message: string }[] }
-    if (!response.data) {
-      throw new Error(response.errors?.[0]?.message ?? 'GitHub returned no data')
-    }
-    return response.data
+    this.tokens.set(account, { token, expiresAt: Date.now() + TOKEN_TTL_MS })
+    return token
   }
 }
 
