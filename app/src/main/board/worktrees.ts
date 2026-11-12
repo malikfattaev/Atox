@@ -98,6 +98,16 @@ export class BoardWorktrees {
     return { path, branch }
   }
 
+  /**
+   * Убирает worktree задачи вместе с несохранёнными в нём правками: задача закрыта, её работа
+   * уже в ветке на GitHub. Сама ветка остаётся — она нужна pull request'у.
+   */
+  async remove(repositoryPath: string, worktreePath: string): Promise<void> {
+    if (existsSync(worktreePath)) {
+      await this.run('git', ['worktree', 'remove', '--force', worktreePath], repositoryPath)
+    }
+  }
+
   /** Основная ветка на GitHub: та, на которую указывает `origin/HEAD`. */
   private async defaultBranch(repositoryPath: string, token: string): Promise<string> {
     const read = () =>
