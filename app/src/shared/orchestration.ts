@@ -24,12 +24,25 @@ export interface AgentInfo {
   name: string
 }
 
+/** Модель агента, которую можно дать помощнику. */
+export interface WorkerModelInfo {
+  id: string
+  name: string
+  /** Уровни эффорта модели; пусто — выбора нет. */
+  efforts: string[]
+  /** Эффорт модели, если его не выбрали. */
+  defaultEffort?: string
+}
+
 export interface WorkerInfo {
   chatId: string
   title: string
   agent: string
   /** Терминал помощника работает. */
   running: boolean
+  /** Модель и эффорт помощника; нет — по умолчанию у агента. */
+  model?: string
+  effort?: string
   /** Помощник уже прислал отчёт. */
   reported: boolean
   /** Когда помощника запустили, мс с начала эпохи. */
@@ -39,9 +52,15 @@ export interface WorkerInfo {
 /** Команды и их параметры/результаты. */
 export interface OrchestrationMethods {
   agents: { params: Record<string, never>; result: AgentInfo[] }
+  /** Модели агента и эффорты каждой — из них выбирают `model` и `effort` для `start`. */
+  models: {
+    params: { agent: string }
+    result: { defaultModel: string; models: WorkerModelInfo[] }
+  }
   start: {
-    params: { agent: string; task: string; title?: string }
-    result: { chatId: string; title: string }
+    /** `model` и `effort` не заданы — те, с которыми пользователь начинает новые чаты. */
+    params: { agent: string; task: string; title?: string; model?: string; effort?: string }
+    result: { chatId: string; title: string; model?: string; effort?: string }
   }
   send: { params: { to: string; message: string }; result: { chatId: string } }
   report: { params: { summary: string }; result: { chatId: string } }

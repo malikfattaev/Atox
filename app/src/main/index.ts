@@ -158,6 +158,7 @@ async function bootstrap(): Promise<void> {
     // а не в длинном пути данных приложения. Имя различает сборку для разработки.
     socketPath: join(tmpdir(), `${basename(userData)}.sock`),
     cliPath,
+    modelSelection: (agent) => settings.get().agentModels[agent] ?? {},
     onProjectsChanged: () => broadcastProjectsChanged(store.list())
   })
   // Без сервера приложение работает как раньше, только команда `atox` сообщит, что Atox недоступен.
