@@ -43,11 +43,11 @@ const MAX_ASSIGNEE_AVATARS = 3
 const CLOCK_TICK_MS = 30_000
 
 const COLUMN_INFO: Record<BoardColumn, { title: string; hint: string }> = {
-  backlog: { title: 'Backlog', hint: 'Open issues of your repositories.' },
-  queue: { title: 'Queue', hint: 'Drop a task here and an agent picks it up.' },
-  progress: { title: 'In progress', hint: 'Agents working on tasks show up here.' },
-  review: { title: 'Review', hint: 'Finished tasks wait here for your review.' },
-  done: { title: 'Done', hint: 'Move reviewed tasks here.' }
+  backlog: { title: 'Backlog', hint: 'No open issues' },
+  queue: { title: 'Queue', hint: 'Drop tasks for agents' },
+  progress: { title: 'In progress', hint: 'Agents at work show up here' },
+  review: { title: 'Review', hint: 'Finished tasks to review' },
+  done: { title: 'Done', hint: 'Reviewed tasks' }
 }
 
 /** Пункт меню фильтра «все». */
