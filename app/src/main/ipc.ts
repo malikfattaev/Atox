@@ -21,7 +21,12 @@ import type { PlanLimitsState } from '../shared/planLimits'
 import type { TokenSpendSummary } from '../shared/tokenSpend'
 import { isProjectColor } from '../shared/projectColors'
 import { isProjectIcon } from '../shared/projectIcons'
-import { isBoardColumn, type BoardState } from '../shared/board'
+import {
+  isBoardColumn,
+  parseTaskAgent,
+  type BoardState,
+  type TaskStart
+} from '../shared/board'
 import type { GitHubCounts, GitHubKind, ListState } from '../shared/repository'
 import type { Settings } from '../shared/settings'
 import type { UpdateState } from '../shared/update'
@@ -517,17 +522,36 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.BoardSetRepositories, (_event, repositories: unknown) =>
     board.setRepositories(Array.isArray(repositories) ? repositories : [])
   )
-  ipcMain.handle(IpcChannel.BoardMove, (_event, issueId: unknown, column: unknown) => {
-    if (typeof issueId !== 'string' || !isBoardColumn(column)) {
-      throw new Error('Invalid board move')
+  ipcMain.handle(
+    IpcChannel.BoardMove,
+    (_event, issueId: unknown, column: unknown, start: unknown) => {
+      if (typeof issueId !== 'string' || !isBoardColumn(column)) {
+        throw new Error('Invalid board move')
+      }
+      return board.move(issueId, column, parseTaskStart(start))
     }
-    return board.move(issueId, column)
-  })
+  )
 
   ipcMain.on(IpcChannel.ShortcutsRecording, (_event, recording: boolean) =>
     menu.setRecordingShortcut(recording === true)
   )
 
+}
+
+/** Запуск задачи из окна: агент обязателен, сообщение — только непустой текст. */
+function parseTaskStart(value: unknown): TaskStart | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined
+  }
+  const { agent, message } = value as Record<string, unknown>
+  const parsed = parseTaskAgent(agent)
+  if (!parsed) {
+    return undefined
+  }
+  return {
+    agent: parsed,
+    ...(typeof message === 'string' && message.trim() && { message: message.trim() })
+  }
 }
 
 /** Настройки чата из окна: берутся только известные поля нужных типов. */

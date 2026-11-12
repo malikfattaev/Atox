@@ -1,6 +1,12 @@
 import type { AgentId } from './agents'
 import type { MessageAttachments, PickedFile } from './attachments'
-import type { AvailableRepository, BoardColumn, BoardRepository, BoardState } from './board'
+import type {
+  AvailableRepository,
+  BoardColumn,
+  BoardRepository,
+  BoardState,
+  TaskStart
+} from './board'
 import type { ChangesResult, FileDiff } from './changes'
 import type { AppCommand } from './commands'
 import type { GitHubAccount } from './github'
@@ -277,8 +283,11 @@ export interface AtoxApi {
     /** Репозитории всех учётных записей `gh`, которые можно добавить на доску. */
     availableRepositories(): Promise<AvailableRepository[]>
     setRepositories(repositories: BoardRepository[]): Promise<BoardState>
-    /** Переносит задачу в колонку; в очереди она уйдёт агенту, как только будет место. */
-    move(issueId: string, column: BoardColumn): Promise<BoardState>
+    /**
+     * Переносит задачу в колонку; в очереди она уйдёт агенту, как только будет место.
+     * `start` — с каким агентом и сообщением её запустить; нет — с агентом доски по умолчанию.
+     */
+    move(issueId: string, column: BoardColumn, start?: TaskStart): Promise<BoardState>
   }
 }
 

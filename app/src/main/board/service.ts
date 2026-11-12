@@ -1,4 +1,4 @@
-import { isBoardColumn, type BoardColumn, type BoardIssue, type BoardRepository, type BoardState, type AvailableRepository } from '../../shared/board'
+import { DONE_VISIBLE_MS, isBoardColumn, type TaskStart, type BoardColumn, type BoardIssue, type BoardRepository, type BoardState, type AvailableRepository } from '../../shared/board'
 import type { ConversationEvent } from '../../shared/conversation'
 import { findAgent } from '../../shared/agents'
 import type { AgentDetector } from '../agents'
@@ -23,6 +23,10 @@ interface Card {
   queuedAt?: number
   chatId?: string
   error?: string
+  /** Когда задачу перенесли в Done; через `DONE_VISIBLE_MS` она пропадает с доски. */
+  doneAt?: number
+  /** С каким агентом и сообщением задачу запустить; нет — с агентом доски из настроек. */
+  start?: TaskStart
 }
 
 interface BoardFile {
@@ -72,6 +76,10 @@ export class BoardService {
     const cards = new Map<string, Card>()
     for (const [id, card] of Object.entries(data?.cards ?? {})) {
       if (isBoardColumn(card?.column) && typeof card.account === 'string') {
+        // Задачи в Done из прежних версий получают отсчёт с первого запуска.
+        if (card.column === 'done' && typeof card.doneAt !== 'number') {
+          card.doneAt = Date.now()
+        }
         cards.set(id, card)
       }
     }
@@ -83,7 +91,7 @@ export class BoardService {
     return {
       repositories: this.repositories,
       issues: this.issues
-        .filter((issue) => shown.has(issue.repository))
+        .filter((issue) => shown.has(issue.repository) && !this.isRetired(issue.id))
         .map((issue) => this.toBoardIssue(issue)),
       syncedAt: this.syncedAt,
       syncing: this.syncing !== null,
@@ -111,7 +119,7 @@ export class BoardService {
     return this.refresh()
   }
 
-  move(issueId: string, target: BoardColumn): BoardState {
+  move(issueId: string, target: BoardColumn, start?: TaskStart): BoardState {
     const issue = this.issues.find(({ id }) => id === issueId)
     if (!issue) {
       throw new Error('The task is no longer on the board.')
@@ -128,8 +136,19 @@ export class BoardService {
     }
     card.column = column
     delete card.error
+    if (column === 'done') {
+      card.doneAt = Date.now()
+      void this.retireAgent(card)
+    } else {
+      delete card.doneAt
+    }
     if (column === 'queue') {
       card.queuedAt = Date.now()
+      if (start) {
+        card.start = start
+      } else {
+        delete card.start
+      }
     } else {
       delete card.queuedAt
     }
@@ -171,7 +190,7 @@ export class BoardService {
       const known = new Set(issues.map(({ id }) => id))
       const missing = new Map<string, string[]>()
       for (const [id, card] of this.cards) {
-        if (!known.has(id)) {
+        if (!known.has(id) && !this.isRetired(id)) {
           missing.set(card.account, [...(missing.get(card.account) ?? []), id])
         }
       }
@@ -222,7 +241,7 @@ export class BoardService {
       if (!token) {
         throw new Error(`GitHub account ${card.account} is not signed in to gh.`)
       }
-      const { defaultAgent: agent, agentModels } = settings.get()
+      const { agent, model, effort } = card.start?.agent ?? settings.get().boardAgent
       if (!(await this.services.agents.list()).includes(agent)) {
         throw new Error(`${findAgent(agent)?.name ?? agent} is not installed.`)
       }
@@ -237,7 +256,8 @@ export class BoardService {
       if (card.column !== 'queue') {
         return
       }
-      const chat = store.createTaskChat(project.id, agent, agentModels[agent] ?? {}, {
+      const selection = { ...(model && { model }), ...(effort && { effort }) }
+      const chat = store.createTaskChat(project.id, agent, selection, {
         title: `#${issue.number} ${issue.title}`,
         worktree: worktree.path,
         githubAccount: card.account
@@ -246,7 +266,13 @@ export class BoardService {
       card.chatId = chat.id
       delete card.queuedAt
       this.services.onProjectsChanged()
-      await conversations.send(chat.id, formatIssueTask(issue, body, worktree))
+      await conversations.send(
+        chat.id,
+        formatIssueTask(issue, body, worktree, card.start?.message),
+        {},
+        // Чат назван по задаче, а не по служебному началу задания.
+        { titleFrom: issue.title }
+      )
     } catch (error) {
       console.error(`Failed to start an agent for ${issue.repository}#${issue.number}`, error)
       // Задача возвращается в бэклог с причиной: оставшись в очереди, она пробовала бы снова и снова.
@@ -257,6 +283,35 @@ export class BoardService {
       this.starting.delete(issue.id)
       this.persist()
       this.changed()
+    }
+  }
+
+  /** Задача давно в Done и с доски ушла. */
+  private isRetired(issueId: string): boolean {
+    const card = this.cards.get(issueId)
+    return card?.column === 'done' && Date.now() - (card.doneAt ?? 0) > DONE_VISIBLE_MS
+  }
+
+  /**
+   * Задача закрыта — её агент больше не нужен: он останавливается, а его чат и worktree
+   * удаляются. Работа агента уже в ветке и pull request'е на GitHub.
+   */
+  private async retireAgent(card: Card): Promise<void> {
+    const chatId = card.chatId
+    delete card.chatId
+    this.persist()
+    if (!chatId) {
+      return
+    }
+    const { store, conversations, worktrees } = this.services
+    const location = store.findChat(chatId)
+    store.removeChat(chatId)
+    await conversations.remove(chatId)
+    this.services.onProjectsChanged()
+    if (location?.chat.worktree) {
+      await worktrees
+        .remove(location.project.path, location.chat.worktree)
+        .catch((error) => console.error('Failed to remove the task worktree', error))
     }
   }
 

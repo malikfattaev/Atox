@@ -1,5 +1,5 @@
 import { AGENTS, DEFAULT_AGENT_ID, isAgentId } from '../shared/agents'
-import { BOARD_AGENTS } from '../shared/board'
+import { BOARD_AGENTS, parseTaskAgent } from '../shared/board'
 import {
   clampWidth,
   DEFAULT_ACCENT,
@@ -85,7 +85,8 @@ function normalize(settings: Settings): Settings {
     accent: isAccentId(settings.accent) ? settings.accent : DEFAULT_ACCENT,
     boardMaxAgents: Number.isInteger(settings.boardMaxAgents)
       ? Math.min(BOARD_AGENTS.max, Math.max(BOARD_AGENTS.min, settings.boardMaxAgents))
-      : BOARD_AGENTS.default
+      : BOARD_AGENTS.default,
+    boardAgent: parseTaskAgent(settings.boardAgent) ?? DEFAULT_SETTINGS.boardAgent
   }
 }
 

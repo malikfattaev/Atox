@@ -1,5 +1,5 @@
 import { DEFAULT_AGENT_ID, type AgentId } from './agents'
-import { BOARD_AGENTS } from './board'
+import { BOARD_AGENTS, type TaskAgent } from './board'
 import type { ModelSelection } from './conversation'
 import type { ShortcutOverrides } from './shortcuts'
 
@@ -58,6 +58,8 @@ export interface Settings {
   accent: AccentId
   /** Сколько агентов доски работают одновременно; остальные задачи ждут в очереди. */
   boardMaxAgents: number
+  /** Агент, модель и эффорт, которые предлагаются задаче с доски по умолчанию. */
+  boardAgent: TaskAgent
 }
 
 /** Длиннее имя в таблетке профиля не помещается. */
@@ -95,7 +97,8 @@ export const DEFAULT_SETTINGS: Settings = {
   profileName: '',
   theme: 'system',
   accent: DEFAULT_ACCENT,
-  boardMaxAgents: BOARD_AGENTS.default
+  boardMaxAgents: BOARD_AGENTS.default,
+  boardAgent: { agent: DEFAULT_AGENT_ID }
 }
 
 /** Приводит ширину панели к целому числу пикселей в её пределах. */

@@ -5210,3 +5210,145 @@ ul {
 .settings__note[role='alert'] {
   color: var(--color-danger);
 }
+
+/* Строка настроек, у которой элемент управления — под подписью, во всю ширину */
+.settings__row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+/* Выбор агента, модели и эффорта для задачи с доски */
+
+.task-agent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-agent__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-hover);
+  white-space: nowrap;
+}
+
+.task-agent__button:hover {
+  background: var(--color-active);
+}
+
+.task-agent__icon {
+  width: var(--agent-icon-size);
+  height: var(--agent-icon-size);
+}
+
+.task-agent__label {
+  color: var(--color-text-muted);
+}
+
+.task-agent__value {
+  font-weight: 600;
+}
+
+.task-agent__chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+}
+
+/* Окно запуска задачи */
+
+.start-task {
+  width: min(600px, 100%);
+}
+
+.start-task__heading {
+  min-width: 0;
+}
+
+.start-task__issue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.start-task__avatar {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+
+.start-task__repository {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.start-task__number {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.start-task__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.start-task__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 8px 24px 22px;
+}
+
+.start-task__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.start-task__label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.start-task__optional {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.start-task__message {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius) + 2px);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-hover);
+  resize: vertical;
+  outline: none;
+  user-select: text;
+}
+
+.start-task__message:focus {
+  border-color: var(--color-accent-text);
+}
