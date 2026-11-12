@@ -278,10 +278,25 @@ export function pendingRequest(items: readonly TimelineItem[]): UserRequestKind 
 export type StreamedField = 'text' | 'output'
 
 /** Всё, что окно знает о разговоре в чате. */
+/** Вид фоновой задачи агента. */
+export type BackgroundTaskKind = 'shell' | 'agent' | 'monitor' | 'workflow' | 'other'
+
+/**
+ * Работа, которую агент оставил идти в фоне: команда, помощник, слежение за событием. Его ход
+ * может закончиться раньше неё — тогда агент вернётся к разговору, когда она завершится.
+ */
+export interface BackgroundTask {
+  id: string
+  kind: BackgroundTaskKind
+  description: string
+}
+
 export interface ConversationSnapshot {
   items: TimelineItem[]
   /** Агент сейчас работает над сообщением. */
   running: boolean
+  /** Фоновые задачи агента, которые идут сейчас; нет — ни одной. В файл ленты не попадают. */
+  backgroundTasks?: BackgroundTask[]
   /**
    * Сообщения, которые ждут, пока агент закончит текущий ответ. В ленту они попадают, когда
    * агент за них берётся: иначе остаток прежнего ответа оказался бы под новым сообщением.
@@ -323,6 +338,8 @@ type ConversationEventBody =
   | { chatId: string; type: 'waiting'; waitingFor: UserRequestKind | null }
   | { chatId: string; type: 'usage'; usage: ConversationUsage }
   | { chatId: string; type: 'tokens'; turnTokens: number }
+  /** Фоновые задачи агента изменились; `tasks` — все, что идут сейчас. */
+  | { chatId: string; type: 'background'; tasks: BackgroundTask[] }
   /** Разговор начался заново (`/clear`): лента пуста, агент не помнит прошлого. */
   | { chatId: string; type: 'reset' }
 
@@ -448,6 +465,10 @@ function applyEventBody(
       return { ...snapshot, usage: event.usage }
     case 'tokens':
       return { ...snapshot, turnTokens: event.turnTokens }
+    case 'background': {
+      const { backgroundTasks: _previous, ...rest } = snapshot
+      return event.tasks.length > 0 ? { ...rest, backgroundTasks: event.tasks } : rest
+    }
     case 'reset':
       return { items: [], running: snapshot.running }
     case 'item': {

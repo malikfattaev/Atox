@@ -21,6 +21,7 @@ import {
 import {
   limitOutput,
   type AgentCatalog,
+  type BackgroundTaskKind,
   type ApprovalField,
   type InputField,
   type RequestAnswer,
@@ -415,6 +416,20 @@ function toCatalog(models: ModelInfo[]): AgentCatalog {
   }
 }
 
+/** Вид фоновой задачи по `task_type` Claude Code: `local_bash`, `local_agent`, `local_workflow`, мониторы. */
+function backgroundTaskKind(taskType: string): BackgroundTaskKind {
+  if (taskType === 'local_bash') {
+    return 'shell'
+  }
+  if (taskType.endsWith('_agent')) {
+    return 'agent'
+  }
+  if (taskType === 'local_workflow') {
+    return 'workflow'
+  }
+  return taskType.includes('monitor') ? 'monitor' : 'other'
+}
+
 function isEffortLevel(value: string | undefined): value is EffortLevel {
   return EFFORT_LEVELS.some((level) => level === value)
 }
@@ -738,6 +753,17 @@ class ClaudeSession implements AgentSession {
             text: message.content,
             commandOutput: true
           })
+        } else if (message.subtype === 'background_tasks_changed') {
+          // Служебные задачи (наблюдатели за обновлениями) работой агента не считаются.
+          this.events.backgroundTasks(
+            message.tasks
+              .filter(({ ambient }) => !ambient)
+              .map(({ task_id, task_type, description }) => ({
+                id: task_id,
+                kind: backgroundTaskKind(task_type),
+                description
+              }))
+          )
         } else if (message.subtype === 'status') {
           this.handleCompactionStatus(message)
         } else if (message.subtype === 'compact_boundary') {
