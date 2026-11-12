@@ -1,4 +1,5 @@
 import { DEFAULT_AGENT_ID, type AgentId } from './agents'
+import { BOARD_AGENTS } from './board'
 import type { ModelSelection } from './conversation'
 import type { ShortcutOverrides } from './shortcuts'
 
@@ -55,6 +56,8 @@ export interface Settings {
   theme: ThemeMode
   /** Акцентный цвет: выделения, переключатели, кнопки. */
   accent: AccentId
+  /** Сколько агентов доски работают одновременно; остальные задачи ждут в очереди. */
+  boardMaxAgents: number
 }
 
 /** Длиннее имя в таблетке профиля не помещается. */
@@ -91,7 +94,8 @@ export const DEFAULT_SETTINGS: Settings = {
   playSounds: false,
   profileName: '',
   theme: 'system',
-  accent: DEFAULT_ACCENT
+  accent: DEFAULT_ACCENT,
+  boardMaxAgents: BOARD_AGENTS.default
 }
 
 /** Приводит ширину панели к целому числу пикселей в её пределах. */

@@ -1,4 +1,5 @@
 import { AGENTS, DEFAULT_AGENT_ID, isAgentId } from '../shared/agents'
+import { BOARD_AGENTS } from '../shared/board'
 import {
   clampWidth,
   DEFAULT_ACCENT,
@@ -81,7 +82,10 @@ function normalize(settings: Settings): Settings {
         ? settings.profileName.slice(0, PROFILE_NAME_MAX_LENGTH)
         : '',
     theme: isThemeMode(settings.theme) ? settings.theme : 'system',
-    accent: isAccentId(settings.accent) ? settings.accent : DEFAULT_ACCENT
+    accent: isAccentId(settings.accent) ? settings.accent : DEFAULT_ACCENT,
+    boardMaxAgents: Number.isInteger(settings.boardMaxAgents)
+      ? Math.min(BOARD_AGENTS.max, Math.max(BOARD_AGENTS.min, settings.boardMaxAgents))
+      : BOARD_AGENTS.default
   }
 }
 
