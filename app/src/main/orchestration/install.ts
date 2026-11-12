@@ -39,8 +39,10 @@ Inside Atox every chat is a conversation with a coding agent (Claude Code or Cod
 
 \`\`\`sh
 atox agents                                  # installed agents; start only these
+atox models claude                           # the agent's models: id, name, effort levels (* = default)
 atox start claude --title "Fix checkout" "<task>"
-atox workers                                 # your workers, oldest first: id, agent, state, age, title
+atox start claude --model opus --effort high --title "Plan the migration" "<task>"
+atox workers                                 # your workers, oldest first: id, agent and model, state, age, title
 atox send <worker-chat-id> "<message>"       # follow-up or answer to a worker's question
 atox remove <worker-chat-id> [...]           # stop workers and remove their chats
 atox send parent "<question>"                # worker: ask the agent that started you
@@ -51,6 +53,7 @@ atox report "<summary>"                      # worker: final result, exactly onc
 
 - Run \`atox agents\` first. If the agent the user asked for is not installed, say so and offer the installed ones instead.
 - Make each task self-contained: the files in scope, the change to make, constraints, and how to verify it. The worker sees nothing of your conversation.
+- Without \`--model\`/\`--effort\` a worker gets the model the user starts new chats with. Set them when the user asks for a model or effort, or when the task clearly calls for a stronger or cheaper one. Take the ids and levels from \`atox models <agent>\`; an unknown model or effort is rejected with the list to choose from.
 - Workers share the folder with you and each other, so give them separate files or areas.
 - After starting, keep working or end your turn. Do not poll or wait in a loop: the report arrives as a new message. Use \`atox workers\` only when the user asks for status.
 - Workers cannot start workers of their own.
