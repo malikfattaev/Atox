@@ -28,6 +28,7 @@ import type {
   IntegrationKind,
   IntegrationList
 } from '../../shared/integrations'
+import type { Chat, Project } from '../../shared/models'
 import type { AgentDetector } from '../agents'
 import type { ProjectStore } from '../store'
 import type { TokenCounts } from '../../shared/tokenSpend'
@@ -423,10 +424,11 @@ export class ConversationManager {
     if (!location) {
       return []
     }
-    const { chat, project } = location
-    const key = `${chat.agent}\0${project.path}`
+    const { chat } = location
+    const directory = chatDirectory(location)
+    const key = `${chat.agent}\0${directory}`
     const commands = this.commandLists.get(key, () =>
-      this.launch(chat.agent, project.path).then((launch) =>
+      this.launch(chat.agent, directory).then((launch) =>
         this.services.drivers[chat.agent].commands(launch)
       )
     )
@@ -484,16 +486,18 @@ export class ConversationManager {
     if (conversation.session) {
       return conversation.session.limits()
     }
-    const { chat, project } = this.findChat(chatId)
-    return this.services.drivers[chat.agent].limits(await this.launch(chat.agent, project.path))
+    const location = this.findChat(chatId)
+    const { agent } = location.chat
+    return this.services.drivers[agent].limits(await this.launch(agent, chatDirectory(location)))
   }
 
   private async readContext(chatId: string, conversation: Conversation) {
     if (conversation.session) {
       return conversation.session.context()
     }
-    const { chat, project } = this.findChat(chatId)
-    const launch = await this.launch(chat.agent, project.path)
+    const location = this.findChat(chatId)
+    const { chat } = location
+    const launch = await this.launch(chat.agent, chatDirectory(location))
     return this.services.drivers[chat.agent].context(launch, conversation.sessionId ?? undefined)
   }
 
@@ -725,7 +729,7 @@ export class ConversationManager {
     conversation.session?.close()
     conversation.session = null
     conversation.stale = false
-    const { project } = this.findChat(chatId)
+    const directory = chatDirectory(this.findChat(chatId))
     // Разговор шёл с другим агентом: его сессию новый продолжить не может — начинает свою
     // и получает прежнюю переписку с первым сообщением.
     if (conversation.sessionAgent && conversation.sessionAgent !== agent) {
@@ -733,7 +737,7 @@ export class ConversationManager {
       conversation.sessionId = null
     }
     conversation.sessionAgent = agent
-    const launch = await this.launch(agent, project.path, chatId)
+    const launch = await this.launch(agent, directory, chatId)
     // Чат удалили или приложение закрывается, пока агент запускался: запускать его уже незачем.
     if (conversation.disposed || this.closing) {
       throw new Error('The chat was closed.')
@@ -1041,6 +1045,11 @@ export class ConversationManager {
 }
 
 /** Агент работает или ждёт очереди; восстановленная очередь, пока ждёт пользователя, — нет. */
+/** Папка, в которой работает агент чата: worktree задачи или папка проекта. */
+function chatDirectory({ project, chat }: { project: Project; chat: Chat }): string {
+  return chat.worktree ?? project.path
+}
+
 function isBusy(conversation: Conversation): boolean {
   return (
     conversation.turn !== null || (conversation.queue.length > 0 && !conversation.queuePaused)
