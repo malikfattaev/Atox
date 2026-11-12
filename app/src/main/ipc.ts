@@ -522,6 +522,9 @@ export function registerIpcHandlers({
   ipcMain.handle(IpcChannel.BoardSetRepositories, (_event, repositories: unknown) =>
     board.setRepositories(Array.isArray(repositories) ? repositories : [])
   )
+  ipcMain.handle(IpcChannel.BoardDefaultProject, (_event, repository: unknown) =>
+    typeof repository === 'string' ? board.defaultProjectId(repository) : null
+  )
   ipcMain.handle(
     IpcChannel.BoardMove,
     async (event, issueId: unknown, column: unknown, start: unknown) => {
@@ -553,14 +556,15 @@ function parseTaskStart(value: unknown): TaskStart | undefined {
   if (typeof value !== 'object' || value === null) {
     return undefined
   }
-  const { agent, message } = value as Record<string, unknown>
+  const { agent, message, projectId } = value as Record<string, unknown>
   const parsed = parseTaskAgent(agent)
   if (!parsed) {
     return undefined
   }
   return {
     agent: parsed,
-    ...(typeof message === 'string' && message.trim() && { message: message.trim() })
+    ...(typeof message === 'string' && message.trim() && { message: message.trim() }),
+    ...(typeof projectId === 'string' && projectId && { projectId })
   }
 }
 

@@ -30,6 +30,8 @@ interface Card {
   doneAt?: number
   /** С каким агентом и сообщением задачу запустить; нет — с агентом доски из настроек. */
   start?: TaskStart
+  /** Папка репозитория, из которой сделан worktree задачи: из неё его и убирают. */
+  repositoryPath?: string
 }
 
 interface BoardFile {
@@ -133,6 +135,12 @@ export class BoardService {
     this.repositories = repositories.filter(isBoardRepository)
     this.persist()
     return this.refresh()
+  }
+
+  /** Проект, под которым чат агента появится без выбора: копия репозитория среди проектов. */
+  async defaultProjectId(repository: string): Promise<string | null> {
+    const project = await this.services.worktrees.findProject(this.services.store.list(), repository)
+    return project?.id ?? null
   }
 
   /** Чат агента задачи; нет — агент над ней не работал. */
@@ -323,15 +331,30 @@ export class BoardService {
       if (!(await this.services.agents.list()).includes(agent)) {
         throw new Error(`${findAgent(agent)?.name ?? agent} is not installed.`)
       }
-      const { project, worktree } = await worktrees.exclusive(issue.repository, async () => {
-        let project = await worktrees.findProject(store.list(), issue.repository)
-        if (!project) {
-          const path = await worktrees.clone(issue.repository, token)
-          project = store.addProject(path, store.listSpaces().activeSpaceId)
+      // Проект, выбранный в окне запуска, мог исчезнуть, пока задача ждала, — тогда проект по умолчанию.
+      const chosen = store.list().find(({ id }) => id === card.start?.projectId)
+      const { repository, project, worktree } = await worktrees.exclusive(
+        issue.repository,
+        async () => {
+          // Worktree делается из копии репозитория: выбранный проект подходит, если он и есть копия,
+          // иначе — из проекта репозитория или свежего клона. Чат встаёт под выбранный проект.
+          let repository = await worktrees.findProject(
+            chosen ? [chosen, ...store.list()] : store.list(),
+            issue.repository
+          )
+          if (!repository) {
+            const path = await worktrees.clone(issue.repository, token)
+            repository = store.addProject(path, store.listSpaces().activeSpaceId)
+          }
+          const worktree = await worktrees.create(
+            repository.path,
+            issue.repository,
+            issue.number,
+            token
+          )
+          return { repository, project: chosen ?? repository, worktree }
         }
-        const worktree = await worktrees.create(project.path, issue.repository, issue.number, token)
-        return { project, worktree }
-      })
+      )
       // Агент уже работал над задачей — он продолжает в своём чате, а не начинает в новом.
       const chatId = card.chatId && store.findChat(card.chatId) ? card.chatId : undefined
       const body = chatId ? '' : await github.issueBody(card.account, issue.id)
@@ -340,12 +363,13 @@ export class BoardService {
       if (this.cards.get(issue.id) !== card || card.column !== 'queue') {
         if (card.column === 'done') {
           await worktrees
-            .remove(project.path, worktree.path)
+            .remove(repository.path, worktree.path)
             .catch((error) => console.error('Failed to remove the task worktree', error))
         }
         return
       }
       card.column = 'progress'
+      card.repositoryPath = repository.path
       delete card.queuedAt
       if (chatId) {
         if (card.start) {
@@ -435,7 +459,7 @@ export class BoardService {
     this.services.onProjectsChanged()
     if (location?.chat.worktree) {
       await worktrees
-        .remove(location.project.path, location.chat.worktree)
+        .remove(card.repositoryPath ?? location.project.path, location.chat.worktree)
         .catch((error) => console.error('Failed to remove the task worktree', error))
     }
   }

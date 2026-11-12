@@ -5314,6 +5314,12 @@ ul {
   white-space: nowrap;
 }
 
+.start-task__hint {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
 .start-task__author {
   margin: 6px 0 0;
   font-size: var(--font-size-small);
