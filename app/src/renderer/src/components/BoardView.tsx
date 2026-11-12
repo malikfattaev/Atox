@@ -40,6 +40,9 @@ const DRAG_ACTIVATION_DISTANCE_PX = 6
 /** Сколько аватаров исполнителей помещается на карточке. */
 const MAX_ASSIGNEE_AVATARS = 3
 
+/** Сколько карточек колонка показывает сразу и добавляет по «Show more»: бэклог бывает в сотни задач. */
+const COLUMN_PAGE_SIZE = 50
+
 /** Как часто обновлять «synced 2 min ago» в шапке. */
 const CLOCK_TICK_MS = 30_000
 
@@ -323,6 +326,9 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
       {starting && (
         <StartTaskDialog
           issue={starting}
+          foreignAuthor={
+            starting.author !== null && !myLogins.has(starting.author.toLowerCase())
+          }
           working={working}
           limit={boardMaxAgents}
           onClose={() => setStarting(null)}
@@ -376,6 +382,7 @@ interface ColumnProps {
 function Column({ column, issues, loading, onMove, onOpenChat }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: column })
   const { title, hint } = COLUMN_INFO[column]
+  const [limit, setLimit] = useState(COLUMN_PAGE_SIZE)
   return (
     <section
       ref={setNodeRef}
@@ -393,9 +400,20 @@ function Column({ column, issues, loading, onMove, onOpenChat }: ColumnProps) {
         {issues.length === 0 && (
           <li className="board-column__hint">{loading ? 'Loading tasks…' : hint}</li>
         )}
-        {issues.map((issue) => (
+        {issues.slice(0, limit).map((issue) => (
           <Card key={issue.id} issue={issue} onMove={onMove} onOpenChat={onOpenChat} />
         ))}
+        {issues.length > limit && (
+          <li className="board-column__more">
+            <button
+              type="button"
+              className="board__button"
+              onClick={() => setLimit((current) => current + COLUMN_PAGE_SIZE)}
+            >
+              Show more ({issues.length - limit})
+            </button>
+          </li>
+        )}
       </ul>
     </section>
   )

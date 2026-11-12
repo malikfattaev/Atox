@@ -4599,6 +4599,12 @@ ul {
   color: var(--color-text-muted);
 }
 
+.board-column__more {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .board-card {
   flex-shrink: 0;
   border-radius: var(--board-card-radius);
@@ -5306,6 +5312,12 @@ ul {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.start-task__author {
+  margin: 6px 0 0;
+  font-size: var(--font-size-small);
+  color: var(--color-attention);
 }
 
 .start-task__body {

@@ -1,5 +1,5 @@
 import { DONE_VISIBLE_MS, isBoardColumn, type TaskStart, type BoardColumn, type BoardIssue, type BoardRepository, type BoardState, type AvailableRepository } from '../../shared/board'
-import type { ConversationEvent } from '../../shared/conversation'
+import type { ConversationEvent, ConversationSnapshot } from '../../shared/conversation'
 import { findAgent } from '../../shared/agents'
 import type { AgentDetector } from '../agents'
 import type { ConversationManager } from '../conversations/manager'
@@ -13,6 +13,9 @@ import { formatIssueTask } from './prompt'
 import type { BoardWorktrees } from './worktrees'
 
 const BOARD_VERSION = 1
+
+/** Сообщение агенту, когда задачу снова отдают ему в его же чате без слов от пользователя. */
+const CONTINUE_MESSAGE = 'Continue working on the task.'
 
 /** Где карточка задачи и что с ней делал агент. Задачи без записи лежат в бэклоге. */
 interface Card {
@@ -60,6 +63,8 @@ export class BoardService {
   private error: string | null = null
   /** Задачи, агентов которых сейчас готовят: клонируют репозиторий, создают worktree. */
   private readonly starting = new Set<string>()
+  /** Последнее состояние, отправленное окну: то же самое ещё раз не отправляется. */
+  private sentState = ''
 
   private constructor(
     private readonly services: BoardServices,
@@ -80,10 +85,23 @@ export class BoardService {
         if (card.column === 'done' && typeof card.doneAt !== 'number') {
           card.doneAt = Date.now()
         }
+        // Ход агента не переживает перезапуск Atox: без работающего агента задача — на проверке.
+        if (
+          card.column === 'progress' &&
+          !(card.chatId && services.conversations.isRunning(card.chatId))
+        ) {
+          card.column = 'review'
+        }
         cards.set(id, card)
       }
     }
-    return new BoardService(services, new JsonFileWriter(filePath), repositories, cards)
+    const board = new BoardService(services, new JsonFileWriter(filePath), repositories, cards)
+    // Задачи из очереди уходят агентам, только когда прочитаны их issue, — не дожидаясь,
+    // пока пользователь откроет доску.
+    if ([...cards.values()].some(({ column }) => column === 'queue')) {
+      void board.refresh()
+    }
+    return board
   }
 
   state(): BoardState {
@@ -119,6 +137,11 @@ export class BoardService {
     return this.refresh()
   }
 
+  /** Чат агента задачи; нет — агент над ней не работал. */
+  chatOf(issueId: string): string | undefined {
+    return this.cards.get(issueId)?.chatId
+  }
+
   move(issueId: string, target: BoardColumn, start?: TaskStart): BoardState {
     const issue = this.issues.find(({ id }) => id === issueId)
     if (!issue) {
@@ -152,26 +175,33 @@ export class BoardService {
     } else {
       delete card.queuedAt
     }
-    this.cards.set(issueId, card)
+    // В бэклоге без чата карточка ничего не помнит: задача там и без неё.
+    if (column === 'backlog' && !card.chatId) {
+      this.cards.delete(issueId)
+    } else {
+      this.cards.set(issueId, card)
+    }
     this.persist()
     this.changed()
     this.startQueued()
     return this.state()
   }
 
-  /** Агент задачи закончил ход — задача уходит на проверку, а её место — следующей в очереди. */
+  /**
+   * Агент задачи закончил ход — задача уходит на проверку, а её место — следующей в очереди.
+   * Агент задачи на проверке снова взялся за работу (ему написали в чате) — она снова в работе.
+   */
   onConversationEvent(event: ConversationEvent): void {
-    if (event.type !== 'running' || event.running) {
+    if (event.type !== 'running') {
       return
     }
-    for (const card of this.cards.values()) {
-      if (card.chatId === event.chatId && card.column === 'progress') {
-        card.column = 'review'
-        this.persist()
-        this.changed()
-        this.startQueued()
-        return
-      }
+    const card = [...this.cards.values()].find(({ chatId }) => chatId === event.chatId)
+    if (event.running && card?.column === 'review') {
+      card.column = 'progress'
+      this.persist()
+      this.changed()
+    } else if (!event.running && card?.column === 'progress') {
+      void this.finishTurn(card, event.chatId)
     }
   }
 
@@ -182,10 +212,23 @@ export class BoardService {
 
   private async sync(): Promise<void> {
     try {
-      const open = await Promise.all(
-        this.repositories.map((repository) => this.services.github.openIssues(repository))
+      const repositories = this.repositories
+      const results = await Promise.allSettled(
+        repositories.map((repository) => this.services.github.openIssues(repository))
       )
-      const issues = open.flat()
+      const issues: GitHubIssue[] = []
+      const failures: string[] = []
+      results.forEach((result, index) => {
+        const { fullName } = repositories[index]!
+        if (result.status === 'fulfilled') {
+          issues.push(...result.value)
+        } else {
+          // Задачи репозитория, который не прочитался, остаются прежними, а не пропадают.
+          console.error(`Failed to sync ${fullName} on the board`, result.reason)
+          failures.push(`${fullName}: ${errorMessage(result.reason)}`)
+          issues.push(...this.issues.filter(({ repository }) => repository === fullName))
+        }
+      })
       // Закрытые задачи с карточками дочитываются по id: иначе они пропали бы из колонок.
       const known = new Set(issues.map(({ id }) => id))
       const missing = new Map<string, string[]>()
@@ -197,14 +240,51 @@ export class BoardService {
       for (const [account, ids] of missing) {
         issues.push(...(await this.services.github.issuesById(account, ids).catch(() => [])))
       }
-      this.issues = issues.sort((left, right) => right.updatedAt - left.updatedAt)
+      if (this.pruneCards(issues, repositories, failures.length === 0)) {
+        this.persist()
+      }
+      const shown = new Set(repositories.map(({ fullName }) => fullName))
+      // Закрытая задача видна, только пока у неё есть карточка.
+      this.issues = issues
+        .filter(
+          ({ id, repository, state }) =>
+            shown.has(repository) && (state === 'open' || this.cards.has(id))
+        )
+        .sort((left, right) => right.updatedAt - left.updatedAt)
       this.syncedAt = Date.now()
-      this.error = null
+      this.error = failures.length > 0 ? failures.join('; ') : null
       this.startQueued()
     } catch (error) {
       console.error('Failed to sync the board', error)
       this.error = errorMessage(error)
     }
+  }
+
+  /**
+   * Убирает карточки, которые доске больше не нужны: задач из убранных с доски репозиториев,
+   * закрытых задач в бэклоге и давно ушедших из Done закрытых задач. Ушедшая из Done открытая
+   * задача карточку сохраняет — иначе она вернулась бы в бэклог. `true` — что-то убрано.
+   */
+  private pruneCards(
+    issues: readonly GitHubIssue[],
+    repositories: readonly BoardRepository[],
+    complete: boolean
+  ): boolean {
+    const before = this.cards.size
+    const shown = new Set(repositories.map(({ fullName }) => fullName))
+    const byId = new Map(issues.map((issue) => [issue.id, issue]))
+    for (const [id, card] of this.cards) {
+      const issue = byId.get(id)
+      const removed =
+        (issue !== undefined && !shown.has(issue.repository)) ||
+        (issue?.state === 'closed' && card.column === 'backlog') ||
+        // Открытые задачи читаются только целиком: без ошибок видно, что этой среди них нет.
+        (complete && issue === undefined && this.isRetired(id))
+      if (removed) {
+        this.cards.delete(id)
+      }
+    }
+    return this.cards.size !== before
   }
 
   /** Отдаёт агентам задачи из очереди, пока работающих меньше предела. */
@@ -217,14 +297,14 @@ export class BoardService {
           card.chatId !== undefined &&
           this.services.conversations.isRunning(card.chatId))
     ).length
+    // Задачи репозиториев, убранных с доски, агентам не уходят.
+    const shown = new Set(this.repositories.map(({ fullName }) => fullName))
     const queued = [...this.cards.entries()]
       .filter(([id, card]) => card.column === 'queue' && !this.starting.has(id))
       .sort(([, left], [, right]) => (left.queuedAt ?? 0) - (right.queuedAt ?? 0))
-    for (const [id] of queued.slice(0, Math.max(0, limit - working))) {
-      const issue = this.issues.find((candidate) => candidate.id === id)
-      if (issue) {
-        void this.start(issue)
-      }
+      .flatMap(([id]) => this.issues.filter((issue) => issue.id === id && shown.has(issue.repository)))
+    for (const issue of queued.slice(0, Math.max(0, limit - working))) {
+      void this.start(issue)
     }
   }
 
@@ -245,15 +325,40 @@ export class BoardService {
       if (!(await this.services.agents.list()).includes(agent)) {
         throw new Error(`${findAgent(agent)?.name ?? agent} is not installed.`)
       }
-      let project = await worktrees.findProject(store.list(), issue.repository)
-      if (!project) {
-        const path = await worktrees.clone(issue.repository, token)
-        project = store.addProject(path, store.listSpaces().activeSpaceId)
+      const { project, worktree } = await worktrees.exclusive(issue.repository, async () => {
+        let project = await worktrees.findProject(store.list(), issue.repository)
+        if (!project) {
+          const path = await worktrees.clone(issue.repository, token)
+          project = store.addProject(path, store.listSpaces().activeSpaceId)
+        }
+        const worktree = await worktrees.create(project.path, issue.repository, issue.number, token)
+        return { project, worktree }
+      })
+      // Агент уже работал над задачей — он продолжает в своём чате, а не начинает в новом.
+      const chatId = card.chatId && store.findChat(card.chatId) ? card.chatId : undefined
+      const body = chatId ? '' : await github.issueBody(card.account, issue.id)
+      // Пока готовили worktree, задачу могли убрать из очереди — агента тогда не запускают,
+      // а worktree задачи, перенесённой в Done, убирают, как и при переносе.
+      if (this.cards.get(issue.id) !== card || card.column !== 'queue') {
+        if (card.column === 'done') {
+          await worktrees
+            .remove(project.path, worktree.path)
+            .catch((error) => console.error('Failed to remove the task worktree', error))
+        }
+        return
       }
-      const worktree = await worktrees.create(project.path, issue.repository, issue.number, token)
-      const body = await github.issueBody(card.account, issue.id)
-      // Пока готовили worktree, задачу могли убрать из очереди — агента тогда не запускают.
-      if (card.column !== 'queue') {
+      card.column = 'progress'
+      delete card.queuedAt
+      if (chatId) {
+        if (card.start) {
+          await conversations.configure(chatId, {
+            agent,
+            model: model ?? null,
+            effort: effort ?? null
+          })
+          this.services.onProjectsChanged()
+        }
+        await conversations.send(chatId, card.start?.message ?? CONTINUE_MESSAGE)
         return
       }
       const selection = { ...(model && { model }), ...(effort && { effort }) }
@@ -262,9 +367,7 @@ export class BoardService {
         worktree: worktree.path,
         githubAccount: card.account
       })
-      card.column = 'progress'
       card.chatId = chat.id
-      delete card.queuedAt
       this.services.onProjectsChanged()
       await conversations.send(
         chat.id,
@@ -275,15 +378,39 @@ export class BoardService {
       )
     } catch (error) {
       console.error(`Failed to start an agent for ${issue.repository}#${issue.number}`, error)
-      // Задача возвращается в бэклог с причиной: оставшись в очереди, она пробовала бы снова и снова.
-      card.column = 'backlog'
-      card.error = errorMessage(error)
-      delete card.queuedAt
+      // Задача возвращается в бэклог с причиной: оставшись в очереди, она пробовала бы снова
+      // и снова. Задачу, которую тем временем перенесли, не трогают.
+      if (card.column === 'queue' || card.column === 'progress') {
+        card.column = 'backlog'
+        card.error = errorMessage(error)
+        delete card.queuedAt
+      }
     } finally {
       this.starting.delete(issue.id)
       this.persist()
       this.changed()
+      // Место, которое заняла подготовка, освободилось, если агента так и не запустили.
+      this.startQueued()
     }
+  }
+
+  /** Агент закончил ход: штатно — задача уходит на проверку, с ошибкой — в бэклог с причиной. */
+  private async finishTurn(card: Card, chatId: string): Promise<void> {
+    const { conversations } = this.services
+    const error = turnError(await conversations.snapshot(chatId).catch(() => null))
+    // Пока читали ленту, задачу могли перенести, а агент — взяться за следующее сообщение.
+    if (card.column !== 'progress' || card.chatId !== chatId || conversations.isRunning(chatId)) {
+      return
+    }
+    if (error) {
+      card.column = 'backlog'
+      card.error = error
+    } else {
+      card.column = 'review'
+    }
+    this.persist()
+    this.changed()
+    this.startQueued()
   }
 
   /** Задача давно в Done и с доски ушла. */
@@ -348,12 +475,25 @@ export class BoardService {
   }
 
   private changed(): void {
-    this.services.onChange(this.state())
+    const state = this.state()
+    const serialized = JSON.stringify(state)
+    if (serialized !== this.sentState) {
+      this.sentState = serialized
+      this.services.onChange(state)
+    }
   }
 
   flush(): Promise<void> {
     return this.file.flush()
   }
+}
+
+/** Чем закончился последний ход агента, если ошибкой: лимит, падение агента. */
+function turnError(snapshot: ConversationSnapshot | null): string | null {
+  const items = snapshot?.items ?? []
+  const answer = items.slice(items.findLastIndex(({ kind }) => kind === 'user') + 1)
+  const ending = answer.findLast(({ kind }) => kind === 'assistant' || kind === 'error')
+  return ending?.kind === 'error' ? ending.message : null
 }
 
 function isBoardRepository(value: unknown): value is BoardRepository {

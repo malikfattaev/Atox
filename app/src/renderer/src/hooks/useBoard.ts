@@ -48,7 +48,11 @@ export function useBoard(): BoardHandle {
           )
         }
     )
-    void window.atox.board.move(issueId, column, start).then(setState)
+    // Задачу могли убрать с доски, пока её переносили: экран возвращается к состоянию main.
+    void window.atox.board.move(issueId, column, start).then(setState, (error: unknown) => {
+      console.error('Failed to move the task', error)
+      void window.atox.board.get().then(setState)
+    })
   }, [])
 
   return { state, refresh, move }
