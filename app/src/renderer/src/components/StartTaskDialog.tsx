@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { ChevronDown, Folder, X } from 'lucide-react'
 import type { BoardIssue, TaskStart } from '../../../shared/board'
+import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useSettings } from '../hooks/SettingsContext'
+import { showMenu } from '../lib/menu'
 import { formatAccelerator } from '../../../shared/shortcuts'
 import { TaskAgentPicker } from './TaskAgentPicker'
 
@@ -34,14 +36,51 @@ export function StartTaskDialog({
   const { boardAgent } = useSettings()
   const [agent, setAgent] = useState(boardAgent)
   const [message, setMessage] = useState('')
+  // Проект, под которым появится чат; нет — проект репозитория задачи.
+  const [projectId, setProjectId] = useState<string | undefined>()
+  const [defaultProjectId, setDefaultProjectId] = useState<string | null | undefined>()
+  const { projects } = useProjectsContext()
   const messageRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     messageRef.current?.focus()
-  }, [])
+    void window.atox.board.defaultProject(issue.repository).then(setDefaultProjectId)
+  }, [issue.repository])
 
   const start = () =>
-    onStart({ agent, ...(message.trim() && { message: message.trim() }) })
+    onStart({
+      agent,
+      ...(message.trim() && { message: message.trim() }),
+      ...(projectId && { projectId })
+    })
+
+  const repositoryName = issue.repository.split('/')[1]
+  const defaultProject = projects.find(({ id }) => id === defaultProjectId)
+  const chosenProject = projects.find(({ id }) => id === projectId)
+  const defaultLabel = defaultProject
+    ? `Default (${defaultProject.name})`
+    : defaultProjectId === null
+      ? `Default (new project ${repositoryName})`
+      : 'Default'
+
+  const chooseProject = async (event: MouseEvent<HTMLButtonElement>) => {
+    const choice = await showMenu<string>(
+      [
+        { action: '', label: defaultLabel, checked: !chosenProject },
+        { type: 'separator' },
+        ...projects.map(({ id, name }) => ({
+          action: id,
+          label: name,
+          icon: <Folder />,
+          checked: id === chosenProject?.id
+        }))
+      ],
+      event.currentTarget
+    )
+    if (choice !== null) {
+      setProjectId(choice || undefined)
+    }
+  }
 
   useEffect(() => {
     const handleKey = (event: globalThis.KeyboardEvent) => {
@@ -96,6 +135,29 @@ export function StartTaskDialog({
           <section className="start-task__section">
             <h3 className="start-task__label">Agent</h3>
             <TaskAgentPicker value={agent} onChange={setAgent} />
+          </section>
+
+          <section className="start-task__section">
+            <h3 className="start-task__label">Project in the sidebar</h3>
+            <div className="task-agent">
+              <button
+                type="button"
+                className="task-agent__button"
+                onClick={(event) => void chooseProject(event)}
+              >
+                <Folder className="task-agent__icon" />
+                <span className="task-agent__value">
+                  {chosenProject ? chosenProject.name : defaultLabel}
+                </span>
+                <ChevronDown className="task-agent__chevron" />
+              </button>
+            </div>
+            {chosenProject && chosenProject.id !== defaultProjectId && (
+              <p className="start-task__hint">
+                The chat is listed under {chosenProject.name}. The agent still works in its own git
+                worktree of {repositoryName}, so the changes don’t touch that folder.
+              </p>
+            )}
           </section>
 
           <section className="start-task__section">

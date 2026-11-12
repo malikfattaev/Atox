@@ -288,6 +288,8 @@ export interface AtoxApi {
      * `start` — с каким агентом и сообщением её запустить; нет — с агентом доски по умолчанию.
      */
     move(issueId: string, column: BoardColumn, start?: TaskStart): Promise<BoardState>
+    /** Проект, под которым чат агента появится по умолчанию; `null` — репозиторий ещё склонируют. */
+    defaultProject(repository: string): Promise<string | null>
   }
 }
 
@@ -376,5 +378,6 @@ export const IpcChannel = {
   BoardChanged: 'board:changed',
   BoardAvailableRepositories: 'board:available-repositories',
   BoardSetRepositories: 'board:set-repositories',
-  BoardMove: 'board:move'
+  BoardMove: 'board:move',
+  BoardDefaultProject: 'board:default-project'
 } as const

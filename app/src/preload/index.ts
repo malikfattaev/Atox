@@ -273,7 +273,9 @@ const api: AtoxApi = {
     setRepositories: (repositories) =>
       ipcRenderer.invoke(IpcChannel.BoardSetRepositories, repositories),
     move: (issueId, column, start) =>
-      ipcRenderer.invoke(IpcChannel.BoardMove, issueId, column, start)
+      ipcRenderer.invoke(IpcChannel.BoardMove, issueId, column, start),
+    defaultProject: (repository: string) =>
+      ipcRenderer.invoke(IpcChannel.BoardDefaultProject, repository)
   }
 }
 
