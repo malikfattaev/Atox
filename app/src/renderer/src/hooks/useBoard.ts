@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BoardColumn, BoardState } from '../../../shared/board'
+import type { BoardColumn, BoardState, TaskStart } from '../../../shared/board'
 
 /**
  * Сколько доска может не обновляться: открытая позже этого, она перечитывает задачи с GitHub
@@ -11,7 +11,7 @@ export interface BoardHandle {
   state: BoardState | null
   refresh(): void
   /** Переносит задачу сразу на экране, не дожидаясь ответа main. */
-  move(issueId: string, column: BoardColumn): void
+  move(issueId: string, column: BoardColumn, start?: TaskStart): void
 }
 
 export function useBoard(): BoardHandle {
@@ -38,7 +38,7 @@ export function useBoard(): BoardHandle {
 
   const refresh = useCallback(() => void window.atox.board.refresh(), [])
 
-  const move = useCallback((issueId: string, column: BoardColumn) => {
+  const move = useCallback((issueId: string, column: BoardColumn, start?: TaskStart) => {
     setState(
       (current) =>
         current && {
@@ -48,7 +48,7 @@ export function useBoard(): BoardHandle {
           )
         }
     )
-    void window.atox.board.move(issueId, column).then(setState)
+    void window.atox.board.move(issueId, column, start).then(setState)
   }, [])
 
   return { state, refresh, move }

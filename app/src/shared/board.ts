@@ -3,6 +3,38 @@
  * агенту — в отдельный worktree репозитория, — а когда агент закончит, переходит на проверку.
  */
 
+import { isAgentId, type AgentId } from './agents'
+
+/** Агент, модель и эффорт, с которыми задача уходит в работу; без модели и эффорта — его по умолчанию. */
+export interface TaskAgent {
+  agent: AgentId
+  model?: string
+  effort?: string
+}
+
+/** Как запустить задачу: агент и сообщение ему от пользователя вместе с заданием. */
+export interface TaskStart {
+  agent: TaskAgent
+  /** Что пользователь хочет добавить к задаче; пусто — ничего. */
+  message?: string
+}
+
+/** Агент из сохранённых данных или окна; `null` — значение не похоже на агента. */
+export function parseTaskAgent(value: unknown): TaskAgent | null {
+  if (typeof value !== 'object' || value === null) {
+    return null
+  }
+  const { agent, model, effort } = value as Record<string, unknown>
+  if (!isAgentId(agent)) {
+    return null
+  }
+  return {
+    agent,
+    ...(typeof model === 'string' && model && { model }),
+    ...(typeof effort === 'string' && effort && { effort })
+  }
+}
+
 /** Колонки слева направо. */
 export const BOARD_COLUMNS = ['backlog', 'queue', 'progress', 'review', 'done'] as const
 export type BoardColumn = (typeof BOARD_COLUMNS)[number]
@@ -10,6 +42,12 @@ export type BoardColumn = (typeof BOARD_COLUMNS)[number]
 export function isBoardColumn(value: unknown): value is BoardColumn {
   return BOARD_COLUMNS.some((column) => column === value)
 }
+
+/**
+ * Сколько задача видна в Done: день — чтобы было видно, что закрыто сегодня. Потом она уходит
+ * с доски насовсем, и Done не превращается в свалку.
+ */
+export const DONE_VISIBLE_MS = 24 * 60 * 60_000
 
 /** Сколько агентов доски работают одновременно: каждый тратит лимит подписки. */
 export const BOARD_AGENTS = { min: 1, max: 8, default: 2 } as const

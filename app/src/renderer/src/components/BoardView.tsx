@@ -32,6 +32,7 @@ import { formatRelativeTime } from '../lib/relativeTime'
 import { BoardRepositoryPicker } from './BoardRepositoryPicker'
 import { ChatStatus } from './ChatStatus'
 import { GitHubMark } from './GitHubMark'
+import { StartTaskDialog } from './StartTaskDialog'
 
 /** Сдвиг курсора, после которого нажатие на карточку — перетаскивание, а не клик. */
 const DRAG_ACTIVATION_DISTANCE_PX = 6
@@ -47,7 +48,7 @@ const COLUMN_INFO: Record<BoardColumn, { title: string; hint: string }> = {
   queue: { title: 'Queue', hint: 'Drop tasks for agents' },
   progress: { title: 'In progress', hint: 'Agents at work show up here' },
   review: { title: 'Review', hint: 'Finished tasks to review' },
-  done: { title: 'Done', hint: 'Reviewed tasks' }
+  done: { title: 'Done', hint: 'Tasks leave the board after a day' }
 }
 
 /** Пункт меню фильтра «все». */
@@ -124,6 +125,26 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
     )
   }, [issues, owner, repository, assignee, myLogins, query])
   const working = issues.filter((issue) => issue.column === 'progress').length
+  /** Задача, которую сейчас отдают агенту: окно выбора агента и сообщения. */
+  const [starting, setStarting] = useState<BoardIssue | null>(null)
+
+  /**
+   * Перенос задачи. В очередь или в работу из других колонок она уходит через окно запуска:
+   * там выбирают агента, модель и сообщение ему. Между очередью и работой — сразу.
+   */
+  const requestMove = (issueId: string, column: BoardColumn) => {
+    const issue = issues.find(({ id }) => id === issueId)
+    if (!issue || issue.column === column) {
+      return
+    }
+    const launches = column === 'queue' || column === 'progress'
+    const alreadyLaunched = issue.column === 'queue' || issue.column === 'progress'
+    if (launches && !alreadyLaunched) {
+      setStarting(issue)
+    } else {
+      move(issueId, column)
+    }
+  }
 
   const chooseOwner = async (anchor: Element) => {
     const choice = await showMenu<string>(
@@ -176,7 +197,7 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
     const issue = issues.find(({ id }) => id === active.id)
     const column = over?.id
     if (issue && typeof column === 'string' && column !== issue.column) {
-      move(issue.id, column as BoardColumn)
+      requestMove(issue.id, column as BoardColumn)
     }
   }
 
@@ -287,7 +308,7 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
                   column={column}
                   issues={visible.filter((issue) => issue.column === column)}
                   loading={state === null || (state.syncedAt === null && state.syncing)}
-                  onMove={move}
+                  onMove={requestMove}
                   onOpenChat={onOpenChat}
                 />
               ))}
@@ -297,6 +318,19 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
             </DragOverlay>
           </DndContext>
         </>
+      )}
+
+      {starting && (
+        <StartTaskDialog
+          issue={starting}
+          working={working}
+          limit={boardMaxAgents}
+          onClose={() => setStarting(null)}
+          onStart={(start) => {
+            setStarting(null)
+            move(starting.id, 'queue', start)
+          }}
+        />
       )}
 
       {pickerOpen && state && (
@@ -499,7 +533,7 @@ function CardFooter({ issue, onQueue }: { issue: BoardIssue; onQueue?(): void })
           }}
         >
           <Play className="board-card__action-icon" />
-          Queue for an agent
+          Start agent…
         </button>
       </div>
     )
