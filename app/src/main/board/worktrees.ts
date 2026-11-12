@@ -33,10 +33,32 @@ export interface IssueWorktree {
 
 /** Локальные копии репозиториев доски и worktree её задач. */
 export class BoardWorktrees {
-  /** Репозиторий GitHub папки проекта по пути; `null` — не репозиторий GitHub. */
-  private readonly remotes = new Map<string, string | null>()
+  /**
+   * Репозиторий GitHub папки проекта по пути. Папки без него не запоминаются: удалённый
+   * репозиторий у проекта может появиться позже.
+   */
+  private readonly remotes = new Map<string, string>()
+  /** Последняя работа с каждым репозиторием: следующая ждёт её, а не идёт вперемешку. */
+  private readonly queues = new Map<string, Promise<unknown>>()
 
   constructor(private readonly shell: ShellEnvironment) {}
+
+  /**
+   * Выполняет `task` после прежних задач того же репозитория. Две задачи одного репозитория,
+   * запущенные вместе, иначе клонировали бы его в одну папку и делили блокировку git.
+   */
+  exclusive<T>(fullName: string, task: () => Promise<T>): Promise<T> {
+    const key = fullName.toLowerCase()
+    const result = (this.queues.get(key) ?? Promise.resolve()).then(task)
+    const settled = result.catch(() => undefined)
+    this.queues.set(key, settled)
+    void settled.then(() => {
+      if (this.queues.get(key) === settled) {
+        this.queues.delete(key)
+      }
+    })
+    return result
+  }
 
   /** Проект, папка которого — копия репозитория `fullName`. */
   async findProject(projects: readonly Project[], fullName: string): Promise<Project | undefined> {
@@ -58,7 +80,23 @@ export class BoardWorktrees {
       // (Atox закрыли посреди) не оставит битую копию, которую потом приняли бы за целую.
       const partial = `${path}${PARTIAL_CLONE_SUFFIX}`
       await rm(partial, { recursive: true, force: true })
-      await this.run('gh', ['repo', 'clone', fullName, partial], homedir(), token)
+      // По https и через `gh`: под учётной записью `GH_TOKEN`, а не ssh-ключом или другой
+      // учётной записью из связки ключей. Помощник остаётся в настройках копии, так что
+      // агент пушит из неё под той же учётной записью.
+      await this.run(
+        'git',
+        [
+          'clone',
+          '-c',
+          'credential.helper=',
+          '-c',
+          'credential.helper=!gh auth git-credential',
+          `https://github.com/${fullName}.git`,
+          partial
+        ],
+        homedir(),
+        token
+      )
       await rename(partial, path)
     }
     this.remotes.set(path, fullName)
@@ -100,11 +138,19 @@ export class BoardWorktrees {
 
   /**
    * Убирает worktree задачи вместе с несохранёнными в нём правками: задача закрыта, её работа
-   * уже в ветке на GitHub. Сама ветка остаётся — она нужна pull request'у.
+   * уже в ветке на GitHub. Локальная ветка задачи удаляется, только если она запушена или
+   * влита, — иначе `git branch -d` её не тронет.
    */
   async remove(repositoryPath: string, worktreePath: string): Promise<void> {
-    if (existsSync(worktreePath)) {
-      await this.run('git', ['worktree', 'remove', '--force', worktreePath], repositoryPath)
+    if (!existsSync(worktreePath)) {
+      return
+    }
+    const branch = await this.run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], worktreePath)
+      .then((name) => name.trim())
+      .catch(() => '')
+    await this.run('git', ['worktree', 'remove', '--force', worktreePath], repositoryPath)
+    if (branch.startsWith(BRANCH_PREFIX)) {
+      await this.run('git', ['branch', '-d', branch], repositoryPath).catch(() => undefined)
     }
   }
 
@@ -121,18 +167,27 @@ export class BoardWorktrees {
   }
 
   private async remoteOf(path: string): Promise<string | null> {
-    if (!this.remotes.has(path)) {
-      const url = existsSync(path)
-        ? await this.run('git', ['remote', 'get-url', 'origin'], path).catch(() => '')
-        : ''
-      this.remotes.set(path, GITHUB_REMOTE.exec(url.trim())?.[1] ?? null)
+    const known = this.remotes.get(path)
+    if (known) {
+      return known
     }
-    return this.remotes.get(path) ?? null
+    const url = existsSync(path)
+      ? await this.run('git', ['remote', 'get-url', 'origin'], path).catch(() => '')
+      : ''
+    const remote = GITHUB_REMOTE.exec(url.trim())?.[1]
+    if (remote) {
+      this.remotes.set(path, remote)
+    }
+    return remote ?? null
   }
 
   private async run(program: string, args: string[], cwd: string, token?: string): Promise<string> {
-    const env = { ...(await this.shell.get()), ...(token && { GH_TOKEN: token }) }
-    // С токеном команда ходит в сеть, без него — только читает локальный репозиторий.
+    // С токеном команда ходит в сеть, без него — только читает локальный репозиторий. Спросить
+    // пароль git здесь не у кого: без доступа команда должна упасть, а не ждать ввода.
+    const env = {
+      ...(await this.shell.get()),
+      ...(token && { GH_TOKEN: token, GIT_TERMINAL_PROMPT: '0' })
+    }
     return runCommand(program, args, { cwd, env, ...(token && { timeoutMs: NETWORK_TIMEOUT_MS }) })
   }
 }
