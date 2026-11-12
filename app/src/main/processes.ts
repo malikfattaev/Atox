@@ -75,19 +75,21 @@ export interface CommandOptions {
    * когда файлы различаются.
    */
   successCodes?: readonly number[]
+  /** Сколько ждать программу; по умолчанию `DEFAULT_TIMEOUT_MS`. Клонированию нужно дольше. */
+  timeoutMs?: number
 }
 
 /** Запускает программу без оболочки и возвращает её вывод. */
 export function runCommand(
   program: string,
   args: readonly string[],
-  { cwd, env, input, successCodes = [0] }: CommandOptions
+  { cwd, env, input, successCodes = [0], timeoutMs = DEFAULT_TIMEOUT_MS }: CommandOptions
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       program,
       args,
-      { cwd, env, timeout: DEFAULT_TIMEOUT_MS, maxBuffer: DEFAULT_MAX_OUTPUT_BYTES },
+      { cwd, env, timeout: timeoutMs, maxBuffer: DEFAULT_MAX_OUTPUT_BYTES },
       (error, stdout, stderr) => {
         // Остановленная сигналом программа — в том числе по таймауту — кода выхода не имеет,
         // и это ошибка, а не успех с недописанным выводом.

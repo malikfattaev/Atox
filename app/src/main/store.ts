@@ -308,6 +308,30 @@ export class ProjectStore {
   }
 
   /**
+   * Чат агента задачи с доски: со своим названием, в worktree задачи и под учётной записью
+   * GitHub, через которую видна задача.
+   */
+  createTaskChat(
+    projectId: string,
+    agent: AgentId,
+    selection: Partial<ModelSelection>,
+    task: { title: string; worktree: string; githubAccount: string }
+  ): Chat {
+    const project = this.getProject(projectId)
+    const chat: Chat = {
+      ...newChat(project, agent),
+      ...selection,
+      title: task.title,
+      hasCustomTitle: true,
+      worktree: task.worktree,
+      githubAccount: task.githubAccount
+    }
+    project.chats.unshift(chat)
+    this.persist()
+    return chat
+  }
+
+  /**
    * Создаёт чат помощника, которого запустил агент чата `parentChatId`: в той же папке,
    * сразу под ним и его прежними помощниками. `title` — название, которое дал агент,
    * `selection` — модель и эффорт помощника.

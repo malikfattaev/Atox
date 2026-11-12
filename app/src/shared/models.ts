@@ -15,6 +15,13 @@ export interface Chat {
   hasCustomTitle?: boolean
   /** Чат агента, который запустил этот чат как помощника; нет — чат пользователя. */
   parentChatId?: string
+  /**
+   * Папка, в которой работает агент вместо папки проекта, — worktree задачи с доски.
+   * Нет — папка проекта.
+   */
+  worktree?: string
+  /** Учётная запись `gh`, под которой агент ходит на GitHub; нет — активная. */
+  githubAccount?: string
   createdAt: number
   /** Когда чат убрали в архив; есть только у чатов из `Project.archivedChats`. */
   archivedAt?: number
