@@ -4,6 +4,7 @@ import { BOARD_AGENTS } from '../../../shared/board'
 import type { GitHubAccount } from '../../../shared/github'
 import { useSettings } from '../hooks/SettingsContext'
 import { githubAvatarUrl } from '../lib/github'
+import { ipcErrorMessage } from '../lib/ipcError'
 
 const { atox } = window
 
@@ -11,6 +12,20 @@ const { atox } = window
 export function GitHubSettings() {
   const { boardMaxAgents } = useSettings()
   const [accounts, setAccounts] = useState<GitHubAccount[] | null>(null)
+  const [switching, setSwitching] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const activate = async (login: string) => {
+    setSwitching(login)
+    setError(null)
+    try {
+      setAccounts(await atox.github.activate(login))
+    } catch (reason) {
+      setError(ipcErrorMessage(reason))
+    } finally {
+      setSwitching(null)
+    }
+  }
 
   useEffect(() => {
     void atox.github.accounts().then(setAccounts)
@@ -47,11 +62,27 @@ export function GitHubSettings() {
                       <span className="settings__description">github.com</span>
                     </span>
                   </span>
-                  {active && <span className="github-account__badge">Active</span>}
+                  {active ? (
+                    <span className="github-account__badge">Active</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="settings__button"
+                      disabled={switching !== null}
+                      onClick={() => void activate(login)}
+                    >
+                      {switching === login ? 'Switching…' : 'Make Active'}
+                    </button>
+                  )}
                 </div>
               ))
             )}
           </div>
+          <p className="settings__note" role={error ? 'alert' : undefined}>
+            {error
+              ? `Couldn’t switch the account: ${error}`
+              : 'The active account is the one gh and git use in Terminal and in agents.'}
+          </p>
         </div>
       </div>
 
