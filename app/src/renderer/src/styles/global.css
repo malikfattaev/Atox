@@ -4586,6 +4586,10 @@ ul {
 }
 
 .board-column__hint {
+  /* Подсказки одной строкой: рамки пустых колонок одной высоты при любой ширине. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 18px 14px;
   border: 1px dashed var(--color-border);
   border-radius: var(--board-card-radius);
@@ -5195,4 +5199,14 @@ ul {
 /* «Закрыто» стоит справа, а исполнители — сразу за ним. */
 .board-card__closed + .board-card__assignees {
   margin-left: 0;
+}
+
+.settings__note {
+  margin: 8px 2px 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
+}
+
+.settings__note[role='alert'] {
+  color: var(--color-danger);
 }
