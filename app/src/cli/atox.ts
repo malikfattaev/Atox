@@ -17,9 +17,12 @@ const USAGE = `Usage: atox <command>
 Delegate work to another agent in a new Atox chat in the same folder.
 
   atox agents                              List installed agents
-  atox start <agent> [--title <name>] <task>
+  atox models <agent>                      List the agent's models and their effort levels
+  atox start <agent> [--title <name>] [--model <id>] [--effort <level>] <task>
                                            Start a worker agent with a task; its report
                                            arrives in your chat as a new message.
+                                           Without --model/--effort the worker uses the
+                                           user's model for new chats.
                                            Pass "-" as the task to read it from stdin.
   atox workers                             List your workers
   atox send <chat-id|${PARENT_ADDRESS}> <message>     Message one of your workers, or your parent agent
@@ -42,23 +45,46 @@ async function main(args: string[]): Promise<string> {
         ? agents.map(({ id, name }) => `${id}\t${name}`).join('\n')
         : 'No agents are installed.'
     }
+    case 'models': {
+      const [agent] = rest
+      if (!agent) {
+        throw new UsageError('Specify the agent, for example: atox models claude')
+      }
+      const { defaultModel, models } = await call('models', { agent })
+      return models
+        .map(({ id, name, efforts, defaultEffort }) => {
+          const marks = id === defaultModel ? ' (default)' : ''
+          const levels = efforts
+            .map((level) => (level === defaultEffort ? `${level}*` : level))
+            .join(', ')
+          return `${id}\t${name}${marks}\t${levels ? `effort: ${levels}` : 'no effort levels'}`
+        })
+        .join('\n')
+    }
     case 'start': {
-      const { values, positional } = parseFlags(rest, ['title'])
+      const { values, positional } = parseFlags(rest, ['title', 'model', 'effort'])
       const [agent, ...taskWords] = positional
       if (!agent) {
         throw new UsageError('Specify the agent, for example: atox start claude "<task>"')
       }
       const task = await readText(taskWords, 'task')
-      const worker = await call('start', { agent, task, title: values['title'] })
-      return `Started worker "${worker.title}" (chat ${worker.chatId}). Its report will arrive in this chat as a new message; you can keep working meanwhile.`
+      const worker = await call('start', {
+        agent,
+        task,
+        title: values['title'],
+        model: values['model'],
+        effort: values['effort']
+      })
+      return `Started worker "${worker.title}" (chat ${worker.chatId}${describeModel(worker)}). Its report will arrive in this chat as a new message; you can keep working meanwhile.`
     }
     case 'workers': {
       const workers = await call('workers', {})
       return workers.length > 0
         ? workers
-            .map(({ chatId, title, agent, running, reported, startedAt }) => {
+            .map((worker) => {
+              const { chatId, title, agent, running, reported, startedAt } = worker
               const state = reported ? 'reported' : running ? 'working' : 'stopped'
-              return `${chatId}\t${agent}\t${state}\tstarted ${formatAge(startedAt)}\t${title}`
+              return `${chatId}\t${agent}${describeModel(worker)}\t${state}\tstarted ${formatAge(startedAt)}\t${title}`
             })
             .join('\n')
         : 'You have no workers.'
@@ -92,6 +118,11 @@ async function main(args: string[]): Promise<string> {
     default:
       throw new UsageError(`Unknown command: ${command}\n\n${USAGE}`)
   }
+}
+
+/** «, opus, high» — модель и эффорт помощника, если они заданы. */
+function describeModel({ model, effort }: { model?: string; effort?: string }): string {
+  return [model, effort].map((part) => (part ? `, ${part}` : '')).join('')
 }
 
 /** Сколько времени прошло с момента: «just now», «5m ago», «2h ago», «3d ago». */
