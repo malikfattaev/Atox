@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RepositorySection } from './components/RepositoryView'
 import { MenuLayer } from './components/MenuLayer'
 import { Sidebar } from './components/Sidebar'
@@ -89,7 +89,18 @@ function Layout() {
   }, [currentProjectId])
 
   // Переход в чат (выбор, создание, переключение с клавиатуры) закрывает страницу поверх чатов.
-  useEffect(closePage, [projects.activeChatId, closePage])
+  // Открытый чат, который удалили, переходом не считается: например, задачу на доске перенесли
+  // в Done, и чат её агента убран, — доска остаётся на экране.
+  const previousChatIdRef = useRef(projects.activeChatId)
+  useEffect(() => {
+    const previous = previousChatIdRef.current
+    previousChatIdRef.current = projects.activeChatId
+    const previousRemoved =
+      previous !== null && !projects.projects.some(({ chats }) => chats.some(({ id }) => id === previous))
+    if (projects.activeChatId !== previous && !previousRemoved) {
+      closePage()
+    }
+  }, [projects.activeChatId, projects.projects, closePage])
 
   useAppCommands({
     projects,
