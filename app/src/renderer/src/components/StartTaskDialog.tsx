@@ -10,6 +10,8 @@ const START_ACCELERATOR = 'CommandOrControl+Enter'
 
 interface StartTaskDialogProps {
   issue: BoardIssue
+  /** Issue открыл не пользователь: агент получит текст чужого человека. */
+  foreignAuthor: boolean
   /** Сколько агентов доски уже работает и сколько можно. */
   working: number
   limit: number
@@ -23,6 +25,7 @@ interface StartTaskDialogProps {
  */
 export function StartTaskDialog({
   issue,
+  foreignAuthor,
   working,
   limit,
   onStart,
@@ -77,6 +80,12 @@ export function StartTaskDialog({
               <span className="start-task__number">#{issue.number}</span>
               <span className="start-task__title">{issue.title}</span>
             </p>
+            {foreignAuthor && (
+              <p className="start-task__author">
+                Opened by {issue.author}. The agent reads the issue as its task, so check it
+                first.
+              </p>
+            )}
           </div>
           <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>
             <X className="icon" />

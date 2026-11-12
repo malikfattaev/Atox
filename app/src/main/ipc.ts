@@ -524,11 +524,21 @@ export function registerIpcHandlers({
   )
   ipcMain.handle(
     IpcChannel.BoardMove,
-    (_event, issueId: unknown, column: unknown, start: unknown) => {
+    async (event, issueId: unknown, column: unknown, start: unknown) => {
       if (typeof issueId !== 'string' || !isBoardColumn(column)) {
         throw new Error('Invalid board move')
       }
-      return board.move(issueId, column, parseTaskStart(start))
+      // Done удаляет чат агента и worktree задачи: случайный перенос не должен стоить работы.
+      const confirmed =
+        column !== 'done' ||
+        !board.chatOf(issueId) ||
+        (await confirm(BrowserWindow.fromWebContents(event.sender), {
+          message: 'Delete the agent chat and worktree?',
+          detail:
+            'Moving the task to Done deletes its agent chat and git worktree, including changes that are not committed. The pushed branch and the pull request stay on GitHub.',
+          confirmLabel: 'Move to Done'
+        }))
+      return confirmed ? board.move(issueId, column, parseTaskStart(start)) : board.state()
     }
   )
 
