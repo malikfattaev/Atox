@@ -826,6 +826,11 @@ export class ConversationManager {
         spent: (counts) => this.services.onTokensSpent(agent, counts),
         usage: (usage) => this.emit(chatId, conversation, { type: 'usage', usage }),
         tokens: (turnTokens) => this.emit(chatId, conversation, { type: 'tokens', turnTokens }),
+        backgroundTasks: (tasks) => {
+          if (conversation.session === session) {
+            this.emit(chatId, conversation, { type: 'background', tasks })
+          }
+        },
         sessionStarted: (sessionId) => {
           // Сессия, которую уже сменил другой агент, свой разговор не навязывает.
           if (conversation.session !== session) {
@@ -845,6 +850,8 @@ export class ConversationManager {
           if (conversation.session === session && !resumeFailed()) {
             releaseErrors()
             conversation.session = null
+            // Фоновые задачи живут в процессе агента и закончились вместе с ним.
+            this.emit(chatId, conversation, { type: 'background', tasks: [] })
             this.finishTurn(chatId, conversation)
           }
         }
@@ -1044,12 +1051,12 @@ export class ConversationManager {
   }
 }
 
-/** Агент работает или ждёт очереди; восстановленная очередь, пока ждёт пользователя, — нет. */
 /** Папка, в которой работает агент чата: worktree задачи или папка проекта. */
 function chatDirectory({ project, chat }: { project: Project; chat: Chat }): string {
   return chat.worktree ?? project.path
 }
 
+/** Агент работает или ждёт очереди; восстановленная очередь, пока ждёт пользователя, — нет. */
 function isBusy(conversation: Conversation): boolean {
   return (
     conversation.turn !== null || (conversation.queue.length > 0 && !conversation.queuePaused)

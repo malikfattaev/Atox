@@ -3,6 +3,7 @@ import type { TokenCounts } from '../../shared/tokenSpend'
 import type {
   AgentCatalog,
   AgentCommand,
+  BackgroundTask,
   ContextReport,
   ConversationUsage,
   ModelSelection,
@@ -48,6 +49,8 @@ export interface SessionEvents {
   spent(counts: TokenCounts): void
   /** Агент сообщил, насколько заполнен контекст и сколько осталось лимитов подписки. */
   usage(usage: ConversationUsage): void
+  /** Фоновые задачи агента изменились: здесь — все, что работают сейчас. */
+  backgroundTasks(tasks: BackgroundTask[]): void
   /** Агент сообщил идентификатор разговора, по которому его можно продолжить. */
   sessionStarted(sessionId: string): void
   /** Процесс агента завершился: сессией больше пользоваться нельзя. */
