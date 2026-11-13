@@ -52,6 +52,11 @@ export interface ProjectsData {
   projects: Project[]
   /** Проекты и пространства ещё загружаются — пустой список пока ничего не значит. */
   loading: boolean
+  /**
+   * Сколько раз выбирали чат. Выбор уже активного чата ничего не меняет в данных, но страница
+   * поверх чатов — репозиторий, доска — должна закрыться и по нему.
+   */
+  chatSelections: number
   spaces: Space[]
   /** `null` — пространства ещё загружаются. */
   activeSpaceId: string | null
@@ -246,8 +251,11 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
   const currentShownProjectId = () =>
     findShownProjectId(viewRef.current, projectsRef.current, activeSpaceIdRef.current)
 
+  const [chatSelections, setChatSelections] = useState(0)
+
   const selectChat = useCallback(
     (chatId: string) => {
+      setChatSelections((count) => count + 1)
       const projectId = findChatProjectId(projectsRef.current, chatId)
       if (projectId) {
         changeLayout(projectId, (layout) => showChat(layout, chatId))
@@ -535,6 +543,7 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
     () => ({
       projects,
       loading,
+      chatSelections,
       spaces,
       activeSpaceId,
       spaceProjects,
@@ -548,6 +557,7 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
     [
       projects,
       loading,
+      chatSelections,
       spaces,
       activeSpaceId,
       spaceProjects,

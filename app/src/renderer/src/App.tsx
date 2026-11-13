@@ -102,6 +102,15 @@ function Layout() {
     }
   }, [projects.activeChatId, projects.projects, closePage])
 
+  // Клик по чату закрывает страницу и тогда, когда чат уже активен и переходом не считается.
+  const chatSelectionsRef = useRef(projects.chatSelections)
+  useEffect(() => {
+    if (chatSelectionsRef.current !== projects.chatSelections) {
+      chatSelectionsRef.current = projects.chatSelections
+      closePage()
+    }
+  }, [projects.chatSelections, closePage])
+
   useAppCommands({
     projects,
     toggleSidebar,
