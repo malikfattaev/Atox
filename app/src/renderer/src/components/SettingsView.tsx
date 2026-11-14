@@ -127,52 +127,6 @@ export function SettingsView({ onClose }: SettingsViewProps) {
                   onChange={(event) => void atox.settings.update({ profileName: event.target.value })}
                 />
               </label>
-              <div className="settings__row">
-                <span className="settings__label">
-                  <span>Appearance</span>
-                  <span className="settings__description">
-                    Follow the system or always use a light or dark window.
-                  </span>
-                </span>
-                <div className="segmented" role="radiogroup" aria-label="Appearance">
-                  {THEME_OPTIONS.map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      role="radio"
-                      aria-checked={theme === id}
-                      className="segmented__item"
-                      onClick={() => void atox.settings.update({ theme: id })}
-                    >
-                      <Icon className="segmented__icon" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="settings__row">
-                <span className="settings__label">
-                  <span>Accent color</span>
-                  <span className="settings__description">
-                    Used for selections, switches and buttons.
-                  </span>
-                </span>
-                <div className="accent-swatches" role="radiogroup" aria-label="Accent color">
-                  {ACCENTS.map(({ id, name }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      role="radio"
-                      aria-checked={accent === id}
-                      aria-label={name}
-                      title={name}
-                      data-accent={id}
-                      className="accent-swatch"
-                      onClick={() => void atox.settings.update({ accent: id })}
-                    />
-                  ))}
-                </div>
-              </div>
               <UpdateSettings />
               <label className="settings__row">
                 <span className="settings__label">
@@ -214,6 +168,60 @@ export function SettingsView({ onClose }: SettingsViewProps) {
                 />
               </label>
             </div>
+          </div>
+
+          <div className="settings__group">
+            <section className="settings__subgroup" aria-label="Appearance">
+              <h3 className="settings__subgroup-title">Appearance</h3>
+              <div className="settings__card">
+                <div className="settings__row">
+                  <span className="settings__label">
+                    <span>Theme</span>
+                    <span className="settings__description">
+                      Follow the system or always use a light or dark window.
+                    </span>
+                  </span>
+                  <div className="segmented" role="radiogroup" aria-label="Appearance">
+                    {THEME_OPTIONS.map(({ id, label, icon: Icon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="radio"
+                        aria-checked={theme === id}
+                        className="segmented__item"
+                        onClick={() => void atox.settings.update({ theme: id })}
+                      >
+                        <Icon className="segmented__icon" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="settings__row">
+                  <span className="settings__label">
+                    <span>Accent color</span>
+                    <span className="settings__description">
+                      Used for selections, switches and buttons.
+                    </span>
+                  </span>
+                  <div className="accent-swatches" role="radiogroup" aria-label="Accent color">
+                    {ACCENTS.map(({ id, name }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="radio"
+                        aria-checked={accent === id}
+                        aria-label={name}
+                        title={name}
+                        data-accent={id}
+                        className="accent-swatch"
+                        onClick={() => void atox.settings.update({ accent: id })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
 
           <div className="settings__group">
