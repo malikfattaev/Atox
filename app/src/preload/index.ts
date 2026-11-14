@@ -196,10 +196,6 @@ const api: AtoxApi = {
     discard: (projectId, path) => ipcRenderer.invoke(IpcChannel.ChangesDiscard, projectId, path)
   },
   repository: {
-    commits: (projectId, loaded) =>
-      ipcRenderer.invoke(IpcChannel.RepositoryCommits, projectId, loaded),
-    moreCommits: (projectId, cursor) =>
-      ipcRenderer.invoke(IpcChannel.RepositoryMoreCommits, projectId, cursor),
     github: (projectId, loaded) => ipcRenderer.invoke(IpcChannel.RepositoryGitHub, projectId, loaded),
     moreGitHub: (projectId, kind, state, cursor) =>
       ipcRenderer.invoke(IpcChannel.RepositoryMoreGitHub, projectId, kind, state, cursor)

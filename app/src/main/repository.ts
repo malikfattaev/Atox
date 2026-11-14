@@ -1,7 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import type {
   CheckStatus,
-  Commit,
   GitHubCounts,
   GitHubItems,
   GitHubKind,
@@ -26,8 +25,6 @@ import {
 import type { GitHubAccounts } from './githubAccounts'
 import type { ShellEnvironment } from './shellEnvironment'
 
-/** Сколько коммитов загружать за раз: дальше список подгружается при прокрутке. */
-const COMMIT_PAGE_SIZE = 100
 /**
  * Сколько PR или issue загружать за раз. Больше не просим и при обновлении: на большом
  * репозитории запрос с сотней PR и их проверками GitHub отклоняет как слишком тяжёлый.
@@ -35,14 +32,8 @@ const COMMIT_PAGE_SIZE = 100
 const GITHUB_PAGE_SIZE = 50
 /** Сколько меток issue показывать. */
 const LABEL_LIMIT = 4
-
-/** Разделители полей и записей в выводе `git log`: в сообщениях коммитов они не встречаются. */
-const FIELD_SEPARATOR = '\x1f'
-const RECORD_SEPARATOR = '\x1e'
-const TAG_PREFIX = 'tag: '
-
-/** Курсор коммитов — вершина, от которой листаем, и сколько коммитов уже пропущено. */
-const COMMIT_CURSOR = /^([0-9a-f]{40,64}):(\d+)$/
+/** Сколько исполнителей issue показывать. */
+const ASSIGNEE_LIMIT = 5
 
 /** Фильтр по состоянию в запросе GitHub для каждого списка. */
 const LIST_STATES: Record<GitHubKind, Record<ListState, string>> = {
@@ -92,6 +83,7 @@ fragment Issues on IssueConnection {
     stateReason
     updatedAt
     author { login }
+    assignees(first: $assigneeLimit) { nodes { login } }
     comments { totalCount }
     labels(first: $labelLimit) { nodes { name color } }
   }
@@ -123,7 +115,7 @@ function listQuery(kind: GitHubKind, state: ListState, paged: boolean): string {
     '$first: Int!',
     ...(paged ? ['$after: String!'] : []),
     // Объявленная, но не использованная переменная — ошибка GraphQL, а метки есть только у issue.
-    ...(kind === 'issues' ? ['$labelLimit: Int!'] : [])
+    ...(kind === 'issues' ? ['$labelLimit: Int!', '$assigneeLimit: Int!'] : [])
   ]
   return `
 query(${variables.join(', ')}) {
@@ -179,6 +171,7 @@ interface IssueNode {
   updatedAt: string
   author: { login: string } | null
   comments: { totalCount: number }
+  assignees: { nodes: Array<{ login: string }> } | null
   labels: { nodes: Array<{ name: string; color: string }> } | null
 }
 
@@ -195,9 +188,9 @@ interface ListResponse<Kind extends GitHubKind> {
 }
 
 /**
- * Коммиты, pull request'ы и issue репозитория в папке проекта. Коммиты читаются локально
- * из git, а PR и issue — с GitHub через `gh`: под активной учётной записью, а если у неё нет
- * доступа к репозиторию — под той из остальных, у которой он есть.
+ * Pull request'ы и issue репозитория в папке проекта: с GitHub через `gh`, под активной
+ * учётной записью, а если у неё нет доступа к репозиторию — под той из остальных, у которой
+ * он есть.
  */
 export class RepositoryReader {
   /** Токен учётной записи gh, у которой есть доступ к репозиторию папки, если это не активная. */
@@ -207,44 +200,6 @@ export class RepositoryReader {
     private readonly shell: ShellEnvironment,
     private readonly accounts: GitHubAccounts
   ) {}
-
-  /** Коммиты текущей ветки — не меньше `loaded`, чтобы обновление не укоротило список. */
-  async commits(path: string, loaded = 0): Promise<RepositoryResult<Listing<Commit>>> {
-    try {
-      // Листаем от конкретного коммита, а не от HEAD: новые коммиты не сдвинут следующие страницы.
-      const head = (await this.run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], path)).trim()
-      const [page, total] = await Promise.all([
-        this.commitPage(path, head, 0, Math.max(loaded, COMMIT_PAGE_SIZE)),
-        this.run('git', ['rev-list', '--count', head], path)
-      ])
-      return { ok: true, data: { ...page, total: Number(total.trim()) } }
-    } catch (error) {
-      // Не репозиторий — только когда так говорит сам git: таймаут или отсутствие git
-      // пользователь должен увидеть как есть.
-      if (isNotRepositoryError(error)) {
-        return { ok: false, error: { kind: 'not-git' } }
-      }
-      // В новом репозитории ещё нет коммитов — тогда HEAD никуда не указывает. Об этом
-      // говорит ответ git, а не сбой его запуска.
-      if (isGitAnswer(error) && !(await this.hasCommits(path))) {
-        return { ok: true, data: { items: [], next: null, total: 0 } }
-      }
-      return { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
-    }
-  }
-
-  async moreCommits(path: string, cursor: string): Promise<RepositoryResult<Page<Commit>>> {
-    const match = COMMIT_CURSOR.exec(cursor)
-    if (!match) {
-      return { ok: false, error: { kind: 'failed', message: 'Invalid commit cursor' } }
-    }
-    const [, head = '', skipped = '0'] = match
-    try {
-      return { ok: true, data: await this.commitPage(path, head, Number(skipped), COMMIT_PAGE_SIZE) }
-    } catch (error) {
-      return { ok: false, error: { kind: 'failed', message: errorMessage(error) } }
-    }
-  }
 
   /** Первые страницы PR и issue — каждого списка не меньше, чем уже загружено. */
   github(path: string, loaded?: GitHubCounts): Promise<RepositoryResult<GitHubOverview>> {
@@ -397,7 +352,7 @@ export class RepositoryReader {
       {
         first,
         ...(after !== null && { after }),
-        ...(kind === 'issues' && { labelLimit: LABEL_LIMIT })
+        ...(kind === 'issues' && { labelLimit: LABEL_LIMIT, assigneeLimit: ASSIGNEE_LIMIT })
       },
       token
     )
@@ -443,54 +398,6 @@ export class RepositoryReader {
     }
   }
 
-  /** `limit` коммитов от `head`, пропустив первые `skipped`. */
-  private async commitPage(
-    path: string,
-    head: string,
-    skipped: number,
-    limit: number
-  ): Promise<Page<Commit>> {
-    const [log, unpushed] = await Promise.all([
-      // На один больше, чтобы знать, есть ли следующая страница.
-      this.run(
-        'git',
-        ['log', `--skip=${skipped}`, `-n${limit + 1}`, `--format=${LOG_FORMAT}`, head],
-        path
-      ),
-      this.unpushedCommits(path, head, skipped + limit)
-    ])
-    const commits = parseLog(log, unpushed)
-    return {
-      items: commits.slice(0, limit),
-      next: commits.length > limit ? `${head}:${skipped + limit}` : null
-    }
-  }
-
-  /**
-   * Неотправленные коммиты среди первых `limit` от `head` — их нет ни в одной удалённой ветке.
-   * Если удалённых репозиториев нет вовсе, отмечать нечего: иначе неотправленным оказался бы
-   * каждый коммит.
-   */
-  private async unpushedCommits(path: string, head: string, limit: number): Promise<Set<string>> {
-    const remotes = await this.run('git', ['remote'], path).catch(() => '')
-    if (!remotes.trim()) {
-      return new Set()
-    }
-    const output = await this.run(
-      'git',
-      ['rev-list', `-n${limit}`, head, '--not', '--remotes'],
-      path
-    ).catch(() => '')
-    return new Set(output.split('\n').filter(Boolean))
-  }
-
-  private hasCommits(path: string): Promise<boolean> {
-    return this.run('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], path).then(
-      () => true,
-      () => false
-    )
-  }
-
   /** Токен GitHub из помощника учётных данных git; `null` — git его не знает. */
   private async gitCredentialToken(path: string): Promise<string | null> {
     try {
@@ -532,31 +439,6 @@ export class RepositoryReader {
     }
     return runCommand(program, args, { cwd, env, ...(input !== undefined && { input }) })
   }
-}
-
-const LOG_FORMAT = ['%H', '%h', '%s', '%an', '%ct', '%D'].join('%x1f') + '%x1e'
-
-function parseLog(output: string, unpushed: ReadonlySet<string>): Commit[] {
-  return output
-    .split(RECORD_SEPARATOR)
-    .map((record) => record.trim())
-    .filter(Boolean)
-    .map((record) => {
-      const [hash = '', shortHash = '', subject = '', author = '', time = '0', refs = ''] =
-        record.split(FIELD_SEPARATOR)
-      return {
-        hash,
-        shortHash,
-        subject,
-        author,
-        committedAt: Number(time) * 1000,
-        tags: refs
-          .split(', ')
-          .filter((ref) => ref.startsWith(TAG_PREFIX))
-          .map((ref) => ref.slice(TAG_PREFIX.length)),
-        unpushed: unpushed.has(hash)
-      }
-    })
 }
 
 function toListing<Node, Item>(
@@ -618,6 +500,7 @@ function toIssue(node: IssueNode): Issue {
     state,
     author: node.author?.login ?? GHOST_AUTHOR,
     updatedAt: Date.parse(node.updatedAt),
+    assignees: (node.assignees?.nodes ?? []).map(({ login }) => login),
     comments: node.comments.totalCount,
     labels: (node.labels?.nodes ?? []).map(({ name, color }) => ({ name, color: `#${color}` }))
   }
@@ -654,11 +537,6 @@ function toReviewDecision(decision: PullRequestNode['reviewDecision']): ReviewDe
 /** GitHub не нашёл репозиторий: его нет или у активной учётной записи gh нет к нему доступа. */
 function isInaccessibleRepository(error: unknown): boolean {
   return error instanceof CommandError && error.stderr.includes('Could not resolve to a Repository')
-}
-
-/** Git запустился и ответил ошибкой — а не завис и не отсутствует. */
-function isGitAnswer(error: unknown): boolean {
-  return error instanceof CommandError && typeof error.code === 'number'
 }
 
 function isGatewayError(error: unknown): boolean {

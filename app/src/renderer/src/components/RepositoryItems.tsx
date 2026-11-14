@@ -5,9 +5,7 @@ import {
   CircleDot,
   CircleSlash,
   CircleX,
-  Copy,
   ExternalLink,
-  GitCommitHorizontal,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
@@ -20,13 +18,13 @@ import {
 } from 'lucide-react'
 import type {
   CheckStatus,
-  Commit,
   Issue,
   IssueState,
   PullRequest,
   PullRequestState,
   ReviewDecision
 } from '../../../shared/repository'
+import { githubAvatarUrl } from '../lib/github'
 import { showMenu, type MenuItem } from '../lib/menu'
 import { RepositoryRow } from './RepositoryRow'
 
@@ -78,57 +76,6 @@ async function showItemMenu(
 const copy = (text: string) => void navigator.clipboard.writeText(text)
 const openUrl = (url: string) => window.open(url, '_blank', 'noreferrer')
 
-interface CommitItemProps {
-  commit: Commit
-  /** Адрес репозитория на GitHub; `null` — коммит негде открыть. */
-  repositoryUrl: string | null
-}
-
-export function CommitItem({ commit, repositoryUrl }: CommitItemProps) {
-  // Неотправленного коммита на GitHub ещё нет.
-  const url = repositoryUrl && !commit.unpushed ? `${repositoryUrl}/commit/${commit.hash}` : null
-
-  return (
-    <RepositoryRow
-      icon={<GitCommitHorizontal className="icon" />}
-      title={commit.subject}
-      badges={
-        <>
-          {commit.tags.map((tag) => (
-            <span key={tag} className="repo-badge">
-              {tag}
-            </span>
-          ))}
-          {commit.unpushed && (
-            <span className="repo-badge repo-badge--accent" title="Not pushed to any remote yet">
-              Not pushed
-            </span>
-          )}
-        </>
-      }
-      meta={[<span className="repo-row__mono">{commit.shortHash}</span>, commit.author]}
-      time={commit.committedAt}
-      onOpen={url ? () => openUrl(url) : undefined}
-      onContextMenu={(event) =>
-        void showItemMenu(
-          event,
-          [
-            ...(url ? [openItem, copyLinkItem, { type: 'separator' as const }] : []),
-            { action: 'copy-id', label: 'Copy hash', icon: <Hash /> },
-            { action: 'copy-title', label: 'Copy message', icon: <Copy /> }
-          ],
-          {
-            open: () => url && openUrl(url),
-            'copy-link': () => url && copy(url),
-            'copy-id': () => copy(commit.hash),
-            'copy-title': () => copy(commit.subject)
-          }
-        )
-      }
-    />
-  )
-}
-
 interface PullRequestItemProps {
   pullRequest: PullRequest
   onReview(pullRequest: PullRequest): void
@@ -153,7 +100,7 @@ export function PullRequestItem({ pullRequest, onReview }: PullRequestItemProps)
           </span>
         )
       }
-      meta={[`#${pullRequest.number}`, pullRequest.author, pullRequest.branch]}
+      meta={[`#${pullRequest.number}`, <Author login={pullRequest.author} />, pullRequest.branch]}
       aside={
         <>
           {checks && (
@@ -215,8 +162,13 @@ export function IssueItem({ issue, onFix }: IssueItemProps) {
           {label.name}
         </span>
       ))}
-      meta={[`#${issue.number}`, issue.author]}
-      aside={<CommentCount count={issue.comments} />}
+      meta={[`#${issue.number}`, <Author login={issue.author} />]}
+      aside={
+        <>
+          <Assignees logins={issue.assignees} />
+          <CommentCount count={issue.comments} />
+        </>
+      }
       time={issue.updatedAt}
       action={
         issue.state === 'open'
@@ -254,6 +206,31 @@ function CommentCount({ count }: { count: number }) {
     <span className="repo-stat" title={`${count} ${count === 1 ? 'comment' : 'comments'}`}>
       <MessageSquare className="repo-stat__icon" />
       {count}
+    </span>
+  )
+}
+
+/** Сколько аватаров исполнителей помещается в строке. */
+const MAX_ASSIGNEE_AVATARS = 3
+
+function Author({ login }: { login: string }) {
+  return (
+    <span className="repo-author">
+      <img className="repo-avatar" src={githubAvatarUrl(login)} alt="" />
+      {login}
+    </span>
+  )
+}
+
+function Assignees({ logins }: { logins: readonly string[] }) {
+  if (logins.length === 0) {
+    return null
+  }
+  return (
+    <span className="repo-assignees" title={`Assigned to ${logins.join(', ')}`}>
+      {logins.slice(0, MAX_ASSIGNEE_AVATARS).map((login) => (
+        <img key={login} className="repo-avatar" src={githubAvatarUrl(login)} alt="" />
+      ))}
     </span>
   )
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
-  Commit,
   GitHubCounts,
   GitHubKind,
   GitHubOverview,
@@ -18,7 +17,6 @@ const FOCUS_REFRESH_INTERVAL_MS = 30_000
 
 export interface RepositoryData {
   /** `undefined` — ещё не загружено. */
-  commits?: RepositoryResult<Listing<Commit>>
   github?: RepositoryResult<GitHubOverview>
 }
 
@@ -30,13 +28,16 @@ export type RefreshErrors = { [Key in keyof RepositoryData]?: RepositoryError }
 
 /**
  * Как обновлять: `full` перезагружает всё долистанное, `latest` — только первые страницы,
- * сливая их с уже показанным. Авто-обновление — `latest`: с долистанными сотнями коммитов
- * и PR каждое возвращение в окно иначе стоило бы десятков запросов.
+ * сливая их с уже показанным. Авто-обновление — `latest`: с долистанными сотнями PR и issue
+ * каждое возвращение в окно иначе стоило бы десятков запросов.
  */
 type RefreshMode = 'full' | 'latest'
 
 /** Список, который подгружается страницами. */
-export type RepositoryList = 'commits' | { kind: GitHubKind; state: ListState }
+export interface RepositoryList {
+  kind: GitHubKind
+  state: ListState
+}
 
 export interface RepositoryState extends RepositoryData {
   /** Идёт загрузка — первая или обновление поверх уже показанных данных. */
@@ -54,16 +55,13 @@ export interface RepositoryState extends RepositoryData {
  */
 const cache = new Map<string, RepositoryData>()
 
-/**
- * Коммиты, PR и issue проекта. Коммиты приходят из локального git почти мгновенно,
- * GitHub отвечает дольше — каждый источник показывается, как только готов.
- */
-export function useRepository(projectId: string, branch: string | null): RepositoryState {
+/** Pull request'ы и issue проекта с GitHub. */
+export function useRepository(projectId: string): RepositoryState {
   const [data, setData] = useState<RepositoryData>(() => cache.get(projectId) ?? {})
   const [pending, setPending] = useState(0)
   const [refreshErrors, setRefreshErrors] = useState<RefreshErrors>({})
   // Номер последнего запроса каждого источника: ответ устаревшего запроса не затирает свежий.
-  const requests = useRef({ commits: 0, github: 0 })
+  const requests = useRef({ github: 0 })
   const lastRefreshAt = useRef(0)
 
   const load = useCallback(
@@ -112,12 +110,8 @@ export function useRepository(projectId: string, branch: string | null): Reposit
       lastRefreshAt.current = Date.now()
       const shown = cache.get(projectId)
       if (mode === 'full') {
-        const commits = loadedCommits(shown)
-        const github = loadedGitHub(shown)
-        load('commits', () => atox.repository.commits(projectId, commits))
-        load('github', () => atox.repository.github(projectId, github))
+        load('github', () => atox.repository.github(projectId, loadedGitHub(shown)))
       } else {
-        load('commits', () => atox.repository.commits(projectId), mergeCommits)
         load('github', () => atox.repository.github(projectId), mergeGitHub)
       }
     },
@@ -146,20 +140,6 @@ export function useRepository(projectId: string, branch: string | null): Reposit
   const loadMore = useCallback(
     async (list: RepositoryList) => {
       const current = cache.get(projectId)
-      if (list === 'commits') {
-        const cursor = current?.commits?.ok ? current.commits.data.next : null
-        if (!cursor) {
-          return
-        }
-        const page = unwrap(await atox.repository.moreCommits(projectId, cursor))
-        // Пока страница грузилась, список могли обновить — тогда она к нему уже не подходит.
-        update('commits', (commits) =>
-          commits.ok && commits.data.next === cursor
-            ? { ok: true, data: append(commits.data, page, (commit) => commit.hash) }
-            : commits
-        )
-        return
-      }
       const { kind, state } = list
       const cursor = current?.github?.ok ? current.github.data[kind][state].next : null
       if (!cursor) {
@@ -178,15 +158,6 @@ export function useRepository(projectId: string, branch: string | null): Reposit
   // Страница открылась с данными из кеша — подтягиваем свежие поверх них.
   useEffect(() => refreshWith('latest'), [refreshWith])
 
-  // Сменилась ветка — у неё другие коммиты; PR и issue от ветки не зависят.
-  const previousBranch = useRef(branch)
-  useEffect(() => {
-    if (previousBranch.current !== branch) {
-      previousBranch.current = branch
-      load('commits', () => atox.repository.commits(projectId))
-    }
-  }, [branch, load, projectId])
-
   // Вернулись в окно — возможно, после пуша или мержа в браузере.
   useEffect(() => {
     const refreshOnFocus = () => {
@@ -201,10 +172,6 @@ export function useRepository(projectId: string, branch: string | null): Reposit
   return { ...data, loading: pending > 0, refreshErrors, refresh, loadMore }
 }
 
-function loadedCommits(data: RepositoryData | undefined): number {
-  return data?.commits?.ok ? data.commits.data.items.length : 0
-}
-
 function loadedGitHub(data: RepositoryData | undefined): GitHubCounts | undefined {
   if (!data?.github?.ok) {
     return undefined
@@ -214,22 +181,6 @@ function loadedGitHub(data: RepositoryData | undefined): GitHubCounts | undefine
     pullRequests: { open: pullRequests.open.items.length, closed: pullRequests.closed.items.length },
     issues: { open: issues.open.items.length, closed: issues.closed.items.length }
   }
-}
-
-function mergeCommits(
-  shown: RepositoryResult<Listing<Commit>>,
-  fresh: RepositoryResult<Listing<Commit>>
-): RepositoryResult<Listing<Commit>> {
-  if (!shown.ok || !fresh.ok) {
-    return fresh
-  }
-  // Прежний хвост продолжает свежую страницу, только если на ней есть показанная вершина:
-  // иначе ветку сменили или историю переписали, и хвост относится к другой истории.
-  const shownHead = shown.data.items[0]?.hash
-  if (!fresh.data.items.some((commit) => commit.hash === shownHead)) {
-    return fresh
-  }
-  return { ok: true, data: mergeLatest(shown.data, fresh.data, (commit) => commit.hash) }
 }
 
 function mergeGitHub(

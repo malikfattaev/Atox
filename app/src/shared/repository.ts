@@ -1,18 +1,3 @@
-/** Коммит текущей ветки проекта. */
-export interface Commit {
-  hash: string
-  shortHash: string
-  /** Первая строка сообщения. */
-  subject: string
-  author: string
-  /** Время коммита в миллисекундах. */
-  committedAt: number
-  /** Теги, которые указывают на коммит. */
-  tags: string[]
-  /** Коммит есть только локально: его ещё не отправили ни в один удалённый репозиторий. */
-  unpushed: boolean
-}
-
 export type PullRequestState = 'open' | 'draft' | 'merged' | 'closed'
 
 /** Итог проверок CI у последнего коммита; `null` — проверок нет. */
@@ -51,6 +36,8 @@ export interface Issue {
   url: string
   state: IssueState
   author: string
+  /** Логины исполнителей. */
+  assignees: string[]
   updatedAt: number
   comments: number
   labels: IssueLabel[]

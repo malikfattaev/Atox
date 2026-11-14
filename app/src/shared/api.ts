@@ -26,13 +26,11 @@ import type { Project, SpacesState, UserProfile } from './models'
 import type { PlanLimitsState } from './planLimits'
 import type { TokenSpendSummary } from './tokenSpend'
 import type {
-  Commit,
   GitHubCounts,
   GitHubItems,
   GitHubKind,
   GitHubOverview,
   ListState,
-  Listing,
   Page,
   RepositoryResult
 } from './repository'
@@ -205,13 +203,6 @@ export interface AtoxApi {
     discard(projectId: string, path: string): Promise<boolean>
   }
   repository: {
-    /**
-     * Последние коммиты текущей ветки проекта — из локального git, без сети. `loaded` — сколько
-     * уже показано: обновление загружает не меньше, чтобы список не укоротился.
-     */
-    commits(projectId: string, loaded?: number): Promise<RepositoryResult<Listing<Commit>>>
-    /** Следующая страница коммитов после `cursor` из предыдущей. */
-    moreCommits(projectId: string, cursor: string): Promise<RepositoryResult<Page<Commit>>>
     /** Первые страницы pull request'ов и issue проекта с GitHub. */
     github(projectId: string, loaded?: GitHubCounts): Promise<RepositoryResult<GitHubOverview>>
     /** Следующая страница одного из списков GitHub. */
@@ -351,8 +342,6 @@ export const IpcChannel = {
   ChangesList: 'changes:list',
   ChangesDiff: 'changes:diff',
   ChangesDiscard: 'changes:discard',
-  RepositoryCommits: 'repository:commits',
-  RepositoryMoreCommits: 'repository:more-commits',
   RepositoryGitHub: 'repository:github',
   RepositoryMoreGitHub: 'repository:more-github',
   UpdatesState: 'updates:state',
