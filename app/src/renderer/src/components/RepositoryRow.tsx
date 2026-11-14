@@ -1,12 +1,6 @@
 import type { MouseEvent, ReactNode } from 'react'
 import { formatFullDate, formatRelativeTime } from '../lib/relativeTime'
 
-export interface RepositoryRowAction {
-  label: string
-  title: string
-  onClick(): void
-}
-
 interface RepositoryRowProps {
   icon: ReactNode
   /** Цвет значка по состоянию: открыт, смёржен, закрыт. */
@@ -19,8 +13,6 @@ interface RepositoryRowProps {
   /** Счётчики справа: комментарии, проверки, размер изменений. */
   aside?: ReactNode
   time: number
-  /** Кнопка, которая появляется при наведении поверх правой части строки. */
-  action?: RepositoryRowAction
   /** Клик по строке; без него строка ничего не открывает. */
   onOpen?(): void
   onContextMenu(event: MouseEvent): void
@@ -35,12 +27,11 @@ export function RepositoryRow({
   meta,
   aside,
   time,
-  action,
   onOpen,
   onContextMenu
 }: RepositoryRowProps) {
   return (
-    <li className="repo-row" data-has-action={Boolean(action)} onContextMenu={onContextMenu}>
+    <li className="repo-row" onContextMenu={onContextMenu}>
       <button
         type="button"
         className="repo-row__main"
@@ -70,16 +61,6 @@ export function RepositoryRow({
           </time>
         </span>
       </button>
-      {action && (
-        <button
-          type="button"
-          className="repo-row__action"
-          title={action.title}
-          onClick={action.onClick}
-        >
-          {action.label}
-        </button>
-      )}
     </li>
   )
 }

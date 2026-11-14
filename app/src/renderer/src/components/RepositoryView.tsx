@@ -21,12 +21,10 @@ import type {
   GitHubOverview,
   ListState,
   Listing,
-  PullRequest,
   RepositoryError,
   RepositoryResult
 } from '../../../shared/repository'
 import type { Project } from '../../../shared/models'
-import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useRepository } from '../hooks/useRepository'
 import { ASSIGNEE_LABELS, matchesAssignee, type AssigneeFilter } from '../lib/assignee'
 import { showMenu } from '../lib/menu'
@@ -63,7 +61,7 @@ interface RepositoryViewProps {
 
 /**
  * Страница репозитория проекта: pull request'ы и issue с GitHub.
- * Разделы переключаются сверху, а PR можно сразу отдать агенту на ревью в новом чате.
+ * Разделы переключаются сверху.
  */
 export function RepositoryView({
   project,
@@ -72,7 +70,6 @@ export function RepositoryView({
   onSectionChange,
   onClose
 }: RepositoryViewProps) {
-  const { createChat } = useProjectsContext()
   const { github, loading, refreshErrors, refresh, loadMore } = useRepository(project.id)
   const [stateFilter, setStateFilter] = useState<ListState>('open')
   const [assignee, setAssignee] = useState<AssigneeFilter>('anyone')
@@ -99,18 +96,6 @@ export function RepositoryView({
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [onClose])
-
-  /** Новый чат с агентом по умолчанию, которому сразу уходит задача. */
-  const startChat = async (prompt: string) => {
-    const chatId = await createChat(project.id)
-    await atox.conversations.send(chatId, prompt)
-  }
-
-  const reviewPullRequest = (pullRequest: PullRequest) =>
-    void startChat(
-      `Review pull request #${pullRequest.number} “${pullRequest.title}”: ${pullRequest.url}\n\n` +
-        'Read its description and diff with gh, then point out bugs and risky changes.'
-    )
 
   // Числа всего репозитория, а не только загруженных страниц.
   const counts: Record<RepositorySection, number | null> = {
@@ -247,7 +232,7 @@ export function RepositoryView({
                   title: pullRequest.title,
                   terms: [`#${pullRequest.number}`, pullRequest.author, pullRequest.branch]
                 },
-                node: <PullRequestItem pullRequest={pullRequest} onReview={reviewPullRequest} />
+                node: <PullRequestItem pullRequest={pullRequest} />
               }))
             }
           />

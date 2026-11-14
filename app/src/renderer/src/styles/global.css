@@ -2283,39 +2283,6 @@ ul {
   text-align: right;
 }
 
-/* Действие строки появляется при наведении на месте счётчиков. */
-.repo-row__action {
-  position: absolute;
-  top: 50%;
-  right: var(--repository-row-padding);
-  height: var(--repository-control-height);
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius) - 2px);
-  font-size: var(--font-size-small);
-  font-weight: 500;
-  background: var(--color-surface);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%);
-}
-
-.repo-row:hover .repo-row__action,
-.repo-row__action:focus-visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.repo-row[data-has-action='true']:hover .repo-row__aside {
-  visibility: hidden;
-}
-
-.repo-row__action:hover {
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
 .repo-badge {
   display: inline-flex;
   align-items: center;
