@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { chmod, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { findAgent, isAgentId, type AgentId } from '../../shared/agents'
+import { workerParentId } from '../../shared/chats'
 import type { AgentCatalog, ModelSelection } from '../../shared/conversation'
 import type { Chat } from '../../shared/models'
 import {
@@ -178,7 +179,7 @@ export class OrchestrationServer {
     },
 
     start: async (caller, { agent, task, title, model, effort }) => {
-      if (caller.chat.parentChatId) {
+      if (workerParentId(caller.chat)) {
         throw new CommandError('A worker cannot start workers of its own.')
       }
       if (!task?.trim()) {
@@ -232,14 +233,14 @@ export class OrchestrationServer {
       const target = this.resolveRecipient(caller.chat, to)
       await this.deliver(target, formatMessage(caller.chat, message))
       // Новое сообщение от агента — новая работа: помощник снова может отчитаться.
-      if (target.parentChatId === caller.chat.id) {
+      if (workerParentId(target) === caller.chat.id) {
         this.reportedChatIds.delete(target.id)
       }
       return { chatId: target.id }
     },
 
     report: async (caller, { summary }) => {
-      const parentId = caller.chat.parentChatId
+      const parentId = workerParentId(caller.chat)
       if (!parentId) {
         throw new CommandError('Only a worker started with "atox start" can report.')
       }
@@ -274,7 +275,7 @@ export class OrchestrationServer {
         if (!worker) {
           throw new CommandError(`Chat ${id} not found.`)
         }
-        if (worker.parentChatId !== caller.chat.id) {
+        if (workerParentId(worker) !== caller.chat.id) {
           throw new CommandError(
             `Chat ${id} is not your worker. You can only remove your own workers.`
           )
@@ -359,18 +360,18 @@ export class OrchestrationServer {
   }
 
   private workersOf({ project, chat }: ChatLocation): Chat[] {
-    return project.chats.filter((other) => other.parentChatId === chat.id)
+    return project.chats.filter((other) => workerParentId(other) === chat.id)
   }
 
   /** Писать можно только своему агенту-родителю или своим помощникам. */
   private resolveRecipient(sender: Chat, to: string): Chat {
     const toParent = to === PARENT_ADDRESS
-    const targetId = toParent ? sender.parentChatId : to
+    const targetId = toParent ? workerParentId(sender) : to
     if (!targetId) {
       throw new CommandError('This chat has no parent agent.')
     }
     const target = this.recipient(targetId, toParent ? 'The parent chat' : `Chat ${to}`)
-    if (target.id !== sender.parentChatId && target.parentChatId !== sender.id) {
+    if (target.id !== workerParentId(sender) && workerParentId(target) !== sender.id) {
       throw new CommandError('You can only message your parent agent or your own workers.')
     }
     return target

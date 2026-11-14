@@ -107,6 +107,8 @@ export interface ProjectActions {
   revealProject(projectId: string): Promise<void>
   /** Без агента чат создаётся с агентом по умолчанию. Возвращает id нового чата. */
   createChat(projectId: string, agent?: AgentId): Promise<string>
+  /** Копия чата с его разговором; открывается сразу, под исходным чатом. */
+  forkChat(chatId: string): Promise<void>
   removeChat(chatId: string): Promise<void>
   /** Убирает чат с помощниками в архив: из сайдбара он пропадает, история остаётся. */
   archiveChat(chatId: string): Promise<void>
@@ -429,6 +431,15 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
 
   const revealProject = useCallback((projectId: string) => atox.projects.reveal(projectId), [])
 
+  const forkChat = useCallback(
+    async (chatId: string) => {
+      const { projects: next, chatId: forkId } = await atox.chats.fork(chatId)
+      applyProjects(next)
+      selectChat(forkId)
+    },
+    [applyProjects, selectChat]
+  )
+
   const removeChat = useCallback(
     async (chatId: string) => applyProjects(await atox.chats.remove(chatId)),
     [applyProjects]
@@ -502,6 +513,7 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
       moveProject,
       revealProject,
       createChat,
+      forkChat,
       removeChat,
       archiveChat,
       restoreChat,
@@ -529,6 +541,7 @@ export function useProjects(): { state: ProjectsState; actions: ProjectActions }
       moveProject,
       revealProject,
       createChat,
+      forkChat,
       removeChat,
       archiveChat,
       restoreChat,

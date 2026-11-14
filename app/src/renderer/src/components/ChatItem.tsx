@@ -1,5 +1,13 @@
 import { memo, useId, useMemo, useState, type MouseEvent } from 'react'
-import { Archive, ChevronDown, Columns2, GitBranch, Pencil, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  ChevronDown,
+  Columns2,
+  GitBranch,
+  GitFork,
+  Pencil,
+  Trash2
+} from 'lucide-react'
 import { findAgent } from '../../../shared/agents'
 import type { Chat } from '../../../shared/models'
 import { isCommandClick } from '../../../shared/shortcuts'
@@ -73,7 +81,7 @@ export const ChatItem = memo(function ChatItem({
             aria-controls={workersId}
             onClick={() => setWorkersExpanded((value) => !value)}
           >
-            {workers.length === 1 ? '1 agent' : `${workers.length} agents`}
+            {describeChildren(workers)}
             <ChevronDown className="icon" aria-hidden />
           </button>
           {/* Свёрнутые помощники остаются в DOM, чтобы список плавно раскрывался. */}
@@ -146,7 +154,8 @@ function ChatRow({
   dragHandleProps
 }: ChatRowProps) {
   // Только действия: строка перерисовывается, лишь когда меняются её собственные данные.
-  const { selectChat, openChatBeside, renameChat, archiveChat, removeChat } = useProjectActions()
+  const { selectChat, openChatBeside, renameChat, forkChat, archiveChat, removeChat } =
+    useProjectActions()
 
   const openContextMenu = async (event: MouseEvent) => {
     event.preventDefault()
@@ -163,6 +172,7 @@ function ChatRow({
             ]
           : []),
         { action: 'rename', label: 'Rename', icon: <Pencil /> },
+        { action: 'fork', label: 'Fork chat', icon: <GitFork /> },
         { type: 'separator' },
         { action: 'archive', label: 'Archive chat', icon: <Archive /> },
         { action: 'remove', label: 'Delete chat', icon: <Trash2 />, destructive: true }
@@ -173,6 +183,8 @@ function ChatRow({
       openChatBeside(chat.id)
     } else if (action === 'rename') {
       onRenamingChange(true)
+    } else if (action === 'fork') {
+      void forkChat(chat.id)
     } else if (action === 'archive') {
       void archiveChat(chat.id)
     } else if (action === 'remove') {
@@ -199,7 +211,11 @@ function ChatRow({
       <span className="chat-title">
         {compact ? (
           <span className="worker-agent">
-            <AgentIcon agent={chat.agent} className="agent-icon" aria-hidden />
+            {chat.fork ? (
+              <GitFork className="agent-icon" aria-hidden />
+            ) : (
+              <AgentIcon agent={chat.agent} className="agent-icon" aria-hidden />
+            )}
           </span>
         ) : (
           <ChatActivityStatus chatId={chat.id} workerChatIds={workerChatIds} />
@@ -220,7 +236,7 @@ function ChatRow({
       className={compact ? 'row row--chat row--worker' : 'row row--chat'}
       data-active={active}
       data-visible={visible}
-      title={compact ? findAgent(chat.agent)?.name : undefined}
+      title={compact ? (chat.fork ? 'Fork' : findAgent(chat.agent)?.name) : undefined}
       onContextMenu={openContextMenu}
       {...dragHandleProps}
     >
@@ -241,6 +257,18 @@ function ChatRow({
       )}
     </div>
   )
+}
+
+/** Подпись под чатом: сколько у него помощников и сколько ответвлений. */
+function describeChildren(children: readonly Chat[]): string {
+  const forks = children.filter(({ fork }) => fork).length
+  const agents = children.length - forks
+  return [
+    agents > 0 && (agents === 1 ? '1 agent' : `${agents} agents`),
+    forks > 0 && (forks === 1 ? '1 fork' : `${forks} forks`)
+  ]
+    .filter(Boolean)
+    .join(', ')
 }
 
 /** Индикатор чата верхнего уровня: подписка на состояние только там, где индикатор виден. */

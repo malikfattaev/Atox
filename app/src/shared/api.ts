@@ -114,6 +114,8 @@ export interface AtoxApi {
      * берётся агент по умолчанию.
      */
     create(projectId: string, agent?: AgentId): Promise<{ projects: Project[]; chatId: string }>
+    /** Копия чата с его разговором: встаёт под исходным и идёт дальше сама по себе. */
+    fork(chatId: string): Promise<{ projects: Project[]; chatId: string }>
     remove(chatId: string): Promise<Project[]>
     /**
      * Убирает чат в архив вместе с его помощниками (после подтверждения, если их агенты
@@ -316,6 +318,7 @@ export const IpcChannel = {
   AgentsCatalog: 'agents:catalog',
   AgentsIntegrations: 'agents:integrations',
   ChatsCreate: 'chats:create',
+  ChatsFork: 'chats:fork',
   ChatsRemove: 'chats:remove',
   ChatsArchive: 'chats:archive',
   ChatsRestore: 'chats:restore',

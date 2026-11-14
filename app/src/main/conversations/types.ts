@@ -93,4 +93,9 @@ export interface AgentDriver {
   limits(launch: AgentLaunch): Promise<PlanLimit[]>
   /** Контекст разговора `sessionId` (нет — нового), когда его сессия не запущена. */
   context(launch: AgentLaunch, sessionId?: string): Promise<ContextReport>
+  /**
+   * Копия разговора `sessionId` со всей его историей: дальше она идёт сама по себе и не
+   * меняет исходный разговор. Возвращает идентификатор копии.
+   */
+  fork(launch: AgentLaunch, sessionId: string): Promise<string>
 }
