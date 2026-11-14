@@ -30,7 +30,7 @@ import type {
 } from '../../shared/integrations'
 import type { Chat, Project } from '../../shared/models'
 import type { AgentDetector } from '../agents'
-import type { ProjectStore } from '../store'
+import type { ChatLocation, ProjectStore } from '../store'
 import type { TokenCounts } from '../../shared/tokenSpend'
 import { errorMessage } from './display'
 import { handoffMessage } from './handoff'
@@ -383,6 +383,42 @@ export class ConversationManager {
     this.conversations.delete(chatId)
     this.loaded.delete(chatId)
     await this.services.transcripts.close(chatId)
+  }
+
+  /**
+   * Ответвляет чат: новый чат под исходным получает копию ленты и копию разговора агента
+   * (сессии Claude, треда Codex), так что агент помнит всё сказанное и дальше работает
+   * независимо. Если агент не смог скопировать разговор, первое сообщение ответвления
+   * получит переписку, как при смене агента: чат всё равно оказывается рабочим.
+   */
+  async fork(sourceChatId: string): Promise<ChatLocation> {
+    const source = await this.conversation(sourceChatId)
+    const location = this.findChat(sourceChatId)
+    // Лента снимается до копирования разговора: агент не знает меньше, чем показано.
+    const items = source.snapshot.items.map(settleItem)
+    let sessionId: string | null = null
+    if (source.sessionId && source.sessionAgent) {
+      try {
+        const launch = await this.launch(source.sessionAgent, chatDirectory(location))
+        sessionId = await this.services.drivers[source.sessionAgent].fork(launch, source.sessionId)
+      } catch (error) {
+        console.error('Failed to fork the agent conversation, the history will be replayed', error)
+      }
+    }
+    // Исходный чат могли удалить, пока агент копировал разговор.
+    const forked = this.services.store.createForkChat(sourceChatId)
+    this.services.transcripts.save(forked.chat.id, {
+      items,
+      queue: [],
+      sessionId,
+      sessionAgent: source.sessionAgent,
+      lastAgent: source.lastAgent
+    })
+    if (sessionId === null && items.some(({ kind }) => kind === 'user')) {
+      const conversation = await this.conversation(forked.chat.id)
+      conversation.handoffFrom = source.sessionAgent ?? forked.chat.agent
+    }
+    return forked
   }
 
   /** Чат удалён: агент останавливается, лента стирается. */

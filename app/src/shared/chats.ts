@@ -2,11 +2,20 @@ import type { Chat, Project } from './models'
 import { moveItem } from './list'
 
 /**
- * Чаты проекта хранятся одним списком: за каждым чатом пользователя сразу идут помощники,
- * которых запустил его агент. Так порядок сохраняется без отдельной структуры.
+ * Чаты проекта хранятся одним списком: за каждым чатом пользователя сразу идут его дочерние
+ * чаты — помощники, которых запустил его агент, и ответвления (forks). Так порядок
+ * сохраняется без отдельной структуры.
  */
 export function isWorkerChat(chat: Chat): boolean {
   return chat.parentChatId !== undefined
+}
+
+/**
+ * Агент, который запустил этот чат как помощника; у чата пользователя и у ответвления
+ * его нет: ответвление стоит под исходным чатом, но ему никто ничего не поручал.
+ */
+export function workerParentId(chat: Chat): string | undefined {
+  return chat.fork ? undefined : chat.parentChatId
 }
 
 export function topLevelChats(chats: readonly Chat[]): Chat[] {
@@ -22,7 +31,7 @@ function withWorkers(chats: readonly Chat[], topLevel: readonly Chat[]): Chat[] 
   return topLevel.flatMap((chat) => [chat, ...workerChats(chats, chat.id)])
 }
 
-/** Добавляет помощника в конец группы его чата. */
+/** Добавляет дочерний чат (помощника или ответвление) в конец группы его чата. */
 export function insertWorkerChat(chats: readonly Chat[], worker: Chat): Chat[] {
   return withWorkers([...chats, worker], topLevelChats(chats))
 }
@@ -45,14 +54,14 @@ export function moveChatGroup(
   return moved && withWorkers(chats, moved)
 }
 
-/** Чаты без удалённого; его помощники становятся обычными чатами и остаются на месте. */
+/** Чаты без удалённого; его помощники и ответвления становятся обычными чатами и остаются на месте. */
 export function removeChatFromList(chats: readonly Chat[], chatId: string): Chat[] {
   return chats.flatMap((chat) => {
     if (chat.id === chatId) {
       return []
     }
     if (chat.parentChatId === chatId) {
-      const { parentChatId: _parent, ...rest } = chat
+      const { parentChatId: _parent, fork: _fork, ...rest } = chat
       return [rest]
     }
     return [chat]

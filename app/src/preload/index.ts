@@ -134,6 +134,7 @@ const api: AtoxApi = {
   },
   chats: {
     create: (projectId, agent) => ipcRenderer.invoke(IpcChannel.ChatsCreate, projectId, agent),
+    fork: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsFork, chatId),
     remove: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsRemove, chatId),
     archive: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsArchive, chatId),
     restore: (chatId) => ipcRenderer.invoke(IpcChannel.ChatsRestore, chatId),

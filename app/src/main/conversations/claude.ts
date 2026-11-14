@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { app } from 'electron'
 import {
+  forkSession,
   query,
   type CanUseTool,
   type EffortLevel,
@@ -214,6 +215,10 @@ export const claudeDriver: AgentDriver = {
 
   context(launch, sessionId) {
     return withIdleSession(launch, readContext, sessionId)
+  },
+
+  async fork({ cwd }, sessionId) {
+    return (await forkSession(sessionId, { dir: cwd })).sessionId
   }
 }
 

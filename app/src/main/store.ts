@@ -36,6 +36,9 @@ const DEFAULT_SPACE_NAME = 'Main'
 /** Начало названия нового пространства; пользователь сразу может его переименовать. */
 const NEW_SPACE_NAME = 'Space'
 
+/** Что добавляется к названию чата, когда его ответвляют. */
+const FORK_TITLE_SUFFIX = ' (fork)'
+
 export interface ChatLocation {
   project: Project
   chat: Chat
@@ -359,6 +362,33 @@ export class ProjectStore {
     return { project, chat }
   }
 
+  /**
+   * Создаёт ответвление чата: тот же агент, модель, папка и учётная запись GitHub. Оно
+   * встаёт в конец группы исходного чата, а ответвление ответвления — рядом с ним, под тем
+   * же чатом: глубже одного уровня список не растёт.
+   */
+  createForkChat(sourceChatId: string): ChatLocation {
+    const location = this.findChat(sourceChatId)
+    if (!location) {
+      throw new Error(`Chat ${sourceChatId} not found`)
+    }
+    const { project, chat: source } = location
+    const chat: Chat = {
+      ...newChat(project, source.agent),
+      title: `${source.title}${FORK_TITLE_SUFFIX}`,
+      hasCustomTitle: true,
+      parentChatId: source.parentChatId ?? source.id,
+      fork: true,
+      ...(source.model && { model: source.model }),
+      ...(source.effort && { effort: source.effort }),
+      ...(source.worktree && { worktree: source.worktree }),
+      ...(source.githubAccount && { githubAccount: source.githubAccount })
+    }
+    project.chats = insertWorkerChat(project.chats, chat)
+    this.persist()
+    return { project, chat }
+  }
+
   removeChat(chatId: string): void {
     const location = this.findChat(chatId)
     if (location) {
@@ -408,9 +438,13 @@ export class ProjectStore {
     const restoredIds = new Set([chatId, ...workers.map(({ id }) => id)])
     const remaining = archived.filter(({ id }) => !restoredIds.has(id))
     setArchivedChats(project, remaining)
-    const { parentChatId, ...restored } = unarchived(chat)
+    const { parentChatId, fork, ...restored } = unarchived(chat)
     if (parentChatId && project.chats.some(({ id }) => id === parentChatId)) {
-      project.chats = insertWorkerChat(project.chats, { ...restored, parentChatId })
+      project.chats = insertWorkerChat(project.chats, {
+        ...restored,
+        parentChatId,
+        ...(fork && { fork })
+      })
     } else {
       project.chats = [restored, ...workers.map(unarchived), ...project.chats]
     }

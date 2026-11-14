@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { ConversationStep, ConversationSummary } from '../../../shared/conversation'
+import { workerParentId } from '../../../shared/chats'
 import type { Chat, Project, Space } from '../../../shared/models'
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useConversationSummaries } from '../hooks/useConversationSummaries'
@@ -66,7 +67,7 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
     for (const project of projects) {
       const chat = project.chats.find(({ id }) => id === summary.chatId)
       if (chat) {
-        const parent = project.chats.find(({ id }) => id === chat.parentChatId)
+        const parent = project.chats.find(({ id }) => id === workerParentId(chat))
         const space = spaces.find(({ id }) => id === project.spaceId)
         return [
           {
@@ -87,15 +88,17 @@ export function AgentsView({ onOpenChat, onClose }: AgentsViewProps) {
   /** Работающие помощники чата: они показываются под ним, а не отдельными строками. */
   const helpersOf = (chatId: string) =>
     entries
-      .filter((entry) => entry.chat.parentChatId === chatId && isActive(entry))
+      .filter((entry) => workerParentId(entry.chat) === chatId && isActive(entry))
       .sort((a, b) => a.summary.startedAt - b.summary.startedAt)
   // Главный чат, который ждёт своих помощников, сам не работает, но в обзоре он главный.
   const rows = entries
-    .filter(
-      (entry) =>
-        !(entry.chat.parentChatId && entryIds.has(entry.chat.parentChatId)) &&
+    .filter((entry) => {
+      const parentId = workerParentId(entry.chat)
+      return (
+        !(parentId && entryIds.has(parentId)) &&
         (isActive(entry) || helpersOf(entry.chat.id).length > 0)
-    )
+      )
+    })
     .map((entry) => ({ entry, helpers: helpersOf(entry.chat.id) }))
   const rowGroup = ({ entry, helpers }: (typeof rows)[number]): GroupId =>
     groupOf(entry.summary) === 'waiting' || helpers.some(({ summary }) => summary.waitingFor)

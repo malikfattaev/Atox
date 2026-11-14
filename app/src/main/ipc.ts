@@ -262,6 +262,11 @@ export function registerIpcHandlers({
     return { projects: store.list(), chatId: chat.id }
   })
 
+  ipcMain.handle(IpcChannel.ChatsFork, async (_event, chatId: string) => {
+    const { chat } = await conversations.fork(chatId)
+    return { projects: store.list(), chatId: chat.id }
+  })
+
   ipcMain.handle(IpcChannel.ChatsRemove, async (event, chatId: string) => {
     const location = store.findChat(chatId)
     const confirmed =

@@ -1,4 +1,5 @@
 import { findAgent } from '../../shared/agents'
+import { workerParentId } from '../../shared/chats'
 import type { Chat } from '../../shared/models'
 import { PARENT_ADDRESS } from '../../shared/orchestration'
 
@@ -35,7 +36,7 @@ ${summary.trim()}`
 }
 
 export function formatMessage(sender: Chat, message: string): string {
-  const reply = sender.parentChatId
+  const reply = workerParentId(sender)
     ? `atox send ${sender.id} "<answer>"`
     : `atox send ${PARENT_ADDRESS} "<answer>"`
   return `${MESSAGE_PREFIX} Message from ${describeChat(sender)}:

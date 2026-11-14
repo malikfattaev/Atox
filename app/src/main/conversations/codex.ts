@@ -205,7 +205,18 @@ export function createCodexDriver(client: ClientInfo): AgentDriver {
       return withAppServer(launch, client, readCodexLimits)
     },
 
-    context: () => Promise.reject(new Error(UNSUPPORTED_COMMAND))
+    context: () => Promise.reject(new Error(UNSUPPORTED_COMMAND)),
+
+    fork(launch, sessionId) {
+      return withAppServer(launch, client, async (rpc) => {
+        const { thread } = await rpc.request<ThreadResponse>('thread/fork', {
+          threadId: sessionId,
+          cwd: launch.cwd,
+          ...FULL_ACCESS
+        })
+        return thread.id
+      })
+    }
   }
 }
 
