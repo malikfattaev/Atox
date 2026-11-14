@@ -144,12 +144,10 @@ export function PullRequestItem({ pullRequest, onReview }: PullRequestItemProps)
 
 interface IssueItemProps {
   issue: Issue
-  onFix(issue: Issue): void
 }
 
-export function IssueItem({ issue, onFix }: IssueItemProps) {
+export function IssueItem({ issue }: IssueItemProps) {
   const { icon: Icon, tone } = ISSUE_LOOK[issue.state]
-  const fix = () => onFix(issue)
 
   return (
     <RepositoryRow
@@ -170,11 +168,6 @@ export function IssueItem({ issue, onFix }: IssueItemProps) {
         </>
       }
       time={issue.updatedAt}
-      action={
-        issue.state === 'open'
-          ? { label: 'Fix', title: 'Fix in a new chat', onClick: fix }
-          : undefined
-      }
       onOpen={() => openUrl(issue.url)}
       onContextMenu={(event) =>
         void showItemMenu(
@@ -182,15 +175,12 @@ export function IssueItem({ issue, onFix }: IssueItemProps) {
           [
             openItem,
             copyLinkItem,
-            { action: 'copy-id', label: 'Copy number', icon: <Hash /> },
-            { type: 'separator' },
-            { action: 'agent', label: 'Fix in new chat', icon: <SquarePen /> }
+            { action: 'copy-id', label: 'Copy number', icon: <Hash /> }
           ],
           {
             open: () => openUrl(issue.url),
             'copy-link': () => copy(issue.url),
-            'copy-id': () => copy(`#${issue.number}`),
-            agent: fix
+            'copy-id': () => copy(`#${issue.number}`)
           }
         )
       }

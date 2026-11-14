@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import type {
   GitHubOverview,
-  Issue,
   ListState,
   Listing,
   PullRequest,
@@ -64,7 +63,7 @@ interface RepositoryViewProps {
 
 /**
  * Страница репозитория проекта: pull request'ы и issue с GitHub.
- * Разделы переключаются сверху, а PR и issue можно сразу отдать агенту в новом чате.
+ * Разделы переключаются сверху, а PR можно сразу отдать агенту на ревью в новом чате.
  */
 export function RepositoryView({
   project,
@@ -111,12 +110,6 @@ export function RepositoryView({
     void startChat(
       `Review pull request #${pullRequest.number} “${pullRequest.title}”: ${pullRequest.url}\n\n` +
         'Read its description and diff with gh, then point out bugs and risky changes.'
-    )
-
-  const fixIssue = (issue: Issue) =>
-    void startChat(
-      `Work on GitHub issue #${issue.number} “${issue.title}”: ${issue.url}\n\n` +
-        'Read the issue and its comments with gh first, then implement the fix.'
     )
 
   // Числа всего репозитория, а не только загруженных страниц.
@@ -279,7 +272,7 @@ export function RepositoryView({
                   title: issue.title,
                   terms: [`#${issue.number}`, issue.author, ...issue.labels.map(({ name }) => name)]
                 },
-                node: <IssueItem issue={issue} onFix={fixIssue} />
+                node: <IssueItem issue={issue} />
               })
               )
             }
