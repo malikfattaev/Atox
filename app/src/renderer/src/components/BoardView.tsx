@@ -12,7 +12,6 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import {
-  ChevronDown,
   CircleAlert,
   ExternalLink,
   FolderGit2,
@@ -26,11 +25,13 @@ import { BOARD_COLUMNS, type BoardColumn, type BoardIssue } from '../../../share
 import { useChatActivity } from '../hooks/ChatActivityContext'
 import { useSettings } from '../hooks/SettingsContext'
 import { useBoard } from '../hooks/useBoard'
+import { ASSIGNEE_LABELS, matchesAssignee, type AssigneeFilter } from '../lib/assignee'
 import { showMenu, type MenuItem } from '../lib/menu'
 import { githubAvatarUrl } from '../lib/github'
 import { formatRelativeTime } from '../lib/relativeTime'
 import { BoardRepositoryPicker } from './BoardRepositoryPicker'
 import { ChatStatus } from './ChatStatus'
+import { FilterButton } from './FilterButton'
 import { GitHubMark } from './GitHubMark'
 import { StartTaskDialog } from './StartTaskDialog'
 
@@ -56,15 +57,6 @@ const COLUMN_INFO: Record<BoardColumn, { title: string; hint: string }> = {
 
 /** Пункт меню фильтра «все». */
 const ALL = '*'
-
-/** Кому назначена задача: кому угодно, одной из учётных записей пользователя или никому. */
-type AssigneeFilter = 'anyone' | 'me' | 'unassigned'
-
-const ASSIGNEE_LABELS: Record<AssigneeFilter, string> = {
-  anyone: 'Anyone',
-  me: 'Me',
-  unassigned: 'Unassigned'
-}
 
 interface BoardViewProps {
   onOpenChat(chatId: string): void
@@ -120,7 +112,7 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
       (issue) =>
         (owner === ALL || issue.owner === owner) &&
         (repository === ALL || issue.repository === repository) &&
-        matchesAssignee(issue, assignee, myLogins) &&
+        matchesAssignee(issue.assignees, assignee, myLogins) &&
         (!needle ||
           issue.title.toLowerCase().includes(needle) ||
           `#${issue.number}`.includes(needle) ||
@@ -353,24 +345,6 @@ export function BoardView({ onOpenChat, onClose }: BoardViewProps) {
   )
 }
 
-function FilterButton({
-  label,
-  value,
-  onClick
-}: {
-  label: string
-  value: string
-  onClick(event: MouseEvent<HTMLButtonElement>): void
-}) {
-  return (
-    <button type="button" className="board__filter" onClick={onClick}>
-      <span className="board__filter-label">{label}</span>
-      <span className="board__filter-value">{value}</span>
-      <ChevronDown className="board__filter-chevron" />
-    </button>
-  )
-}
-
 interface ColumnProps {
   column: BoardColumn
   issues: BoardIssue[]
@@ -581,21 +555,6 @@ function AgentStatus({ chatId, column }: { chatId: string; column: BoardColumn }
       </span>
     </div>
   )
-}
-
-function matchesAssignee(
-  issue: BoardIssue,
-  filter: AssigneeFilter,
-  myLogins: ReadonlySet<string>
-): boolean {
-  switch (filter) {
-    case 'anyone':
-      return true
-    case 'unassigned':
-      return issue.assignees.length === 0
-    case 'me':
-      return issue.assignees.some((login) => myLogins.has(login.toLowerCase()))
-  }
 }
 
 function describeSync(state: ReturnType<typeof useBoard>['state'], now: number): string {

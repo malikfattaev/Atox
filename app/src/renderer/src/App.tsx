@@ -27,7 +27,7 @@ function Layout() {
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [page, setPage] = useState<WorkspacePage | null>(null)
   // Раздел страницы репозитория не сбрасывается, когда её закрывают и открывают снова.
-  const [repositorySection, setRepositorySection] = useState<RepositorySection>('commits')
+  const [repositorySection, setRepositorySection] = useState<RepositorySection>('pulls')
   const terminals = useTerminalPanel()
   // Изменения показываются вместо терминала, у текущего проекта.
   const [changesOpen, setChangesOpen] = useState(false)

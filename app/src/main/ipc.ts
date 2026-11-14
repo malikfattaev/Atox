@@ -462,12 +462,6 @@ export function registerIpcHandlers({
     return confirmed
   })
 
-  ipcMain.handle(IpcChannel.RepositoryCommits, (_event, projectId: string, loaded?: number) =>
-    repository.commits(store.getProject(projectId).path, loaded)
-  )
-  ipcMain.handle(IpcChannel.RepositoryMoreCommits, (_event, projectId: string, cursor: string) =>
-    repository.moreCommits(store.getProject(projectId).path, cursor)
-  )
   ipcMain.handle(IpcChannel.RepositoryGitHub, (_event, projectId: string, loaded?: GitHubCounts) =>
     repository.github(store.getProject(projectId).path, loaded)
   )

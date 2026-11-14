@@ -137,7 +137,7 @@ export const ProjectItem = memo(function ProjectItem({
           ? [
               {
                 action: 'repository',
-                label: 'Commits, PRs and Issues',
+                label: 'Pull requests and Issues',
                 icon: <GitPullRequest />
               }
             ]

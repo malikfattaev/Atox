@@ -42,7 +42,7 @@ export const SHORTCUTS = {
     accelerator: byPlatform('CmdOrCtrl+Shift+D', 'Ctrl+Shift+D')
   },
   toggleRepository: {
-    label: 'Commits, pull requests and issues',
+    label: 'Pull requests and issues',
     accelerator: byPlatform('CmdOrCtrl+Shift+G', 'Ctrl+Shift+G')
   },
   toggleAgents: {

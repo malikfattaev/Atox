@@ -11,7 +11,6 @@ import {
   ArrowUpRight,
   CircleDot,
   GitBranch,
-  GitCommitHorizontal,
   GitPullRequest,
   RefreshCw,
   Search,
@@ -30,11 +29,14 @@ import type {
 import type { Project } from '../../../shared/models'
 import { useProjectsContext } from '../hooks/ProjectsContext'
 import { useRepository } from '../hooks/useRepository'
-import { CommitItem, IssueItem, PullRequestItem } from './RepositoryItems'
+import { ASSIGNEE_LABELS, matchesAssignee, type AssigneeFilter } from '../lib/assignee'
+import { showMenu } from '../lib/menu'
+import { FilterButton } from './FilterButton'
+import { IssueItem, PullRequestItem } from './RepositoryItems'
 
 const { atox } = window
 
-export type RepositorySection = 'commits' | 'pulls' | 'issues'
+export type RepositorySection = 'pulls' | 'issues'
 
 /** Насколько заранее подгружать следующую страницу, пока до конца списка ещё не докрутили. */
 const LOAD_AHEAD_PX = 600
@@ -42,12 +44,11 @@ const LOAD_AHEAD_PX = 600
 const formatCount = (count: number) => count.toLocaleString('en-US')
 
 const SECTIONS: ReadonlyArray<{ id: RepositorySection; label: string; icon: LucideIcon }> = [
-  { id: 'commits', label: 'Commits', icon: GitCommitHorizontal },
   { id: 'pulls', label: 'Pull requests', icon: GitPullRequest },
   { id: 'issues', label: 'Issues', icon: CircleDot }
 ]
 
-/** Что ищется в списке: текст заголовка, номер, автор, ветка или хеш. */
+/** Что ищется в списке: текст заголовка, номер, автор, ветка или метка. */
 interface Searchable {
   title: string
   terms: string[]
@@ -62,7 +63,7 @@ interface RepositoryViewProps {
 }
 
 /**
- * Страница репозитория проекта: коммиты текущей ветки, pull request'ы и issue с GitHub.
+ * Страница репозитория проекта: pull request'ы и issue с GitHub.
  * Разделы переключаются сверху, а PR и issue можно сразу отдать агенту в новом чате.
  */
 export function RepositoryView({
@@ -73,16 +74,21 @@ export function RepositoryView({
   onClose
 }: RepositoryViewProps) {
   const { createChat } = useProjectsContext()
-  const { commits, github, loading, refreshErrors, refresh, loadMore } = useRepository(
-    project.id,
-    branch
-  )
+  const { github, loading, refreshErrors, refresh, loadMore } = useRepository(project.id)
   const [stateFilter, setStateFilter] = useState<ListState>('open')
+  const [assignee, setAssignee] = useState<AssigneeFilter>('anyone')
+  /** Логины учётных записей `gh` пользователя — «мои» issue назначены на одну из них. */
+  const [myLogins, setMyLogins] = useState<ReadonlySet<string>>(new Set())
   const bodyRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
   const overview = github?.ok ? github.data : null
-  // Коммиты — из git, PR и issue — с GitHub: у раздела своя ошибка обновления.
-  const refreshError = section === 'commits' ? refreshErrors.commits : refreshErrors.github
+  const refreshError = refreshErrors.github
+
+  useEffect(() => {
+    void atox.github
+      .accounts()
+      .then((accounts) => setMyLogins(new Set(accounts.map(({ login }) => login.toLowerCase()))))
+  }, [])
 
   useEffect(() => {
     // Esc, который уже обработало поле (переименование, поиск), страницу не закрывает.
@@ -115,9 +121,22 @@ export function RepositoryView({
 
   // Числа всего репозитория, а не только загруженных страниц.
   const counts: Record<RepositorySection, number | null> = {
-    commits: commits?.ok ? commits.data.total : null,
     pulls: overview?.pullRequests.open.total ?? null,
     issues: overview?.issues.open.total ?? null
+  }
+
+  const chooseAssignee = async (anchor: Element) => {
+    const choice = await showMenu<AssigneeFilter>(
+      (Object.keys(ASSIGNEE_LABELS) as AssigneeFilter[]).map((id) => ({
+        action: id,
+        label: id === 'me' ? 'Assigned to me' : ASSIGNEE_LABELS[id],
+        checked: assignee === id
+      })),
+      anchor
+    )
+    if (choice !== null) {
+      setAssignee(choice)
+    }
   }
 
   return (
@@ -184,7 +203,14 @@ export function RepositoryView({
         </div>
 
         <div className="repository__filters">
-          {section !== 'commits' && overview && (
+          {section === 'issues' && (
+            <FilterButton
+              label="Assignee"
+              value={ASSIGNEE_LABELS[assignee]}
+              onClick={(event) => void chooseAssignee(event.currentTarget)}
+            />
+          )}
+          {overview && (
             <StateFilterPicker
               lists={section === 'pulls' ? overview.pullRequests : overview.issues}
               value={stateFilter}
@@ -213,26 +239,6 @@ export function RepositoryView({
 
       <div className="repository__body" ref={bodyRef}>
         {refreshError && <RefreshErrorNote error={refreshError} />}
-        {section === 'commits' && (
-          <SectionContent
-            key="commits"
-            result={commits}
-            query={query}
-            empty="No commits yet"
-            scrollRoot={bodyRef}
-            onLoadMore={() => loadMore('commits')}
-            list={(data) =>
-              mapListing(data, (commit) => ({
-                key: commit.hash,
-                searchable: {
-                  title: commit.subject,
-                  terms: [commit.hash, commit.author, ...commit.tags]
-                },
-                node: <CommitItem commit={commit} repositoryUrl={overview?.url ?? null} />
-              }))
-            }
-          />
-        )}
         {section === 'pulls' && (
           <SectionContent
             key={`pulls:${stateFilter}`}
@@ -258,18 +264,24 @@ export function RepositoryView({
             key={`issues:${stateFilter}`}
             result={github}
             query={query}
+            narrowed={assignee !== 'anyone'}
             empty={stateFilter === 'open' ? 'No open issues' : 'No closed issues'}
             scrollRoot={bodyRef}
             onLoadMore={() => loadMore({ kind: 'issues', state: stateFilter })}
             list={(data: GitHubOverview) =>
-              mapListing(data.issues[stateFilter], (issue) => ({
+              mapListing(
+                filterListing(data.issues[stateFilter], (issue) =>
+                  matchesAssignee(issue.assignees, assignee, myLogins)
+                ),
+                (issue) => ({
                 key: String(issue.number),
                 searchable: {
                   title: issue.title,
                   terms: [`#${issue.number}`, issue.author, ...issue.labels.map(({ name }) => name)]
                 },
                 node: <IssueItem issue={issue} onFix={fixIssue} />
-              }))
+              })
+              )
             }
           />
         )}
@@ -316,6 +328,13 @@ interface SectionItem {
   node: ReactNode
 }
 
+function filterListing<Item>(
+  listing: Listing<Item>,
+  keep: (item: Item) => boolean
+): Listing<Item> {
+  return { ...listing, items: listing.items.filter(keep) }
+}
+
 function mapListing<Item>(
   listing: Listing<Item>,
   toSectionItem: (item: Item) => SectionItem
@@ -327,6 +346,8 @@ interface SectionContentProps<Data> {
   /** `undefined` — данные ещё ни разу не загружались. */
   result: RepositoryResult<Data> | undefined
   query: string
+  /** Список сужен ещё и другим фильтром, кроме текстового. */
+  narrowed?: boolean
   empty: string
   /** Прокручиваемая область, у конца которой подгружается следующая страница. */
   scrollRoot: RefObject<HTMLElement | null>
@@ -337,6 +358,7 @@ interface SectionContentProps<Data> {
 function SectionContent<Data>({
   result,
   query,
+  narrowed = false,
   empty,
   scrollRoot,
   list,
@@ -349,7 +371,7 @@ function SectionContent<Data>({
     return <ErrorMessage error={result.error} />
   }
   const listing = list(result.data)
-  const filtering = query.trim() !== ''
+  const filtering = query.trim() !== '' || narrowed
   const visible = filterItems(listing.items, query)
   return (
     <>
@@ -357,7 +379,9 @@ function SectionContent<Data>({
         <p className="repository__message">
           {listing.items.length === 0 && !listing.next
             ? empty
-            : `Nothing matches “${query.trim()}”`}
+            : query.trim()
+              ? `Nothing matches “${query.trim()}”`
+              : 'Nothing matches the filter'}
         </p>
       ) : (
         <ul className="repository__list">
