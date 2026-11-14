@@ -13,7 +13,6 @@ import {
   Hash,
   Link,
   MessageSquare,
-  SquarePen,
   type LucideIcon
 } from 'lucide-react'
 import type {
@@ -56,7 +55,7 @@ const REVIEW_LABEL: Record<NonNullable<ReviewDecision>, string> = {
 }
 
 /** Пункты контекстного меню строк. */
-type ItemAction = 'open' | 'copy-link' | 'copy-id' | 'copy-title' | 'agent'
+type ItemAction = 'open' | 'copy-link' | 'copy-id'
 
 const openItem = { action: 'open', label: 'Open on GitHub', icon: <ExternalLink /> } as const
 const copyLinkItem = { action: 'copy-link', label: 'Copy link', icon: <Link /> } as const
@@ -78,14 +77,12 @@ const openUrl = (url: string) => window.open(url, '_blank', 'noreferrer')
 
 interface PullRequestItemProps {
   pullRequest: PullRequest
-  onReview(pullRequest: PullRequest): void
 }
 
-export function PullRequestItem({ pullRequest, onReview }: PullRequestItemProps) {
+export function PullRequestItem({ pullRequest }: PullRequestItemProps) {
   const { icon: Icon, tone } = PULL_REQUEST_LOOK[pullRequest.state]
   const checks = pullRequest.checks && CHECKS_LOOK[pullRequest.checks]
   const active = pullRequest.state === 'open' || pullRequest.state === 'draft'
-  const review = () => onReview(pullRequest)
 
   return (
     <RepositoryRow
@@ -116,9 +113,6 @@ export function PullRequestItem({ pullRequest, onReview }: PullRequestItemProps)
         </>
       }
       time={pullRequest.updatedAt}
-      action={
-        active ? { label: 'Review', title: 'Review in a new chat', onClick: review } : undefined
-      }
       onOpen={() => openUrl(pullRequest.url)}
       onContextMenu={(event) =>
         void showItemMenu(
@@ -126,15 +120,12 @@ export function PullRequestItem({ pullRequest, onReview }: PullRequestItemProps)
           [
             openItem,
             copyLinkItem,
-            { action: 'copy-id', label: 'Copy number', icon: <Hash /> },
-            { type: 'separator' },
-            { action: 'agent', label: 'Review in new chat', icon: <SquarePen /> }
+            { action: 'copy-id', label: 'Copy number', icon: <Hash /> }
           ],
           {
             open: () => openUrl(pullRequest.url),
             'copy-link': () => copy(pullRequest.url),
-            'copy-id': () => copy(`#${pullRequest.number}`),
-            agent: review
+            'copy-id': () => copy(`#${pullRequest.number}`)
           }
         )
       }
