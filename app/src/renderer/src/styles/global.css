@@ -11,6 +11,9 @@
   /* Знак Atox на пустой рабочей области. */
   --bloom-mark-size: 112px;
   --sidebar-resizer-width: 8px;
+  /* Сайдбар — плавающая «таблетка»: зазор до краёв окна и скругление. */
+  --sidebar-gap: 8px;
+  --sidebar-radius: 14px;
   /* Высота зоны заголовка окна: под неё уходят кнопки светофора macOS (hiddenInset). */
   --titlebar-height: 44px;
   /* Шапка рабочей области: за неё перетаскивают окно, справа в ней кнопки панелей. */
@@ -249,6 +252,9 @@
   --color-menu: #f8f7fb;
   --color-menu-border: rgba(0, 0, 0, 0.1);
   --color-menu-highlight: rgba(0, 0, 0, 0.06);
+  --color-sidebar: rgba(255, 255, 255, 0.42);
+  --color-sidebar-border: rgba(50, 40, 100, 0.1);
+  --shadow-sidebar: 0 4px 20px rgba(40, 30, 90, 0.1);
   --color-profile-card: rgba(250, 249, 253, 0.7);
   --color-profile-card-border: rgba(0, 0, 0, 0.06);
   --shadow-profile-card: 0 2px 10px rgba(0, 0, 0, 0.06);
@@ -302,6 +308,9 @@
     --color-menu: #2a2a2c;
     --color-menu-border: rgba(255, 255, 255, 0.1);
     --color-menu-highlight: rgba(255, 255, 255, 0.08);
+    --color-sidebar: rgba(255, 255, 255, 0.05);
+    --color-sidebar-border: rgba(255, 255, 255, 0.08);
+    --shadow-sidebar: 0 4px 24px rgba(0, 0, 0, 0.3);
     --color-profile-card: rgba(255, 255, 255, 0.07);
     --color-profile-card-border: rgba(255, 255, 255, 0.06);
     --shadow-profile-card: 0 2px 12px rgba(0, 0, 0, 0.25);
@@ -455,6 +464,11 @@ ul {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  margin: var(--sidebar-gap);
+  border: 1px solid var(--color-sidebar-border);
+  border-radius: var(--sidebar-radius);
+  background: var(--color-sidebar);
+  box-shadow: var(--shadow-sidebar);
 }
 
 /* Край панели, за который меняют её ширину: узкая невидимая полоса поверх границы. */
@@ -2531,7 +2545,6 @@ ul {
   flex: 1;
   min-width: 0;
   background: var(--color-surface);
-  border-left: 1px solid var(--color-border);
 }
 
 /* Чаты со своей шапкой; терминал стоит рядом во всю высоту окна. */
@@ -2557,10 +2570,6 @@ ul {
   height: var(--workspace-header-height);
   padding: 0 var(--workspace-header-padding) 0 var(--workspace-title-inset);
   -webkit-app-region: drag;
-}
-
-.app[data-sidebar='hidden'] .workspace {
-  border-left: none;
 }
 
 /* Без сайдбара название уступает место кнопкам окна. */
